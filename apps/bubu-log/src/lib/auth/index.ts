@@ -237,10 +237,15 @@ const authSecret =
   process.env.NEXTAUTH_SECRET ||
   (process.env.NODE_ENV !== 'production' ? 'bubu-log-dev-auth-secret' : undefined)
 
+const trustHost =
+  process.env.AUTH_TRUST_HOST != null
+    ? process.env.AUTH_TRUST_HOST === 'true'
+    : process.env.VERCEL === '1'
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers,
   secret: authSecret,
-  trustHost: process.env.AUTH_TRUST_HOST === 'true',
+  trustHost,
   session: {
     strategy: 'jwt',
     maxAge: 100 * 365 * 24 * 60 * 60,

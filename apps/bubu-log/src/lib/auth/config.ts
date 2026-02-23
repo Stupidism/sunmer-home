@@ -25,6 +25,7 @@ function isValidUrl(value: string): boolean {
 
 function collectAuthEnvIssues(env: NodeJS.ProcessEnv = process.env): AuthEnvIssue[] {
   const issues: AuthEnvIssue[] = []
+  const isVercel = env.VERCEL === '1'
 
   const authSecret = env.AUTH_SECRET || env.NEXTAUTH_SECRET
   if (!isPresent(authSecret)) {
@@ -35,10 +36,17 @@ function collectAuthEnvIssues(env: NodeJS.ProcessEnv = process.env): AuthEnvIssu
   }
 
   if (!isPresent(env.AUTH_TRUST_HOST)) {
-    issues.push({
-      level: 'error',
-      message: 'Missing AUTH_TRUST_HOST (set to true/false).',
-    })
+    if (isVercel) {
+      issues.push({
+        level: 'warn',
+        message: 'Missing AUTH_TRUST_HOST; defaulting to true on Vercel.',
+      })
+    } else {
+      issues.push({
+        level: 'error',
+        message: 'Missing AUTH_TRUST_HOST (set to true/false).',
+      })
+    }
   } else if (!BOOL_VALUES.has(String(env.AUTH_TRUST_HOST).toLowerCase())) {
     issues.push({
       level: 'error',
@@ -46,7 +54,14 @@ function collectAuthEnvIssues(env: NodeJS.ProcessEnv = process.env): AuthEnvIssu
     })
   }
 
-  const authUrl = env.NEXTAUTH_URL || env.AUTH_URL
+  let authUrl = env.NEXTAUTH_URL || env.AUTH_URL
+  if (!isPresent(authUrl) && isPresent(env.VERCEL_URL)) {
+    authUrl = `https://${env.VERCEL_URL}`
+    issues.push({
+      level: 'warn',
+      message: 'Missing NEXTAUTH_URL; using VERCEL_URL as fallback.',
+    })
+  }
   if (!isPresent(authUrl)) {
     issues.push({
       level: 'error',
@@ -127,10 +142,13 @@ export function getAuthEnvCheckResult(env: NodeJS.ProcessEnv = process.env): Aut
   }
 }
 
+let hasLoggedWarnings = false
+
 export function assertAuthEnv(env: NodeJS.ProcessEnv = process.env): void {
   const { errors, warnings } = getAuthEnvCheckResult(env)
-  if (warnings.length > 0) {
+  if (warnings.length > 0 && !hasLoggedWarnings) {
     console.warn('[auth-env][warn]', warnings.join(' | '))
+    hasLoggedWarnings = true
   }
   if (errors.length > 0) {
     const message = `[auth-env][error] ${errors.join(' | ')}`
