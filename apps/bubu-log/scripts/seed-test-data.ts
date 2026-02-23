@@ -33,6 +33,30 @@ export const TEST_DELETE_BABY = {
   name: '删除测试宝宝',
 }
 
+type BabyUserBindingDoc = {
+  id: string
+  babyId: string
+  userId: string
+  isDefault?: boolean | null
+  createdAt?: string | null
+}
+
+async function findBabyUserBinding(payload: Awaited<ReturnType<typeof getPayloadForScript>>, args: {
+  babyId: string
+  userId: string
+}) {
+  const bindings = await payload.find({
+    collection: 'baby-users',
+    limit: 2000,
+    pagination: false,
+    depth: 0,
+    overrideAccess: true,
+  })
+
+  const docs = (bindings.docs || []) as BabyUserBindingDoc[]
+  return docs.find((binding) => binding.babyId === args.babyId && binding.userId === args.userId) || null
+}
+
 async function main() {
   const payload = await getPayloadForScript()
   try {
@@ -155,32 +179,15 @@ async function main() {
         })
     console.log(`✅ ${existingUser.docs[0] ? '更新' : '创建'}测试用户: ${user.username}`)
 
-    const existingBinding = await payload.find({
-      collection: 'baby-users',
-      where: {
-        and: [
-          {
-            baby: {
-              equals: String(baby.id),
-            },
-          },
-          {
-            user: {
-              equals: String(user.id),
-            },
-          },
-        ],
-      },
-      limit: 1,
-      pagination: false,
-      depth: 0,
-      overrideAccess: true,
+    const existingBinding = await findBabyUserBinding(payload, {
+      babyId: String(baby.id),
+      userId: String(user.id),
     })
 
-    if (existingBinding.docs[0]) {
+    if (existingBinding) {
       await payload.update({
         collection: 'baby-users',
-        id: String(existingBinding.docs[0].id),
+        id: String(existingBinding.id),
         data: {
           isDefault: true,
         },
@@ -191,8 +198,8 @@ async function main() {
       await payload.create({
         collection: 'baby-users',
         data: {
-          baby: String(baby.id),
-          user: String(user.id),
+          babyId: String(baby.id),
+          userId: String(user.id),
           isDefault: true,
         },
         depth: 0,
@@ -201,32 +208,15 @@ async function main() {
     }
     console.log('✅ 关联测试用户和测试宝宝')
 
-    const existingSecondBinding = await payload.find({
-      collection: 'baby-users',
-      where: {
-        and: [
-          {
-            baby: {
-              equals: String(secondBaby.id),
-            },
-          },
-          {
-            user: {
-              equals: String(user.id),
-            },
-          },
-        ],
-      },
-      limit: 1,
-      pagination: false,
-      depth: 0,
-      overrideAccess: true,
+    const existingSecondBinding = await findBabyUserBinding(payload, {
+      babyId: String(secondBaby.id),
+      userId: String(user.id),
     })
 
-    if (existingSecondBinding.docs[0]) {
+    if (existingSecondBinding) {
       await payload.update({
         collection: 'baby-users',
-        id: String(existingSecondBinding.docs[0].id),
+        id: String(existingSecondBinding.id),
         data: {
           isDefault: false,
         },
@@ -237,8 +227,8 @@ async function main() {
       await payload.create({
         collection: 'baby-users',
         data: {
-          baby: String(secondBaby.id),
-          user: String(user.id),
+          babyId: String(secondBaby.id),
+          userId: String(user.id),
           isDefault: false,
         },
         depth: 0,
@@ -331,32 +321,15 @@ async function main() {
         })
     console.log(`✅ ${existingDeleteUser.docs[0] ? '更新' : '创建'}删除测试用户: ${deleteUser.username}`)
 
-    const existingDeleteBinding = await payload.find({
-      collection: 'baby-users',
-      where: {
-        and: [
-          {
-            babyId: {
-              equals: String(deleteBaby.id),
-            },
-          },
-          {
-            userId: {
-              equals: String(deleteUser.id),
-            },
-          },
-        ],
-      },
-      limit: 1,
-      pagination: false,
-      depth: 0,
-      overrideAccess: true,
+    const existingDeleteBinding = await findBabyUserBinding(payload, {
+      babyId: String(deleteBaby.id),
+      userId: String(deleteUser.id),
     })
 
-    if (existingDeleteBinding.docs[0]) {
+    if (existingDeleteBinding) {
       await payload.update({
         collection: 'baby-users',
-        id: String(existingDeleteBinding.docs[0].id),
+        id: String(existingDeleteBinding.id),
         data: {
           isDefault: true,
         },
