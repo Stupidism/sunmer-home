@@ -1,11 +1,31 @@
+import type { Page } from '@playwright/test'
 import { test, expect, TEST_DELETE_USER, extractCurrentBabyId } from './fixtures'
+
+async function ensureLoginConsents(page: Page) {
+  const ids = ['trial', 'guardian', 'overseas'] as const
+  const submitButton = page.getByTestId('login-submit-btn')
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    for (const id of ids) {
+      const checkbox = page.getByTestId(`login-consent-${id}`)
+      await checkbox.setChecked(true)
+      await expect(checkbox).toBeChecked()
+    }
+
+    if (await submitButton.isEnabled()) {
+      return
+    }
+
+    await page.waitForTimeout(200)
+  }
+
+  await expect(submitButton).toBeEnabled()
+}
 
 test.describe('Account Deletion', () => {
   test('should delete account data and prevent future login', async ({ page }) => {
     await page.goto('/login')
-    await page.getByTestId('login-consent-trial').check()
-    await page.getByTestId('login-consent-guardian').check()
-    await page.getByTestId('login-consent-overseas').check()
+    await ensureLoginConsents(page)
     await page.getByTestId('login-username-input').fill(TEST_DELETE_USER.username)
     await page.getByTestId('login-password-input').fill(TEST_DELETE_USER.password)
     await page.getByTestId('login-submit-btn').click()
@@ -24,9 +44,7 @@ test.describe('Account Deletion', () => {
     await page.getByRole('button', { name: '确认删除' }).click()
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/, { timeout: 15000 })
 
-    await page.getByTestId('login-consent-trial').check()
-    await page.getByTestId('login-consent-guardian').check()
-    await page.getByTestId('login-consent-overseas').check()
+    await ensureLoginConsents(page)
     await page.getByTestId('login-username-input').fill(TEST_DELETE_USER.username)
     await page.getByTestId('login-password-input').fill(TEST_DELETE_USER.password)
     await page.getByTestId('login-submit-btn').click()

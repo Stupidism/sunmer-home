@@ -8,8 +8,8 @@ import type { ActivityDoc, AuditLogDoc, BabyDoc, DailyStatDoc } from '@/lib/payl
 
 type BabyUserBinding = {
   id: string
-  babyId: string
-  userId: string
+  baby: string | { id?: string } | null
+  user: string | { id?: string } | null
   isDefault?: boolean | null
   createdAt?: string | null
 }
@@ -60,6 +60,16 @@ async function deleteBlob(url?: string | null) {
   }
 }
 
+function getRelationId(value: string | { id?: string } | null | undefined): string | null {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (value && typeof value === 'object' && typeof value.id === 'string') {
+    return value.id
+  }
+  return null
+}
+
 export async function DELETE() {
   let auditPayload: Awaited<ReturnType<typeof getPayloadClient>> | null = null
   let auditUserId: string | null = null
@@ -72,7 +82,7 @@ export async function DELETE() {
     const bindings = (await fetchAllDocs<BabyUserBinding>({
       collection: 'baby-users',
       where: {
-        userId: {
+        user: {
           equals: user.id,
         },
       },
@@ -80,7 +90,9 @@ export async function DELETE() {
 
     const babyIds = Array.from(
       new Set(
-        bindings.map((binding) => binding.babyId).filter((id): id is string => Boolean(id))
+        bindings
+          .map((binding) => getRelationId(binding.baby))
+          .filter((id): id is string => Boolean(id))
       )
     )
 
@@ -88,7 +100,7 @@ export async function DELETE() {
       ? ((await fetchAllDocs<BabyUserBinding>({
           collection: 'baby-users',
           where: {
-            babyId: {
+            baby: {
               in: babyIds,
             },
           },
@@ -97,7 +109,7 @@ export async function DELETE() {
 
     const babyBindingMap = new Map<string, BabyUserBinding[]>()
     for (const binding of allBindings) {
-      const babyId = binding.babyId
+      const babyId = getRelationId(binding.baby)
       if (!babyId) continue
       if (!babyBindingMap.has(babyId)) {
         babyBindingMap.set(babyId, [])
@@ -108,12 +120,14 @@ export async function DELETE() {
     for (const babyId of babyIds) {
       const babyBindings = babyBindingMap.get(babyId) || []
       const otherUsers = babyBindings.filter((binding) => {
-        return binding.userId && binding.userId !== user.id
+        const bindingUserId = getRelationId(binding.user)
+        return Boolean(bindingUserId && bindingUserId !== user.id)
       })
 
       if (otherUsers.length > 0) {
         for (const binding of babyBindings) {
-          if (binding.userId !== user.id) continue
+          const bindingUserId = getRelationId(binding.user)
+          if (bindingUserId !== user.id) continue
           await payload.delete({
             collection: 'baby-users',
             id: binding.id,
