@@ -11,6 +11,13 @@ export const TEST_USER = {
   name: 'E2E Test User',
 }
 
+export const TEST_DELETE_USER = {
+  username: 'e2e-delete-user',
+  password: 'delete123456',
+  email: 'e2e-delete@example.com',
+  name: 'E2E Delete User',
+}
+
 export const TEST_BABY = {
   id: 'e2e-test-baby-id',
   name: '测试宝宝',
@@ -19,6 +26,11 @@ export const TEST_BABY = {
 export const TEST_SECOND_BABY = {
   id: 'e2e-test-baby-id-2',
   name: '测试宝宝二号',
+}
+
+export const TEST_DELETE_BABY = {
+  id: 'e2e-delete-baby-id',
+  name: '删除测试宝宝',
 }
 
 async function main() {
@@ -234,6 +246,136 @@ async function main() {
       })
     }
     console.log('✅ 关联测试用户和第二个测试宝宝')
+
+    const existingDeleteBaby = await payload
+      .findByID({
+        collection: 'babies',
+        id: TEST_DELETE_BABY.id,
+        depth: 0,
+        overrideAccess: true,
+      })
+      .catch(() => null)
+
+    const deleteBaby = existingDeleteBaby
+      ? await payload.update({
+          collection: 'babies',
+          id: TEST_DELETE_BABY.id,
+          data: {
+            name: TEST_DELETE_BABY.name,
+            birthDate: new Date('2025-03-03').toISOString(),
+          },
+          depth: 0,
+          overrideAccess: true,
+        })
+      : await payload.create({
+          collection: 'babies',
+          data: {
+            id: TEST_DELETE_BABY.id,
+            name: TEST_DELETE_BABY.name,
+            birthDate: new Date('2025-03-03').toISOString(),
+            gender: 'OTHER',
+          },
+          depth: 0,
+          overrideAccess: true,
+        })
+    console.log('✅ 创建删除测试宝宝:', deleteBaby.name)
+
+    const deleteUserHashedPassword = await bcrypt.hash(TEST_DELETE_USER.password, 12)
+    const existingDeleteUser = await payload.find({
+      collection: 'app-users',
+      where: {
+        or: [
+          {
+            email: {
+              equals: TEST_DELETE_USER.email,
+            },
+          },
+          {
+            username: {
+              equals: TEST_DELETE_USER.username,
+            },
+          },
+        ],
+      },
+      limit: 1,
+      pagination: false,
+      depth: 0,
+      overrideAccess: true,
+    })
+
+    const deleteUser = existingDeleteUser.docs[0]
+      ? await payload.update({
+          collection: 'app-users',
+          id: String(existingDeleteUser.docs[0].id),
+          data: {
+            username: TEST_DELETE_USER.username,
+            password: deleteUserHashedPassword,
+            name: TEST_DELETE_USER.name,
+            email: TEST_DELETE_USER.email,
+            role: 'DAD',
+          },
+          depth: 0,
+          overrideAccess: true,
+        })
+      : await payload.create({
+          collection: 'app-users',
+          data: {
+            username: TEST_DELETE_USER.username,
+            name: TEST_DELETE_USER.name,
+            email: TEST_DELETE_USER.email,
+            password: deleteUserHashedPassword,
+            role: 'DAD',
+          },
+          depth: 0,
+          overrideAccess: true,
+        })
+    console.log(`✅ ${existingDeleteUser.docs[0] ? '更新' : '创建'}删除测试用户: ${deleteUser.username}`)
+
+    const existingDeleteBinding = await payload.find({
+      collection: 'baby-users',
+      where: {
+        and: [
+          {
+            babyId: {
+              equals: String(deleteBaby.id),
+            },
+          },
+          {
+            userId: {
+              equals: String(deleteUser.id),
+            },
+          },
+        ],
+      },
+      limit: 1,
+      pagination: false,
+      depth: 0,
+      overrideAccess: true,
+    })
+
+    if (existingDeleteBinding.docs[0]) {
+      await payload.update({
+        collection: 'baby-users',
+        id: String(existingDeleteBinding.docs[0].id),
+        data: {
+          isDefault: true,
+        },
+        depth: 0,
+        overrideAccess: true,
+      })
+    } else {
+      await payload.create({
+        collection: 'baby-users',
+        data: {
+          babyId: String(deleteBaby.id),
+          userId: String(deleteUser.id),
+          isDefault: true,
+        },
+        depth: 0,
+        overrideAccess: true,
+      })
+    }
+    console.log('✅ 关联删除测试用户和宝宝')
 
     const now = new Date()
     const startTime = new Date(now)
