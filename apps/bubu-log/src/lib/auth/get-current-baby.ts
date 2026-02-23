@@ -49,7 +49,7 @@ type BabyDoc = {
 
 type BabyUserDoc = {
   id: string
-  babyId: string | BabyDoc
+  baby: string | BabyDoc
   isDefault?: boolean | null
 }
 
@@ -128,8 +128,8 @@ async function resolveBabiesFromBindings(bindings: BabyUserDoc[]): Promise<Curre
   const unresolvedIds = new Set<string>()
 
   for (const binding of bindings) {
-    if (typeof binding.babyId === 'string') {
-      const normalized = normalizeBabyId(binding.babyId)
+    if (typeof binding.baby === 'string') {
+      const normalized = normalizeBabyId(binding.baby)
       if (normalized) {
         unresolvedIds.add(normalized)
       }
@@ -163,7 +163,7 @@ async function resolveBabiesFromBindings(bindings: BabyUserDoc[]): Promise<Curre
   const babies: CurrentBaby[] = []
 
   for (const binding of bindings) {
-    const relation = binding.babyId
+    const relation = binding.baby
     const source =
       typeof relation === 'object' && relation
         ? relation
@@ -215,7 +215,7 @@ async function resolveAuthContext(babyId: string | null | undefined): Promise<Re
   const bindingResult = await payload.find({
     collection: 'baby-users',
     where: {
-      userId: {
+      user: {
         equals: userId,
       },
     },

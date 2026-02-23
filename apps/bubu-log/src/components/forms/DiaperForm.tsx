@@ -114,7 +114,7 @@ export function DiaperForm({ onSubmit, onCancel, initialValues, isEditing, hideT
       formData.append('file', file)
       formData.append('category', 'poop')
 
-      const res = await fetch(withCurrentBabyIdOnApiPath('/api/activities/upload-photo'), {
+      const res = await fetch(withCurrentBabyIdOnApiPath('/api/app/activities/upload-photo'), {
         method: 'POST',
         body: formData,
       })
@@ -140,7 +140,7 @@ export function DiaperForm({ onSubmit, onCancel, initialValues, isEditing, hideT
     if (!poopPhotoUrl) return
 
     try {
-      await fetch(withCurrentBabyIdOnApiPath('/api/activities/upload-photo'), {
+      await fetch(withCurrentBabyIdOnApiPath('/api/app/activities/upload-photo'), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: poopPhotoUrl }),

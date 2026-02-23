@@ -45,7 +45,7 @@ test.describe('Activity Conflict Rules', () => {
     const sleepEnd = new Date(sleepStart)
     sleepEnd.setHours(sleepStart.getHours() + 1, 0, 0, 0)
 
-    const createSleepResponse = await page.request.post('/api/activities', {
+    const createSleepResponse = await page.request.post('/api/app/activities', {
       data: {
         type: 'SLEEP',
         startTime: sleepStart.toISOString(),

@@ -81,7 +81,7 @@ export default function BabiesPage() {
   const loadBabies = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch(withCurrentBabyIdOnApiPath('/api/babies'), { cache: 'no-store' })
+      const response = await fetch(withCurrentBabyIdOnApiPath('/api/app/user-babies'), { cache: 'no-store' })
       const payload = (await response.json()) as BabiesResponse | { error?: string }
       if (!response.ok) {
         throw new Error((payload as { error?: string }).error || '加载宝宝列表失败')
@@ -130,7 +130,7 @@ export default function BabiesPage() {
 
     setSaving(true)
     try {
-      const response = await fetch(withCurrentBabyIdOnApiPath('/api/babies'), {
+      const response = await fetch(withCurrentBabyIdOnApiPath('/api/app/user-babies'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -191,7 +191,7 @@ export default function BabiesPage() {
 
     setSaving(true)
     try {
-      const response = await fetch(withCurrentBabyIdOnApiPath(`/api/babies/${targetBabyId}`), {
+      const response = await fetch(withCurrentBabyIdOnApiPath(`/api/app/user-babies/${targetBabyId}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -226,7 +226,7 @@ export default function BabiesPage() {
   const handleSetDefault = async (targetBabyId: string) => {
     setSaving(true)
     try {
-      const response = await fetch(withCurrentBabyIdOnApiPath(`/api/babies/${targetBabyId}`), {
+      const response = await fetch(withCurrentBabyIdOnApiPath(`/api/app/user-babies/${targetBabyId}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -275,7 +275,7 @@ export default function BabiesPage() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch(withBabyIdOnApiPath('/api/baby-profile/avatar', targetBabyId), {
+      const response = await fetch(withBabyIdOnApiPath('/api/app/baby-profile/avatar', targetBabyId), {
         method: 'POST',
         body: formData,
       })
@@ -301,7 +301,7 @@ export default function BabiesPage() {
 
     setAvatarPendingBabyId(targetBabyId)
     try {
-      const response = await fetch(withBabyIdOnApiPath('/api/baby-profile/avatar', targetBabyId), {
+      const response = await fetch(withBabyIdOnApiPath('/api/app/baby-profile/avatar', targetBabyId), {
         method: 'DELETE',
       })
       const payload = (await response.json().catch(() => ({}))) as { error?: string }

@@ -59,12 +59,25 @@ export const Activities: CollectionConfig = {
     {
       name: 'type',
       label: '活动类型',
-      type: 'text',
+      type: 'select',
       required: true,
-      admin: {
-        description:
-          'SLEEP / DIAPER / BREASTFEED / BOTTLE / PUMP / HEAD_LIFT / PASSIVE_EXERCISE / ROLL_OVER / PULL_TO_SIT / GAS_EXERCISE / BATH / OUTDOOR / EARLY_EDUCATION / SUPPLEMENT / SPIT_UP',
-      },
+      options: [
+        { label: '睡眠', value: 'SLEEP' },
+        { label: '换尿布', value: 'DIAPER' },
+        { label: '亲喂', value: 'BREASTFEED' },
+        { label: '瓶喂', value: 'BOTTLE' },
+        { label: '吸奶', value: 'PUMP' },
+        { label: '抬头', value: 'HEAD_LIFT' },
+        { label: '被动操', value: 'PASSIVE_EXERCISE' },
+        { label: '翻身', value: 'ROLL_OVER' },
+        { label: '拉坐', value: 'PULL_TO_SIT' },
+        { label: '排气操', value: 'GAS_EXERCISE' },
+        { label: '洗澡', value: 'BATH' },
+        { label: '户外晒太阳', value: 'OUTDOOR' },
+        { label: '早教', value: 'EARLY_EDUCATION' },
+        { label: '补剂', value: 'SUPPLEMENT' },
+        { label: '吐奶', value: 'SPIT_UP' },
+      ],
     },
     {
       name: 'startTime',
@@ -128,10 +141,15 @@ export const Activities: CollectionConfig = {
     {
       name: 'poopColor',
       label: '大便颜色',
-      type: 'text',
-      admin: {
-        description: 'YELLOW / GREEN / BROWN / BLACK / WHITE / RED',
-      },
+      type: 'select',
+      options: [
+        { label: '黄色', value: 'YELLOW' },
+        { label: '绿色', value: 'GREEN' },
+        { label: '棕色', value: 'BROWN' },
+        { label: '黑色', value: 'BLACK' },
+        { label: '白色', value: 'WHITE' },
+        { label: '红色', value: 'RED' },
+      ],
     },
     {
       name: 'poopPhotoUrl',
@@ -141,10 +159,12 @@ export const Activities: CollectionConfig = {
     {
       name: 'peeAmount',
       label: '小便量',
-      type: 'text',
-      admin: {
-        description: 'SMALL / MEDIUM / LARGE',
-      },
+      type: 'select',
+      options: [
+        { label: '少', value: 'SMALL' },
+        { label: '中', value: 'MEDIUM' },
+        { label: '多', value: 'LARGE' },
+      ],
     },
     {
       name: 'burpSuccess',
@@ -160,34 +180,39 @@ export const Activities: CollectionConfig = {
     {
       name: 'milkSource',
       label: '奶源',
-      type: 'text',
-      admin: {
-        description: 'BREAST_MILK / FORMULA',
-      },
+      type: 'select',
+      options: [
+        { label: '母乳', value: 'BREAST_MILK' },
+        { label: '奶粉', value: 'FORMULA' },
+      ],
     },
     {
       name: 'breastFirmness',
       label: '乳房硬度',
-      type: 'text',
-      admin: {
-        description: 'SOFT / ELASTIC / HARD',
-      },
+      type: 'select',
+      options: [
+        { label: '软', value: 'SOFT' },
+        { label: '弹', value: 'ELASTIC' },
+        { label: '硬', value: 'HARD' },
+      ],
     },
     {
       name: 'supplementType',
       label: '补剂类型',
-      type: 'text',
-      admin: {
-        description: 'AD / D3',
-      },
+      type: 'select',
+      options: [
+        { label: 'AD', value: 'AD' },
+        { label: 'D3', value: 'D3' },
+      ],
     },
     {
       name: 'spitUpType',
       label: '吐奶类型',
-      type: 'text',
-      admin: {
-        description: 'NORMAL / PROJECTILE',
-      },
+      type: 'select',
+      options: [
+        { label: '普通吐奶', value: 'NORMAL' },
+        { label: '喷射性吐奶', value: 'PROJECTILE' },
+      ],
     },
     {
       name: 'count',

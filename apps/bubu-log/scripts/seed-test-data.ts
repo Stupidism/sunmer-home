@@ -148,12 +148,12 @@ async function main() {
       where: {
         and: [
           {
-            babyId: {
+            baby: {
               equals: String(baby.id),
             },
           },
           {
-            userId: {
+            user: {
               equals: String(user.id),
             },
           },
@@ -179,8 +179,8 @@ async function main() {
       await payload.create({
         collection: 'baby-users',
         data: {
-          babyId: String(baby.id),
-          userId: String(user.id),
+          baby: String(baby.id),
+          user: String(user.id),
           isDefault: true,
         },
         depth: 0,
@@ -194,12 +194,12 @@ async function main() {
       where: {
         and: [
           {
-            babyId: {
+            baby: {
               equals: String(secondBaby.id),
             },
           },
           {
-            userId: {
+            user: {
               equals: String(user.id),
             },
           },
@@ -225,8 +225,8 @@ async function main() {
       await payload.create({
         collection: 'baby-users',
         data: {
-          babyId: String(secondBaby.id),
-          userId: String(user.id),
+          baby: String(secondBaby.id),
+          user: String(user.id),
           isDefault: false,
         },
         depth: 0,

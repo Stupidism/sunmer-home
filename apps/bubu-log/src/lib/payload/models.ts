@@ -20,8 +20,8 @@ export type BabyDoc = {
 
 export type BabyUserDoc = {
   id: string
-  babyId: string | BabyDoc
-  userId: string | AppUserDoc
+  baby: string | BabyDoc
+  user: string | AppUserDoc
   isDefault?: boolean | null
   createdAt?: string | null
 }

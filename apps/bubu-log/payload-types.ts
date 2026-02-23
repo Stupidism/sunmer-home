@@ -160,6 +160,7 @@ export interface AppUser {
   /**
    * 创建用户或重置密码时填写，留空则不修改。
    */
+  passwordInput?: string | null;
   password?: string | null;
   name?: string | null;
   email?: string | null;
@@ -179,10 +180,7 @@ export interface Baby {
   fullName?: string | null;
   avatarUrl?: string | null;
   birthDate?: string | null;
-  /**
-   * BOY / GIRL / OTHER
-   */
-  gender: string;
+  gender: 'BOY' | 'GIRL' | 'OTHER';
   createdAt?: string | null;
   updatedAt?: string | null;
 }
@@ -192,8 +190,8 @@ export interface Baby {
  */
 export interface BabyUser {
   id: string;
-  babyId: string;
-  userId: string;
+  baby: string | Baby;
+  user: string | AppUser;
   isDefault?: boolean | null;
   createdAt?: string | null;
 }
@@ -203,10 +201,22 @@ export interface BabyUser {
  */
 export interface Activity {
   id: string;
-  /**
-   * SLEEP / DIAPER / BREASTFEED / BOTTLE / PUMP / HEAD_LIFT / PASSIVE_EXERCISE / ROLL_OVER / PULL_TO_SIT / GAS_EXERCISE / BATH / OUTDOOR / EARLY_EDUCATION / SUPPLEMENT / SPIT_UP
-   */
-  type: string;
+  type:
+    | 'SLEEP'
+    | 'DIAPER'
+    | 'BREASTFEED'
+    | 'BOTTLE'
+    | 'PUMP'
+    | 'HEAD_LIFT'
+    | 'PASSIVE_EXERCISE'
+    | 'ROLL_OVER'
+    | 'PULL_TO_SIT'
+    | 'GAS_EXERCISE'
+    | 'BATH'
+    | 'OUTDOOR'
+    | 'EARLY_EDUCATION'
+    | 'SUPPLEMENT'
+    | 'SPIT_UP';
   startTime: string;
   endTime?: string | null;
   createdAt?: string | null;
@@ -214,33 +224,15 @@ export interface Activity {
   babyId: string;
   hasPoop?: boolean | null;
   hasPee?: boolean | null;
-  /**
-   * YELLOW / GREEN / BROWN / BLACK / WHITE / RED
-   */
-  poopColor?: string | null;
+  poopColor?: ('YELLOW' | 'GREEN' | 'BROWN' | 'BLACK' | 'WHITE' | 'RED') | null;
   poopPhotoUrl?: string | null;
-  /**
-   * SMALL / MEDIUM / LARGE
-   */
-  peeAmount?: string | null;
+  peeAmount?: ('SMALL' | 'MEDIUM' | 'LARGE') | null;
   burpSuccess?: boolean | null;
   milkAmount?: number | null;
-  /**
-   * BREAST_MILK / FORMULA
-   */
-  milkSource?: string | null;
-  /**
-   * SOFT / ELASTIC / HARD
-   */
-  breastFirmness?: string | null;
-  /**
-   * AD / D3
-   */
-  supplementType?: string | null;
-  /**
-   * NORMAL / PROJECTILE
-   */
-  spitUpType?: string | null;
+  milkSource?: ('BREAST_MILK' | 'FORMULA') | null;
+  breastFirmness?: ('SOFT' | 'ELASTIC' | 'HARD') | null;
+  supplementType?: ('AD' | 'D3') | null;
+  spitUpType?: ('NORMAL' | 'PROJECTILE') | null;
   count?: number | null;
   notes?: string | null;
 }
@@ -278,10 +270,10 @@ export interface DailyStat {
  */
 export interface AuditLog {
   id: string;
-  action: string;
-  resourceType: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  resourceType: 'ACTIVITY';
   resourceId?: string | null;
-  inputMethod: string;
+  inputMethod: 'TEXT' | 'VOICE';
   inputText?: string | null;
   description?: string | null;
   success: boolean;
@@ -433,6 +425,7 @@ export interface CmsAdminsSelect<T extends boolean = true> {
 export interface AppUsersSelect<T extends boolean = true> {
   id?: T;
   username?: T;
+  passwordInput?: T;
   password?: T;
   name?: T;
   email?: T;
@@ -462,8 +455,8 @@ export interface BabiesSelect<T extends boolean = true> {
  */
 export interface BabyUsersSelect<T extends boolean = true> {
   id?: T;
-  babyId?: T;
-  userId?: T;
+  baby?: T;
+  user?: T;
   isDefault?: T;
   createdAt?: T;
 }

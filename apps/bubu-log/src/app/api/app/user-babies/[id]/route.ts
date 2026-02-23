@@ -13,7 +13,7 @@ type BabyDoc = {
 
 type BabyUserDoc = {
   id: string
-  babyId: string | { id: string }
+  baby: string | { id: string }
   isDefault?: boolean | null
 }
 
@@ -74,7 +74,7 @@ async function listUserBindings(userId: string): Promise<BabyUserDoc[]> {
   const result = await payload.find({
     collection: 'baby-users',
     where: {
-      userId: {
+      user: {
         equals: userId,
       },
     },
@@ -93,7 +93,7 @@ async function setDefaultBabyForUser(userId: string, targetBabyId: string) {
   const bindings = await listUserBindings(userId)
 
   for (const binding of bindings) {
-    const bindingBabyId = relationId(binding.babyId)
+    const bindingBabyId = relationId(binding.baby)
     if (!bindingBabyId) {
       continue
     }
@@ -118,7 +118,7 @@ async function setDefaultBabyForUser(userId: string, targetBabyId: string) {
 async function listUserBabyIds(userId: string): Promise<string[]> {
   const bindings = await listUserBindings(userId)
   return bindings
-    .map((item) => relationId(item.babyId))
+    .map((item) => relationId(item.baby))
     .filter((item): item is string => Boolean(item))
 }
 
@@ -229,7 +229,7 @@ export async function PATCH(
     }
 
     const latestBindings = await listUserBindings(user.id)
-    const currentBinding = latestBindings.find((item) => relationId(item.babyId) === targetBabyId)
+    const currentBinding = latestBindings.find((item) => relationId(item.baby) === targetBabyId)
 
     return NextResponse.json({
       data: {

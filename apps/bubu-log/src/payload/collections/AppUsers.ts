@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import type { CollectionConfig } from 'payload'
+import { ValidationError, type CollectionConfig } from 'payload'
 import { isCMSAdmin } from '../access/isCMSAdmin.ts'
 import { ensureTextId, touchTimestamps } from '../utils/document.ts'
 
@@ -24,7 +24,7 @@ export const AppUsers: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
-      async ({ data, operation }) => {
+      async ({ data, operation, req }) => {
         if (!data) {
           return data
         }
@@ -42,20 +42,36 @@ export const AppUsers: CollectionConfig = {
           nextData.email = email.toLowerCase()
         }
 
+        const rawPasswordInput =
+          typeof nextData.passwordInput === 'string' ? nextData.passwordInput.trim() : ''
         const rawPassword = typeof nextData.password === 'string' ? nextData.password.trim() : ''
-        if (rawPassword) {
-          if (rawPassword.length < 8 || rawPassword.length > 72) {
-            throw new Error('密码长度应在 8 到 72 位之间')
+        const passwordToSave = rawPasswordInput || rawPassword
+
+        if (passwordToSave) {
+          if (passwordToSave.length < 8 || passwordToSave.length > 72) {
+            throw new ValidationError({
+              collection: 'app-users',
+              errors: [{ path: 'passwordInput', message: '密码长度应在 8 到 72 位之间' }],
+              req,
+            })
           }
 
-          if (!BCRYPT_HASH_REGEX.test(rawPassword)) {
-            nextData.password = await bcrypt.hash(rawPassword, 12)
+          if (BCRYPT_HASH_REGEX.test(passwordToSave)) {
+            nextData.password = passwordToSave
+          } else {
+            nextData.password = await bcrypt.hash(passwordToSave, 12)
           }
         } else if (operation === 'create') {
-          throw new Error('创建用户时必须设置密码')
+          throw new ValidationError({
+            collection: 'app-users',
+            errors: [{ path: 'passwordInput', message: '创建用户时必须设置密码' }],
+            req,
+          })
         } else {
           delete nextData.password
         }
+
+        delete nextData.passwordInput
 
         return nextData
       },
@@ -91,14 +107,22 @@ export const AppUsers: CollectionConfig = {
       },
     },
     {
-      name: 'password',
+      name: 'passwordInput',
       label: '密码',
       type: 'text',
+      virtual: true,
       admin: {
         description: '创建用户或重置密码时填写，留空则不修改。',
       },
+    },
+    {
+      name: 'password',
+      type: 'text',
       access: {
         read: () => false,
+      },
+      admin: {
+        hidden: true,
       },
     },
     {

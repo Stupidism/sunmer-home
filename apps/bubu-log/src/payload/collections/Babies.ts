@@ -70,12 +70,14 @@ export const Babies: CollectionConfig = {
     {
       name: 'gender',
       label: '性别',
-      type: 'text',
+      type: 'select',
       required: true,
       defaultValue: 'OTHER',
-      admin: {
-        description: 'BOY / GIRL / OTHER',
-      },
+      options: [
+        { label: '男孩', value: 'BOY' },
+        { label: '女孩', value: 'GIRL' },
+        { label: '其他', value: 'OTHER' },
+      ],
     },
     {
       name: 'createdAt',

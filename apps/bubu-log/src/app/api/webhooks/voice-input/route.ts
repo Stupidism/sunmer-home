@@ -56,7 +56,7 @@ function logWebhookNonSuccess(input: {
 // POST: Parse voice input and create activity
 // Auth modes (priority):
 // 1) Signed user token (Authorization: Bearer <token>)
-// 2) Session cookie (same as /api/voice-input)
+// 2) Session cookie (same as /api/app/voice-input)
 // 3) Global API key (x-api-key / Bearer == VOICE_WEBHOOK_API_KEY)
 export async function POST(request: NextRequest) {
   try {
@@ -207,12 +207,12 @@ export async function POST(request: NextRequest) {
         where: {
           and: [
             {
-              userId: {
+              user: {
                 equals: identity.userId,
               },
             },
             {
-              babyId: {
+              baby: {
                 equals: identity.babyId,
               },
             },

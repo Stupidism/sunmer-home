@@ -17,7 +17,7 @@ type BabyDoc = {
 
 type BabyUserDoc = {
   id: string
-  babyId: string | { id: string }
+  baby: string | { id: string }
   isDefault?: boolean | null
 }
 
@@ -111,7 +111,7 @@ async function listUserBindings(userId: string): Promise<BabyUserDoc[]> {
   const result = await payload.find({
     collection: 'baby-users',
     where: {
-      userId: {
+      user: {
         equals: userId,
       },
     },
@@ -130,7 +130,7 @@ async function listUserBabies(userId: string): Promise<BabyListItem[]> {
   const bindings = await listUserBindings(userId)
 
   const ids = bindings
-    .map((item) => relationId(item.babyId))
+    .map((item) => relationId(item.baby))
     .filter((item): item is string => Boolean(item))
 
   if (ids.length === 0) {
@@ -168,7 +168,7 @@ async function listUserBabies(userId: string): Promise<BabyListItem[]> {
   const babies: BabyListItem[] = []
 
   for (const binding of bindings) {
-    const babyId = relationId(binding.babyId)
+    const babyId = relationId(binding.baby)
     if (!babyId || seen.has(babyId)) {
       continue
     }
@@ -193,7 +193,7 @@ async function setDefaultBabyForUser(userId: string, targetBabyId: string) {
   const bindings = await listUserBindings(userId)
 
   for (const binding of bindings) {
-    const bindingBabyId = relationId(binding.babyId)
+    const bindingBabyId = relationId(binding.baby)
     if (!bindingBabyId) {
       continue
     }
@@ -296,8 +296,8 @@ export async function POST(request: NextRequest) {
     await payload.create({
       collection: 'baby-users',
       data: {
-        babyId: String(createdBaby.id),
-        userId: user.id,
+        baby: String(createdBaby.id),
+        user: user.id,
         isDefault: false,
       },
       depth: 0,

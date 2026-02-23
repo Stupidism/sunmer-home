@@ -83,11 +83,10 @@ export const DayTimeline = forwardRef<DayTimelineRef, DayTimelineProps>(
     // 计算活动在时间线上的位置
     const positionedActivities = useMemo(() => {
       const dayStart = dayjs(date).startOf('day')
+      const dayEnd = dayStart.add(1, 'day')
 
       return activities.map(activity => {
         const startTime = dayjs(activity.startTime)
-        const minutesFromStart = startTime.diff(dayStart, 'minute')
-        const top = (minutesFromStart / 60) * HOUR_HEIGHT
 
         // 换尿布、补剂、吐奶是瞬时事件，显示为线条
         const isLineType = activity.type === 'DIAPER' || activity.type === 'SUPPLEMENT' || activity.type === 'SPIT_UP'
@@ -97,10 +96,18 @@ export const DayTimeline = forwardRef<DayTimelineRef, DayTimelineProps>(
           ? calculateDurationMinutes(activity.startTime, activity.endTime)
           : (isLineType ? 0 : 5)
 
+        // 跨天活动在时间线里要裁剪到当天，避免按钮的可点击中心落到可视区域外被上层元素拦截
+        const visualStart = startTime.isBefore(dayStart) ? dayStart : startTime
+        const rawEndTime = activity.endTime ? dayjs(activity.endTime) : startTime.add(Math.max(duration, 1), 'minute')
+        const visualEnd = rawEndTime.isAfter(dayEnd) ? dayEnd : rawEndTime
+        const visualMinutesFromStart = visualStart.diff(dayStart, 'minute')
+        const top = (visualMinutesFromStart / 60) * HOUR_HEIGHT
+        const visualDurationMinutes = Math.max(visualEnd.diff(visualStart, 'minute'), isLineType ? 0 : 1)
+
         // 线条类型固定高度为 2px，其他按时长计算（有最小高度确保可点击）
         const height = isLineType
           ? 2
-          : Math.max((duration / 60) * HOUR_HEIGHT, MIN_DURATION_BLOCK_HEIGHT)
+          : Math.max((visualDurationMinutes / 60) * HOUR_HEIGHT, MIN_DURATION_BLOCK_HEIGHT)
 
         return {
           ...activity,

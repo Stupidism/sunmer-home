@@ -67,7 +67,7 @@ export function VoiceInput({ onSuccess, onError }: VoiceInputProps) {
       const now = new Date()
       const localTime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
       
-      const response = await fetch(withCurrentBabyIdOnApiPath('/api/voice-input'), {
+      const response = await fetch(withCurrentBabyIdOnApiPath('/api/app/voice-input'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: textToSubmit.trim(), localTime }),

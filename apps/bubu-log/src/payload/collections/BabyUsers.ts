@@ -9,7 +9,7 @@ export const BabyUsers: CollectionConfig = {
   admin: {
     group: '业务数据',
     useAsTitle: 'id',
-    defaultColumns: ['babyId', 'userId', 'isDefault', 'createdAt'],
+    defaultColumns: ['baby', 'user', 'isDefault', 'createdAt'],
   },
   access: {
     admin: ({ req }) => Boolean(req.user),
@@ -20,7 +20,7 @@ export const BabyUsers: CollectionConfig = {
   },
   indexes: [
     {
-      fields: ['babyId', 'userId'],
+      fields: ['baby', 'user'],
       unique: true,
     },
   ],
@@ -32,6 +32,16 @@ export const BabyUsers: CollectionConfig = {
         }
 
         const nextData = ensureTextId({ ...data } as Record<string, unknown>)
+        // Backward compatibility for callers still sending babyId/userId.
+        if (!nextData.baby && nextData.babyId) {
+          nextData.baby = nextData.babyId
+        }
+        if (!nextData.user && nextData.userId) {
+          nextData.user = nextData.userId
+        }
+        delete nextData.babyId
+        delete nextData.userId
+
         if (operation === 'create' && !nextData.createdAt) {
           nextData.createdAt = new Date().toISOString()
         }
@@ -50,15 +60,17 @@ export const BabyUsers: CollectionConfig = {
       },
     },
     {
-      name: 'babyId',
+      name: 'baby',
       label: '宝宝 ID',
-      type: 'text',
+      type: 'relationship',
+      relationTo: 'babies',
       required: true,
     },
     {
-      name: 'userId',
+      name: 'user',
       label: '用户 ID',
-      type: 'text',
+      type: 'relationship',
+      relationTo: 'app-users',
       required: true,
     },
     {
