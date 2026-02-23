@@ -57,7 +57,7 @@ const customFetch: typeof fetch = async (input, init) => {
 };
 
 const fetchClient = createFetchClient<paths>({
-  baseUrl: "/api",
+  baseUrl: "/api/app",
   fetch: customFetch,
 });
 
