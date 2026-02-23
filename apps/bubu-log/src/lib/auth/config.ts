@@ -10,7 +10,7 @@ type AuthEnvCheckResult = {
 
 const BOOL_VALUES = new Set(['true', 'false'])
 
-function isPresent(value?: string | null): boolean {
+function isPresent(value?: string | null): value is string {
   return typeof value === 'string' && value.trim().length > 0
 }
 
