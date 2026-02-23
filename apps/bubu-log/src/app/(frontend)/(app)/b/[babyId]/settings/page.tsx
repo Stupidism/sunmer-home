@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Settings2 } from 'lucide-react'
@@ -8,18 +7,21 @@ import { AvatarUpload } from '@/components/AvatarUpload'
 import { AppDrawerMenu } from '@/components/AppDrawerMenu'
 import { BackHomeButton } from '@/components/BackHomeButton'
 
+function detectAppleDevice(): boolean | null {
+  if (typeof navigator === 'undefined') {
+    return null
+  }
+
+  const userAgent = navigator.userAgent || ''
+  const isIOS = /iPad|iPhone|iPod/.test(userAgent)
+  const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+  return isIOS || isIPadOS
+}
+
 export default function SettingsPage() {
   const routeParams = useParams<{ babyId: string }>()
   const babyId = routeParams?.babyId || ''
-  const [isAppleDevice] = useState<boolean | null>(() => {
-    if (typeof navigator === 'undefined') {
-      return null
-    }
-    const userAgent = navigator.userAgent || ''
-    const isIOS = /iPad|iPhone|iPod/.test(userAgent)
-    const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
-    return isIOS || isIPadOS
-  })
+  const isAppleDevice = detectAppleDevice()
 
   const siriSettingsHref = babyId ? `/b/${babyId}/settings/siri` : '/settings/siri'
 

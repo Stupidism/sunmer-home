@@ -29,6 +29,17 @@ function buildTokenUrl(babyId: string): string {
   return `/api/webhooks/voice-input/token?${searchParams.toString()}`
 }
 
+function detectAppleDevice(): boolean | null {
+  if (typeof navigator === 'undefined') {
+    return null
+  }
+
+  const userAgent = navigator.userAgent || ''
+  const isIOS = /iPad|iPhone|iPod/.test(userAgent)
+  const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+  return isIOS || isIPadOS
+}
+
 export default function SiriShortcutPage() {
   const routeParams = useParams<{ babyId: string }>()
   const babyId = routeParams?.babyId || ''
@@ -39,15 +50,7 @@ export default function SiriShortcutPage() {
   const [error, setError] = useState<string | null>(null)
   const [authorizationValue, setAuthorizationValue] = useState<string | null>(null)
   const [boundBabyName, setBoundBabyName] = useState<string | null>(null)
-  const [isAppleDevice] = useState<boolean | null>(() => {
-    if (typeof navigator === 'undefined') {
-      return null
-    }
-    const userAgent = navigator.userAgent || ''
-    const isIOS = /iPad|iPhone|iPod/.test(userAgent)
-    const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
-    return isIOS || isIPadOS
-  })
+  const isAppleDevice = detectAppleDevice()
 
   const settingsHref = useMemo(() => {
     return babyId ? `/b/${babyId}/settings` : '/settings'
