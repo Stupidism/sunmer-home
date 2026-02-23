@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
+import Image from 'next/image'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +40,16 @@ function AvatarContent({
   }
 
   if (avatarUrl) {
-    return <img src={avatarUrl} alt="宝宝头像" className="w-full h-full object-cover" />
+    return (
+      <Image
+        src={avatarUrl}
+        alt="宝宝头像"
+        width={36}
+        height={36}
+        className="w-full h-full object-cover"
+        unoptimized
+      />
+    )
   }
 
   return <Baby size={18} className="text-primary" />
@@ -99,7 +109,14 @@ export function BabySwitcher({ babies, currentBabyId, isLoading = false }: BabyS
               <span className="flex min-w-0 items-center gap-2">
                 <span className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-pink-100 to-orange-100">
                   {baby.avatarUrl ? (
-                    <img src={baby.avatarUrl} alt={babyLabel} className="h-full w-full object-cover" />
+                    <Image
+                      src={baby.avatarUrl}
+                      alt={babyLabel}
+                      width={32}
+                      height={32}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
                   ) : (
                     <Baby size={14} className="text-primary" />
                   )}

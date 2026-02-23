@@ -1,7 +1,7 @@
 import { sql } from '@payloadcms/db-postgres'
 import type { MigrateUpArgs, MigrateDownArgs } from '@payloadcms/db-postgres'
 
-export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
+export async function up({ db, payload: _payload, req: _req }: MigrateUpArgs): Promise<void> {
   await db.execute(sql`
    CREATE TYPE "public"."enum_Activity_type" AS ENUM('SLEEP', 'DIAPER', 'BREASTFEED', 'BOTTLE', 'PUMP', 'HEAD_LIFT', 'PASSIVE_EXERCISE', 'ROLL_OVER', 'PULL_TO_SIT', 'GAS_EXERCISE', 'BATH', 'OUTDOOR', 'EARLY_EDUCATION', 'SUPPLEMENT', 'SPIT_UP');
   CREATE TYPE "public"."enum_Activity_poop_color" AS ENUM('YELLOW', 'GREEN', 'BROWN', 'BLACK', 'WHITE', 'RED');
@@ -103,7 +103,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "payload_locked_documents_rels_AuditLog_id_idx" ON "payload_locked_documents_rels" USING btree ("AuditLog_id");`)
 }
 
-export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
+export async function down({ db, payload: _payload, req: _req }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
    ALTER TABLE "Activity" DISABLE ROW LEVEL SECURITY;
   ALTER TABLE "DailyStat" DISABLE ROW LEVEL SECURITY;

@@ -32,20 +32,16 @@ export enum PeeAmount {
 }
 
 // 乳房硬度（亲喂后）
-const breastFirmnessTypes = ['SOFT', 'ELASTIC', 'HARD'] as const
-export type BreastFirmness = typeof breastFirmnessTypes[number]
+export type BreastFirmness = 'SOFT' | 'ELASTIC' | 'HARD'
 
 // 补剂类型
-const supplementTypes = ['AD', 'D3'] as const
-export type SupplementType = typeof supplementTypes[number]
+export type SupplementType = 'AD' | 'D3'
 
 // 吐奶类型
-const spitUpTypes = ['NORMAL', 'PROJECTILE'] as const
-export type SpitUpType = typeof spitUpTypes[number]
+export type SpitUpType = 'NORMAL' | 'PROJECTILE'
 
 // 奶源类型
-const milkSourceTypes = ['BREAST_MILK', 'FORMULA'] as const
-export type MilkSource = typeof milkSourceTypes[number]
+export type MilkSource = 'BREAST_MILK' | 'FORMULA'
 
 export interface Activity {
   id: string
