@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Settings2 } from 'lucide-react'
@@ -11,14 +11,15 @@ import { BackHomeButton } from '@/components/BackHomeButton'
 export default function SettingsPage() {
   const routeParams = useParams<{ babyId: string }>()
   const babyId = routeParams?.babyId || ''
-  const [isAppleDevice, setIsAppleDevice] = useState<boolean | null>(null)
-
-  useEffect(() => {
+  const [isAppleDevice] = useState<boolean | null>(() => {
+    if (typeof navigator === 'undefined') {
+      return null
+    }
     const userAgent = navigator.userAgent || ''
     const isIOS = /iPad|iPhone|iPod/.test(userAgent)
     const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
-    setIsAppleDevice(isIOS || isIPadOS)
-  }, [])
+    return isIOS || isIPadOS
+  })
 
   const siriSettingsHref = babyId ? `/b/${babyId}/settings/siri` : '/settings/siri'
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, Copy, Loader2, PlusCircle } from 'lucide-react'
@@ -39,18 +39,19 @@ export default function SiriShortcutPage() {
   const [error, setError] = useState<string | null>(null)
   const [authorizationValue, setAuthorizationValue] = useState<string | null>(null)
   const [boundBabyName, setBoundBabyName] = useState<string | null>(null)
-  const [isAppleDevice, setIsAppleDevice] = useState<boolean | null>(null)
+  const [isAppleDevice] = useState<boolean | null>(() => {
+    if (typeof navigator === 'undefined') {
+      return null
+    }
+    const userAgent = navigator.userAgent || ''
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent)
+    const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+    return isIOS || isIPadOS
+  })
 
   const settingsHref = useMemo(() => {
     return babyId ? `/b/${babyId}/settings` : '/settings'
   }, [babyId])
-
-  useEffect(() => {
-    const userAgent = navigator.userAgent || ''
-    const isIOS = /iPad|iPhone|iPod/.test(userAgent)
-    const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
-    setIsAppleDevice(isIOS || isIPadOS)
-  }, [])
 
   const copyText = async (text: string): Promise<boolean> => {
     try {
