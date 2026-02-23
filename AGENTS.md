@@ -11,3 +11,7 @@
 ## Project Task Closure (Per BBL-024 / #25)
 
 - Each PR merge must close the corresponding project task or issue so we keep the project board in sync (for example, close #25 when that work ships). If you are unsure which task applies, ask before merging.
+
+## Project Workflow States
+
+- When you pick up a ticket you should move it to `Ready` before starting (so the board knows it is queued). Switch it to `In progress` when you begin active development, change it to `In review` once the PR is opened, and mark it `Done` immediately after the PR merges. This keeps the board aligned with actual work state transitions.
