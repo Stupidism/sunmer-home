@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter, useParams } from 'next/navigation'
+import Image from 'next/image'
 import { toast } from 'sonner'
 import { Baby, Camera, CheckCircle2, Loader2, Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import { AppDrawerMenu } from '@/components/AppDrawerMenu'
@@ -446,7 +447,14 @@ export default function BabiesPage() {
                   <div className="flex items-center gap-3">
                     <div className="inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-pink-100 to-orange-100">
                       {baby.avatarUrl ? (
-                        <img src={baby.avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+                        <Image
+                          src={baby.avatarUrl}
+                          alt={displayName}
+                          width={48}
+                          height={48}
+                          className="h-full w-full object-cover"
+                          unoptimized
+                        />
                       ) : (
                         <Baby size={20} className="text-primary" />
                       )}

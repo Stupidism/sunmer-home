@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { Baby, Loader2, Settings } from 'lucide-react'
 import { useBabyProfile } from '@/lib/api/hooks'
 
@@ -18,7 +19,14 @@ export function BabyAvatarLink() {
       {isLoading ? (
         <Loader2 size={24} className="text-primary animate-spin" />
       ) : avatar ? (
-        <img src={avatar} alt="宝宝头像" className="w-full h-full object-cover" />
+        <Image
+          src={avatar}
+          alt="宝宝头像"
+          width={64}
+          height={64}
+          className="w-full h-full object-cover"
+          unoptimized
+        />
       ) : (
         <Baby size={24} className="text-primary" />
       )}

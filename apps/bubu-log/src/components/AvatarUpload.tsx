@@ -2,6 +2,7 @@
 
 import { useRef } from 'react'
 import { Camera, X, Baby, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 import { useBabyProfile } from '@/lib/api/hooks'
 import { useQueryClient } from '@tanstack/react-query'
 import { withCurrentBabyIdOnApiPath } from '@/lib/baby-scope'
@@ -114,10 +115,13 @@ export function AvatarUpload({ onAvatarChange }: AvatarUploadProps) {
             className="w-16 h-16 rounded-full overflow-hidden border-3 border-white shadow-lg cursor-pointer"
             onClick={triggerFileInput}
           >
-            <img
+            <Image
               src={avatar}
               alt="宝宝头像"
+              width={64}
+              height={64}
               className="w-full h-full object-cover"
+              unoptimized
             />
           </div>
           <button
