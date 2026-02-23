@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Delete Neon branch
-        uses: neondatabase/delete-branch-action@v5.1.0
+        uses: neondatabase/delete-branch-action@v3
         with:
           project_id: ${{ vars.BUBU_LOG_NEON_PROJECT_ID }}
           api_key: ${{ secrets.BUBU_LOG_NEON_API_KEY }}
