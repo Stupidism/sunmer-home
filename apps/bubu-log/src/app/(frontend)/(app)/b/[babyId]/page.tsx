@@ -489,7 +489,7 @@ function HomeGate() {
 
     async function loadAuthContext() {
       try {
-        const response = await fetch(withCurrentBabyIdOnApiPath('/api/auth/context'), { cache: 'no-store' })
+        const response = await fetch(withCurrentBabyIdOnApiPath('/api/app/auth/context'), { cache: 'no-store' })
         const payload = (await response.json().catch(() => null)) as AuthContextPayload | null
 
         if (response.status === 401) {

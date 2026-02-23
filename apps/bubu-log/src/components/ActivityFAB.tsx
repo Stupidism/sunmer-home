@@ -157,7 +157,7 @@ export function ActivityFAB({
       }
       const localTime = `${dateToUse.getFullYear()}-${String(dateToUse.getMonth() + 1).padStart(2, '0')}-${String(dateToUse.getDate()).padStart(2, '0')} ${String(dateToUse.getHours()).padStart(2, '0')}:${String(dateToUse.getMinutes()).padStart(2, '0')}:${String(dateToUse.getSeconds()).padStart(2, '0')}`
       
-      const response = await fetch(withCurrentBabyIdOnApiPath('/api/voice-input'), {
+      const response = await fetch(withCurrentBabyIdOnApiPath('/api/app/voice-input'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: textToSubmit.trim(), localTime }),

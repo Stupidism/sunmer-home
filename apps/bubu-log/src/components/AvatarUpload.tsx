@@ -39,7 +39,7 @@ export function AvatarUpload({ onAvatarChange }: AvatarUploadProps) {
       const formData = new FormData()
       formData.append('file', file)
 
-      const res = await fetch(withCurrentBabyIdOnApiPath('/api/baby-profile/avatar'), {
+      const res = await fetch(withCurrentBabyIdOnApiPath('/api/app/baby-profile/avatar'), {
         method: 'POST',
         body: formData,
       })
@@ -66,7 +66,7 @@ export function AvatarUpload({ onAvatarChange }: AvatarUploadProps) {
 
   const removeAvatar = async () => {
     try {
-      const res = await fetch(withCurrentBabyIdOnApiPath('/api/baby-profile/avatar'), {
+      const res = await fetch(withCurrentBabyIdOnApiPath('/api/app/baby-profile/avatar'), {
         method: 'DELETE',
       })
 

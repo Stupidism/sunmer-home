@@ -77,7 +77,7 @@ export function useCreateActivityWithConflictCheck() {
   ) => {
     setIsLoading(true);
     try {
-      const response = await fetch(withCurrentBabyIdOnApiPath('/api/activities'), {
+      const response = await fetch(withCurrentBabyIdOnApiPath('/api/app/activities'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

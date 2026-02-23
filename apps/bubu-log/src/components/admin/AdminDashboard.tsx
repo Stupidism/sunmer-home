@@ -120,7 +120,7 @@ export function AdminDashboard({ adminName, initialBabies, initialUsers }: Admin
     setCreatingBaby(true)
 
     try {
-      const response = await fetch('/api/admin/babies', {
+      const response = await fetch('/api/app/admin/babies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -176,7 +176,7 @@ export function AdminDashboard({ adminName, initialBabies, initialUsers }: Admin
     setCreatingUser(true)
 
     try {
-      const response = await fetch('/api/admin/users', {
+      const response = await fetch('/api/app/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -235,7 +235,7 @@ export function AdminDashboard({ adminName, initialBabies, initialUsers }: Admin
     setSavingRoleUserIds((current) => ({ ...current, [userId]: true }))
 
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetch(`/api/app/admin/users/${userId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: nextRole }),
@@ -266,7 +266,7 @@ export function AdminDashboard({ adminName, initialBabies, initialUsers }: Admin
     setSavingPasswordUserIds((current) => ({ ...current, [userId]: true }))
 
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetch(`/api/app/admin/users/${userId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: nextPassword }),
