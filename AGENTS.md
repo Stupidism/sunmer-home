@@ -8,3 +8,6 @@
 - If there is no bug and deployment is successful, post the test preview link(s) in this chat thread.
 - Do not skip this flow unless the user explicitly asks to skip it.
 
+## Project Task Closure (Per BBL-024 / #25)
+
+- Each PR merge must close the corresponding project task or issue so we keep the project board in sync (for example, close #25 when that work ships). If you are unsure which task applies, ask before merging.
