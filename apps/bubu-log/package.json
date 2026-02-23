@@ -7,6 +7,7 @@
     "build": "bash scripts/vercel-build.sh",
     "start": "next start -p 1030",
     "lint": "eslint .",
+    "check:env": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/check-env.ts",
     "payload": "payload",
     "generate:api": "openapi-typescript openapi.yaml -o src/lib/api/openapi-types.d.ts",
     "db:reset": "tsx scripts/reset-db.ts",

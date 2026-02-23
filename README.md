@@ -66,6 +66,16 @@ cp apps/bubu-log/.env.example apps/bubu-log/.env.local
 cd apps/bubu-log && pnpm db:migrate
 ```
 
+最小本地登录配置示例（`.env.local`）：
+
+```bash
+AUTH_SECRET=replace-with-secure-random
+AUTH_TRUST_HOST=true
+NEXTAUTH_URL=http://localhost:1030
+```
+
+如需 OAuth 登录，补齐对应 provider 的 `*_CLIENT_ID` / `*_CLIENT_SECRET`。
+
 ### E2E 测试
 
 E2E 测试会自动启动本地 Docker Postgres，并写入专用测试数据：

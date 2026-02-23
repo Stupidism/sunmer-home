@@ -39,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Check env
+        run: pnpm -C apps/bubu-log check:env
+
       - name: Lint
         run: pnpm -C apps/bubu-log lint
 
