@@ -212,6 +212,22 @@ async function resolveAuthContext(babyId: string | null | undefined): Promise<Re
   }
 
   const payload = await getPayloadClient()
+  const userExists = await payload
+    .findByID({
+      collection: 'app-users',
+      id: userId,
+      depth: 0,
+      overrideAccess: true,
+    })
+    .catch(() => null)
+
+  if (!userExists) {
+    return {
+      ok: false,
+      failure: new AuthFailure(401, 'UNAUTHORIZED', 'Unauthorized'),
+    }
+  }
+
   const bindingResult = await payload.find({
     collection: 'baby-users',
     where: {
@@ -303,6 +319,20 @@ export async function requireUser(): Promise<CurrentUser> {
   const user = getSessionUser(session)
   const userId = normalizeBabyId(user?.id)
   if (!userId) {
+    throw new AuthFailure(401, 'UNAUTHORIZED', 'Unauthorized')
+  }
+
+  const payload = await getPayloadClient()
+  const userExists = await payload
+    .findByID({
+      collection: 'app-users',
+      id: userId,
+      depth: 0,
+      overrideAccess: true,
+    })
+    .catch(() => null)
+
+  if (!userExists) {
     throw new AuthFailure(401, 'UNAUTHORIZED', 'Unauthorized')
   }
 

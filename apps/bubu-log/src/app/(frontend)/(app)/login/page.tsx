@@ -12,6 +12,9 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [trialConsent, setTrialConsent] = useState(false)
+  const [guardianConsent, setGuardianConsent] = useState(false)
+  const [overseasConsent, setOverseasConsent] = useState(false)
   const [providers, setProviders] = useState<Record<string, { id: string }> | null>(null)
   const [providersError, setProvidersError] = useState(false)
   const callbackUrl = useMemo(() => {
@@ -45,9 +48,17 @@ function LoginContent() {
   const googleEnabled = isProviderAvailable("google")
   const githubEnabled = isProviderAvailable("github")
   const wechatEnabled = isProviderAvailable("wechat")
+  const allowLogin = trialConsent && guardianConsent && overseasConsent
+  const googleDisabled = !providersReady || !googleEnabled || !allowLogin
+  const githubDisabled = !providersReady || !githubEnabled || !allowLogin
+  const wechatDisabled = !providersReady || !wechatEnabled || !allowLogin
   const handleCredentialsLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    if (!allowLogin) {
+      setError("请先阅读并勾选下方同意事项")
+      return
+    }
     setLoading(true)
 
     try {
@@ -122,13 +133,54 @@ function LoginContent() {
           )}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !allowLogin}
             className="w-full px-4 py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
             data-testid="login-submit-btn"
           >
             {loading ? "登录中..." : "登录"}
           </button>
         </form>
+
+        <div className="rounded-xl border border-gray-200/80 dark:border-gray-700/70 bg-white/70 dark:bg-gray-900/60 p-4 space-y-3 text-xs text-gray-600 dark:text-gray-300">
+          <p className="text-xs text-gray-500">
+            内测说明：仅限受邀熟人参与，不对外公开，请勿传播链接或邀请非熟人。
+          </p>
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={trialConsent}
+              onChange={(event) => setTrialConsent(event.target.checked)}
+              data-testid="login-consent-trial"
+              className="mt-0.5"
+            />
+            <span>我已知悉这是内测，仅限受邀熟人参与</span>
+          </label>
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={guardianConsent}
+              onChange={(event) => setGuardianConsent(event.target.checked)}
+              data-testid="login-consent-guardian"
+              className="mt-0.5"
+            />
+            <span>
+              我确认自己是监护人，同意处理婴幼儿喂养、睡眠等敏感个人信息，用于生成个人记录与提醒
+            </span>
+          </label>
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={overseasConsent}
+              onChange={(event) => setOverseasConsent(event.target.checked)}
+              data-testid="login-consent-overseas"
+              className="mt-0.5"
+            />
+            <span>我知悉并同意：数据存储与处理在中国境外服务器上进行</span>
+          </label>
+          <p className="text-xs text-gray-500">
+            可在设置中删除账号与数据。
+          </p>
+        </div>
 
         {/* 分割线 */}
         <div className="relative my-6">
@@ -146,12 +198,16 @@ function LoginContent() {
         <div className="space-y-3">
           <button
             onClick={() => {
+              if (!allowLogin) {
+                setError("请先阅读并勾选下方同意事项")
+                return
+              }
               if (!googleEnabled) return
               void signIn("google", { callbackUrl })
             }}
-            disabled={!providersReady || !googleEnabled}
-            aria-disabled={!providersReady || !googleEnabled}
-            className={`w-full flex items-center justify-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 transition-shadow ${!providersReady || !googleEnabled ? "opacity-50 cursor-not-allowed" : "hover:shadow-md"}`}
+            disabled={googleDisabled}
+            aria-disabled={googleDisabled}
+            className={`w-full flex items-center justify-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 transition-shadow ${googleDisabled ? "opacity-50 cursor-not-allowed" : "hover:shadow-md"}`}
             data-testid="login-google-btn"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -179,12 +235,16 @@ function LoginContent() {
 
           <button
             onClick={() => {
+              if (!allowLogin) {
+                setError("请先阅读并勾选下方同意事项")
+                return
+              }
               if (!githubEnabled) return
               void signIn("github", { callbackUrl })
             }}
-            disabled={!providersReady || !githubEnabled}
-            aria-disabled={!providersReady || !githubEnabled}
-            className={`w-full flex items-center justify-center gap-3 px-4 py-3 bg-gray-900 dark:bg-gray-700 rounded-xl shadow-sm transition-shadow ${!providersReady || !githubEnabled ? "opacity-50 cursor-not-allowed" : "hover:shadow-md"}`}
+            disabled={githubDisabled}
+            aria-disabled={githubDisabled}
+            className={`w-full flex items-center justify-center gap-3 px-4 py-3 bg-gray-900 dark:bg-gray-700 rounded-xl shadow-sm transition-shadow ${githubDisabled ? "opacity-50 cursor-not-allowed" : "hover:shadow-md"}`}
             data-testid="login-github-btn"
           >
             <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -201,12 +261,16 @@ function LoginContent() {
 
           <button
             onClick={() => {
+              if (!allowLogin) {
+                setError("请先阅读并勾选下方同意事项")
+                return
+              }
               if (!wechatEnabled) return
               void signIn("wechat", { callbackUrl })
             }}
-            disabled={!providersReady || !wechatEnabled}
-            aria-disabled={!providersReady || !wechatEnabled}
-            className={`w-full flex items-center justify-center gap-3 px-4 py-3 bg-[#07C160] rounded-xl shadow-sm transition-shadow ${!providersReady || !wechatEnabled ? "opacity-50 cursor-not-allowed" : "hover:shadow-md"}`}
+            disabled={wechatDisabled}
+            aria-disabled={wechatDisabled}
+            className={`w-full flex items-center justify-center gap-3 px-4 py-3 bg-[#07C160] rounded-xl shadow-sm transition-shadow ${wechatDisabled ? "opacity-50 cursor-not-allowed" : "hover:shadow-md"}`}
             data-testid="login-wechat-btn"
           >
             <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -225,7 +289,7 @@ function LoginContent() {
 
         {/* 底部提示 */}
         <p className="text-center text-sm text-gray-400 dark:text-gray-500 mt-8">
-          登录即表示您同意我们的服务条款
+          登录前请先阅读并确认内测与隐私说明
         </p>
       </div>
     </main>

@@ -7,10 +7,17 @@ export const TEST_USER = {
   email: 'e2e-test@example.com',
 }
 
+export const TEST_DELETE_USER = {
+  username: 'e2e-delete-user',
+  password: 'delete123456',
+  email: 'e2e-delete@example.com',
+}
+
 export const TEST_ACTIVITY_ID = 'e2e-test-activity-id'
 export const TEST_ACTIVITY_ID_BABY2 = 'e2e-test-activity-id-baby2'
 export const TEST_BABY_ID = 'e2e-test-baby-id'
 export const TEST_BABY_ID_2 = 'e2e-test-baby-id-2'
+export const TEST_DELETE_BABY_ID = 'e2e-delete-baby-id'
 
 export function extractCurrentBabyId(url: string): string | null {
   const match = url.match(/\/b\/([^/?#]+)/)
@@ -32,6 +39,9 @@ export async function login(
   await page.goto('/login')
 
   // 填写登录表单
+  await page.getByTestId('login-consent-trial').check()
+  await page.getByTestId('login-consent-guardian').check()
+  await page.getByTestId('login-consent-overseas').check()
   await page.getByTestId('login-username-input').fill(username)
   await page.getByTestId('login-password-input').fill(password)
 
