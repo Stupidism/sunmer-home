@@ -15,4 +15,4 @@ jobs:
         with:
           project_id: ${{ vars.BUBU_LOG_NEON_PROJECT_ID }}
           api_key: ${{ secrets.BUBU_LOG_NEON_API_KEY }}
-          pr-ref: ${{ github.event.number }}
+          branch: ${{ github.event.pull_request.head.ref }}
