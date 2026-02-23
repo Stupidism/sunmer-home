@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, Copy, Loader2, PlusCircle } from 'lucide-react'
 import { AppDrawerMenu } from '@/components/AppDrawerMenu'
 
-const DEFAULT_SHORTCUT_INSTALL_URL = 'https://www.icloud.com/shortcuts/26b261e577fd4cf8bea7d86e11f8848b'
+const DEFAULT_SHORTCUT_INSTALL_URL = 'https://www.icloud.com/shortcuts/94ecee69ddf5404f9c3f24f824706500'
 const ENV_SHORTCUT_INSTALL_URL = process.env.NEXT_PUBLIC_IOS_SHORTCUT_INSTALL_URL?.trim() || ''
 const SHORTCUT_INSTALL_URL = ENV_SHORTCUT_INSTALL_URL || DEFAULT_SHORTCUT_INSTALL_URL
 const isUsingEnvShortcutUrl = ENV_SHORTCUT_INSTALL_URL.length > 0
