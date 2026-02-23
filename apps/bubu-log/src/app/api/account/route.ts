@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server'
 import { del } from '@vercel/blob'
+import type { CollectionSlug, Where } from 'payload'
 import { authFailureResponse, requireUser } from '@/lib/auth/get-current-baby'
 import { getPayloadClient } from '@/lib/payload/client'
 import { createAuditLog } from '@/lib/payload/audit'
-import type { ActivityDoc, AuditLogDoc, BabyDoc, BabyUserDoc, DailyStatDoc } from '@/lib/payload/models'
+import type { ActivityDoc, AuditLogDoc, BabyDoc, DailyStatDoc } from '@/lib/payload/models'
+
+type BabyUserBinding = {
+  id: string
+  babyId: string
+  userId: string
+  isDefault?: boolean | null
+  createdAt?: string | null
+}
 
 type PaginationResult<T> = {
   docs: T[]
@@ -11,8 +20,8 @@ type PaginationResult<T> = {
 }
 
 async function fetchAllDocs<T>(args: {
-  collection: string
-  where?: Record<string, unknown>
+  collection: CollectionSlug
+  where?: Where
   limit?: number
 }): Promise<T[]> {
   const payload = await getPayloadClient()
@@ -28,7 +37,7 @@ async function fetchAllDocs<T>(args: {
       page,
       depth: 0,
       overrideAccess: true,
-    })) as PaginationResult<T>
+    })) as unknown as PaginationResult<T>
 
     docs.push(...(result.docs || []))
     if (!result.hasNextPage) {
@@ -60,37 +69,35 @@ export async function DELETE() {
     const payload = await getPayloadClient()
     auditPayload = payload
 
-    const bindings = (await fetchAllDocs<BabyUserDoc>({
+    const bindings = (await fetchAllDocs<BabyUserBinding>({
       collection: 'baby-users',
       where: {
         userId: {
           equals: user.id,
         },
       },
-    })) as BabyUserDoc[]
+    })) as BabyUserBinding[]
 
     const babyIds = Array.from(
       new Set(
-        bindings
-          .map((binding) => (typeof binding.babyId === 'string' ? binding.babyId : binding.babyId?.id))
-          .filter((id): id is string => Boolean(id))
+        bindings.map((binding) => binding.babyId).filter((id): id is string => Boolean(id))
       )
     )
 
     const allBindings = babyIds.length
-      ? ((await fetchAllDocs<BabyUserDoc>({
+      ? ((await fetchAllDocs<BabyUserBinding>({
           collection: 'baby-users',
           where: {
             babyId: {
               in: babyIds,
             },
           },
-        })) as BabyUserDoc[])
+        })) as BabyUserBinding[])
       : []
 
-    const babyBindingMap = new Map<string, BabyUserDoc[]>()
+    const babyBindingMap = new Map<string, BabyUserBinding[]>()
     for (const binding of allBindings) {
-      const babyId = typeof binding.babyId === 'string' ? binding.babyId : binding.babyId?.id
+      const babyId = binding.babyId
       if (!babyId) continue
       if (!babyBindingMap.has(babyId)) {
         babyBindingMap.set(babyId, [])
@@ -101,14 +108,12 @@ export async function DELETE() {
     for (const babyId of babyIds) {
       const babyBindings = babyBindingMap.get(babyId) || []
       const otherUsers = babyBindings.filter((binding) => {
-        const userId = typeof binding.userId === 'string' ? binding.userId : binding.userId?.id
-        return userId && userId !== user.id
+        return binding.userId && binding.userId !== user.id
       })
 
       if (otherUsers.length > 0) {
         for (const binding of babyBindings) {
-          const userId = typeof binding.userId === 'string' ? binding.userId : binding.userId?.id
-          if (userId !== user.id) continue
+          if (binding.userId !== user.id) continue
           await payload.delete({
             collection: 'baby-users',
             id: binding.id,
