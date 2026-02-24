@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "npx -y turbo-ignore",
+  "ignoreCommand": "npx -y turbo-ignore --fallback=origin/main",
   "framework": "nextjs",
   "buildCommand": "next build",
   "outputDirectory": ".next",
