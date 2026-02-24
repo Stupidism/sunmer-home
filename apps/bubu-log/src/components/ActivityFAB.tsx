@@ -50,6 +50,7 @@ export function ActivityFAB({
 }: ActivityFABProps) {
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false)
   const [mode, setMode] = useState<'voice' | 'text'>('voice')
+  const [isAndroid, setIsAndroid] = useState(false)
   const [text, setText] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isListening, setIsListening] = useState(false)
@@ -79,6 +80,8 @@ export function ActivityFAB({
 
   // 检查是否支持语音识别
   useEffect(() => {
+    const userAgent = window.navigator.userAgent || ''
+    setIsAndroid(/android/i.test(userAgent))
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     setSpeechSupported(!!SpeechRecognition)
   }, [])
@@ -88,7 +91,7 @@ export function ActivityFAB({
     if (!voiceDialogOpen) {
       setText('')
       setResult(null)
-      setMode('voice')
+      setMode(isAndroid ? 'text' : 'voice')
       setIsListening(false)
       finalTranscriptRef.current = ''
       manualStopRef.current = false
@@ -100,7 +103,7 @@ export function ActivityFAB({
         submitTimeoutRef.current = null
       }
     }
-  }, [voiceDialogOpen])
+  }, [voiceDialogOpen, isAndroid])
 
   // 用于标记是否需要自动开始语音识别
   const shouldAutoStartRef = useRef(false)
@@ -407,8 +410,12 @@ export function ActivityFAB({
             {/* 标题 */}
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                <Mic size={20} className="text-violet-500" />
-                语音记录
+                {mode === 'text' ? (
+                  <Keyboard size={20} className="text-violet-500" />
+                ) : (
+                  <Mic size={20} className="text-violet-500" />
+                )}
+                {mode === 'text' ? '键盘记录' : '语音记录'}
               </h3>
               <button
                 onClick={closeVoiceDialog}
@@ -566,8 +573,9 @@ export function ActivityFAB({
       <button
         onClick={() => {
           if (!voiceDialogOpen) {
-            // 打开弹窗时标记需要自动开始语音识别
-            shouldAutoStartRef.current = true
+            setMode(isAndroid ? 'text' : 'voice')
+            // 安卓端默认键盘输入，不自动开始语音识别
+            shouldAutoStartRef.current = !isAndroid
             setVoiceDialogOpen(true)
           } else {
             setVoiceDialogOpen(false)
@@ -578,10 +586,14 @@ export function ActivityFAB({
             ? 'bg-violet-500 scale-110'
             : 'bg-gradient-to-br from-violet-500 to-purple-600 hover:shadow-xl hover:scale-105 active:scale-95'
         }`}
-        aria-label="语音输入"
+        aria-label={isAndroid ? '键盘输入' : '语音输入'}
         data-testid="voice-fab-btn"
       >
-        <Mic size={26} className="text-white" />
+        {isAndroid ? (
+          <Keyboard size={24} className="text-white" />
+        ) : (
+          <Mic size={26} className="text-white" />
+        )}
       </button>
     </>
   )
