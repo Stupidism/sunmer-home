@@ -179,7 +179,7 @@ export default function SiriShortcutPage() {
             <div className="rounded-xl border border-orange-200 bg-orange-50 dark:border-orange-800/60 dark:bg-orange-900/20 p-3">
               <p className="text-xs font-medium text-orange-700 dark:text-orange-300">多宝宝提示（已支持）</p>
               <p className="text-xs text-orange-700/90 dark:text-orange-200/90 mt-1">
-                同一个 token 现在可以通过请求体 `babyId` 指定目标宝宝。服务端会校验当前用户与该宝宝的绑定关系，未绑定时会拒绝写入。
+                同一个 token 可以通过请求体 `babyId` 指定目标宝宝；如果不传，也可以直接在语音里带宝宝小名或大名，系统会自动匹配。服务端会校验当前用户与该宝宝的绑定关系，未绑定时会拒绝写入。
               </p>
             </div>
 
