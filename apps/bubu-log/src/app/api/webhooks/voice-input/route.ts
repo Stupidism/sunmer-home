@@ -53,6 +53,15 @@ function logWebhookNonSuccess(input: {
   })
 }
 
+function parseRequestedBabyId(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 // POST: Parse voice input and create activity
 // Auth modes (priority):
 // 1) Signed user token (Authorization: Bearer <token>)
@@ -63,6 +72,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({} as Record<string, unknown>))
     const text = typeof body.text === 'string' ? body.text : ''
     const localTime = typeof body.localTime === 'string' ? body.localTime : null
+    const requestedBabyId = parseRequestedBabyId(body.babyId)
 
     const apiKeyFromHeader = extractApiKey(request)
     const bearerToken = extractBearerToken(request)
@@ -70,9 +80,6 @@ export async function POST(request: NextRequest) {
 
     let identity: ResolvedIdentity | null = null
     let authMode: AuthMode | null = null
-
-    // TODO(BBL-019): Support selecting baby scope dynamically for one shortcut workflow.
-    // Current webhook tokens are intentionally bound to a single baby to avoid cross-baby writes.
 
     // Mode 1: signed user token
     if (bearerToken) {
@@ -104,8 +111,7 @@ export async function POST(request: NextRequest) {
     if (!identity && configuredApiKey) {
       const incomingApiKey = apiKeyFromHeader || bearerToken
       if (incomingApiKey && secureCompare(incomingApiKey, configuredApiKey)) {
-        const bodyBabyId = typeof body.babyId === 'string' ? body.babyId : null
-        const targetBabyId = bodyBabyId || process.env.VOICE_WEBHOOK_DEFAULT_BABY_ID || null
+        const targetBabyId = requestedBabyId || process.env.VOICE_WEBHOOK_DEFAULT_BABY_ID || null
 
         if (!targetBabyId) {
           logWebhookNonSuccess({
@@ -202,6 +208,24 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      const signedTokenTargetBabyId = requestedBabyId || identity.babyId
+      if (!signedTokenTargetBabyId) {
+        logWebhookNonSuccess({
+          status: 400,
+          code: 'MISSING_BABY_ID',
+          text,
+          userId: identity.userId,
+          details: 'signed token request missing baby scope',
+        })
+        return NextResponse.json(
+          {
+            error: 'Missing babyId for signed token request',
+            code: 'MISSING_BABY_ID',
+          },
+          { status: 400 },
+        )
+      }
+
       const bindingResult = await payload.find({
         collection: 'baby-users',
         where: {
@@ -213,7 +237,7 @@ export async function POST(request: NextRequest) {
             },
             {
               baby: {
-                equals: identity.babyId,
+                equals: signedTokenTargetBabyId,
               },
             },
           ],
@@ -229,7 +253,7 @@ export async function POST(request: NextRequest) {
           status: 403,
           code: 'SIGNED_TOKEN_ACCESS_REVOKED',
           text,
-          babyId: identity.babyId,
+          babyId: signedTokenTargetBabyId,
           userId: identity.userId,
           details: 'baby-user binding not found',
         })
@@ -240,6 +264,11 @@ export async function POST(request: NextRequest) {
           },
           { status: 403 },
         )
+      }
+
+      identity = {
+        ...identity,
+        babyId: signedTokenTargetBabyId,
       }
     }
 
