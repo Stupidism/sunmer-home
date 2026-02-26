@@ -127,6 +127,40 @@ rm .env.production
 
 **注意**: 确保已安装并登录 Vercel CLI: `pnpm add -g vercel && vercel login`
 
+## 使用 E2B 做 PR 分支预览（替代 Vercel Preview）
+
+仓库已新增 workflow：`.github/workflows/e2b-preview.yml`
+
+- PR `opened/reopened/synchronize/ready_for_review`：创建（或替换）E2B sandbox，并在 PR 评论里回贴预览链接
+- PR `closed`：自动清理该 PR 对应的 E2B sandbox
+- 生产发布仍可继续使用 Vercel
+
+### 必需 Secrets
+
+- `E2B_API_KEY`：E2B API key
+- `E2B_PREVIEW_ENV_B64`：`apps/bubu-log` 预览环境变量（base64 编码后的 dotenv 文本）
+
+建议将本地 `apps/bubu-log/.env.preview.local` 作为来源，编码后写入 Secret：
+
+```bash
+base64 < apps/bubu-log/.env.preview.local | tr -d '\n'
+```
+
+`E2B_PREVIEW_ENV_B64` 至少建议包含：
+
+- `DATABASE_URL`
+- `DATABASE_URL_UNPOOLED`
+- `PAYLOAD_DATABASE_URL`
+- `AUTH_SECRET`
+- `PAYLOAD_SECRET`
+
+### 可选 Repository Variables
+
+- `E2B_TEMPLATE`：自定义 sandbox template（默认 `base`）
+- `E2B_TIMEOUT_MS`：sandbox 生命周期（毫秒，默认 `3600000`）
+- `E2B_APP_PORT`：应用端口（默认 `1030`）
+- `E2B_APP_PATH`：应用目录（默认 `apps/bubu-log`）
+
 ## 访问地址
 
 - 🌐 https://bubu.sunmer.xyz

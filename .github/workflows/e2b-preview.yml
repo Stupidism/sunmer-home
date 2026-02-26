@@ -1,0 +1,151 @@
+name: E2B PR Preview
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+      - closed
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  preview:
+    if: >
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install E2B SDK
+        run: npm install --no-save e2b@2.13.0
+
+      - name: Create E2B preview sandbox
+        id: create_preview
+        run: node .github/scripts/e2b-preview.mjs create
+        env:
+          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+          E2B_TEMPLATE: ${{ vars.E2B_TEMPLATE }}
+          E2B_TIMEOUT_MS: ${{ vars.E2B_TIMEOUT_MS }}
+          E2B_APP_PORT: ${{ vars.E2B_APP_PORT }}
+          E2B_APP_PATH: ${{ vars.E2B_APP_PATH }}
+          E2B_PREVIEW_ENV_B64: ${{ secrets.E2B_PREVIEW_ENV_B64 }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+      - name: Upsert PR comment
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.create_preview.outputs.preview_url }}
+          SANDBOX_ID: ${{ steps.create_preview.outputs.sandbox_id }}
+          KILLED_COUNT: ${{ steps.create_preview.outputs.killed_count }}
+          HEAD_SHA: ${{ steps.create_preview.outputs.head_sha }}
+        with:
+          script: |
+            const marker = '<!-- e2b-pr-preview -->'
+            const body = [
+              marker,
+              '### E2B Preview',
+              '',
+              `- URL: ${process.env.PREVIEW_URL}`,
+              `- Sandbox: \`${process.env.SANDBOX_ID}\``,
+              `- Replaced old sandboxes: ${process.env.KILLED_COUNT || '0'}`,
+              `- Commit: \`${(process.env.HEAD_SHA || '').slice(0, 12)}\``,
+              '',
+              '_This preview is ephemeral and will be recreated on new commits._',
+            ].join('\n')
+
+            const issue_number = context.issue.number
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            })
+            const existing = comments.find((comment) => comment.body && comment.body.includes(marker))
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body,
+              })
+            }
+
+  cleanup:
+    if: >
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install E2B SDK
+        run: npm install --no-save e2b@2.13.0
+
+      - name: Cleanup E2B preview sandbox
+        id: cleanup_preview
+        run: node .github/scripts/e2b-preview.mjs cleanup
+        env:
+          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+
+      - name: Add cleanup comment
+        uses: actions/github-script@v7
+        env:
+          KILLED_COUNT: ${{ steps.cleanup_preview.outputs.killed_count }}
+        with:
+          script: |
+            const marker = '<!-- e2b-pr-preview -->'
+            const issue_number = context.issue.number
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            })
+            const existing = comments.find((comment) => comment.body && comment.body.includes(marker))
+            if (!existing) return
+
+            const body = [
+              marker,
+              '### E2B Preview',
+              '',
+              `PR closed. Cleaned up sandbox count: ${process.env.KILLED_COUNT || '0'}.`,
+            ].join('\n')
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body,
+            })
