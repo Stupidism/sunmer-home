@@ -1,0 +1,145 @@
+name: Cleanup Neon Branch For Skipped Vercel Previews
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: read
+
+jobs:
+  detect-skipped:
+    if: >-
+      github.event.issue.pull_request &&
+      contains(github.event.comment.user.login, 'vercel')
+    runs-on: ubuntu-latest
+    outputs:
+      should_cleanup: ${{ steps.detect.outputs.should_cleanup }}
+      branch: ${{ steps.detect.outputs.branch }}
+      bubu_log_skipped: ${{ steps.detect.outputs.bubu_log_skipped }}
+      nunu_island_skipped: ${{ steps.detect.outputs.nunu_island_skipped }}
+      nunu_log_skipped: ${{ steps.detect.outputs.nunu_log_skipped }}
+    steps:
+      - name: Detect skipped Vercel previews
+        id: detect
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const issue_number = context.payload.issue.number
+            const commentBody = String(context.payload.comment.body || '')
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: issue_number,
+            })
+
+            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+              core.info('PR comes from fork, skip cleanup.')
+              core.setOutput('should_cleanup', 'false')
+              return
+            }
+
+            const { data: combined } = await github.rest.repos.getCombinedStatusForRef({
+              owner,
+              repo,
+              ref: pr.head.sha,
+            })
+
+            const vercelStatuses = (combined.statuses || []).filter((status) =>
+              String(status.context || '').startsWith('Vercel – ')
+            )
+
+            const byApp = Object.fromEntries(
+              vercelStatuses.map((status) => [
+                String(status.context).replace('Vercel – ', '').trim(),
+                status,
+              ])
+            )
+
+            const isSkipped = (app) => {
+              const status = byApp[app]
+              const fromStatus = /skip/i.test(`${status?.description || ''} ${status?.target_url || ''}`)
+              const fromComment = new RegExp(`${app}[^\\n]*skip`, 'i').test(commentBody)
+              return fromStatus || fromComment
+            }
+
+            const bubuLogSkipped = isSkipped('bubu-log')
+            const nunuIslandSkipped = isSkipped('nunu-island')
+            const nunuLogSkipped = isSkipped('nunu-log')
+            const shouldCleanup = bubuLogSkipped || nunuIslandSkipped || nunuLogSkipped
+
+            core.info(`PR head ref: ${pr.head.ref}`)
+            core.info(`Detected statuses: ${vercelStatuses.map((s) => s.context).join(', ')}`)
+            core.info(
+              `Skipped apps => bubu-log=${bubuLogSkipped}, nunu-island=${nunuIslandSkipped}, nunu-log=${nunuLogSkipped}`
+            )
+
+            core.setOutput('branch', pr.head.ref)
+            core.setOutput('bubu_log_skipped', String(bubuLogSkipped))
+            core.setOutput('nunu_island_skipped', String(nunuIslandSkipped))
+            core.setOutput('nunu_log_skipped', String(nunuLogSkipped))
+            core.setOutput('should_cleanup', String(shouldCleanup))
+
+  cleanup-bubu-log:
+    needs: detect-skipped
+    if: needs.detect-skipped.outputs.bubu_log_skipped == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Neon branch for bubu-log
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.BUBU_LOG_NEON_PROJECT_ID }}
+          api_key: ${{ secrets.BUBU_LOG_NEON_API_KEY }}
+          branch: preview/${{ needs.detect-skipped.outputs.branch }}
+
+  cleanup-nunu-island:
+    needs: detect-skipped
+    if: needs.detect-skipped.outputs.nunu_island_skipped == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check nunu-island Neon credentials
+        id: creds
+        run: |
+          if [ -n "${{ vars.NUNU_ISLAND_NEON_PROJECT_ID }}" ] && [ -n "${{ secrets.NUNU_ISLAND_NEON_API_KEY }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Missing NUNU_ISLAND_NEON_PROJECT_ID or NUNU_ISLAND_NEON_API_KEY, skip delete."
+          fi
+
+      - name: Delete Neon branch for nunu-island
+        if: steps.creds.outputs.enabled == 'true'
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NUNU_ISLAND_NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NUNU_ISLAND_NEON_API_KEY }}
+          branch: preview/${{ needs.detect-skipped.outputs.branch }}
+
+  cleanup-nunu-log:
+    needs: detect-skipped
+    if: needs.detect-skipped.outputs.nunu_log_skipped == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check nunu-log Neon credentials
+        id: creds
+        run: |
+          if [ -n "${{ vars.NUNU_LOG_NEON_PROJECT_ID }}" ] && [ -n "${{ secrets.NUNU_LOG_NEON_API_KEY }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Missing NUNU_LOG_NEON_PROJECT_ID or NUNU_LOG_NEON_API_KEY, skip delete."
+          fi
+
+      - name: Delete Neon branch for nunu-log
+        if: steps.creds.outputs.enabled == 'true'
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NUNU_LOG_NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NUNU_LOG_NEON_API_KEY }}
+          branch: preview/${{ needs.detect-skipped.outputs.branch }}
