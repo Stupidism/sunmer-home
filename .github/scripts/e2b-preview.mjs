@@ -115,7 +115,10 @@ async function createPreview() {
   await sandbox.commands.run(
     `git clone --depth 1 --branch '${escapeShell(headRef)}' 'https://x-access-token:${escapeShell(githubToken)}@github.com/${escapeShell(repo)}.git' app`
   )
-  await sandbox.commands.run('pnpm install --frozen-lockfile', { cwd: '/home/user/app' })
+  await sandbox.commands.run('pnpm install --frozen-lockfile --filter bubu-log...', {
+    cwd: '/home/user/app',
+    timeoutMs: 15 * 60 * 1000,
+  })
   await sandbox.commands.run('pnpm build', {
     cwd: `/home/user/app/${appPath}`,
     envs: appEnv,
