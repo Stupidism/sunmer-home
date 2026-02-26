@@ -31,6 +31,34 @@ pnpm build
 pnpm lint
 ```
 
+## 🔐 gh 账号自动选择（按目录）
+
+本仓库已提供 `.envrc`，进入目录后会自动将 `GH_TOKEN` 指向 `Stupidism` 账号（优先于 `gh` 全局 active account）。
+
+### 1) 安装并启用 direnv
+
+```bash
+brew install direnv
+echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
+exec zsh
+```
+
+### 2) 在仓库目录授权一次
+
+```bash
+cd /Users/sun/Documents/personal/sunmer-home
+direnv allow
+```
+
+### 3) 验证
+
+```bash
+gh auth status
+gh auth token -h github.com --user Stupidism | head -c 6; echo
+```
+
+如果需要临时覆盖，可创建 `.envrc.local`（不会提交到仓库）。
+
 ## 📱 宝宝日记 (apps/bubu-log)
 
 一个简单易用的婴儿护理记录应用，专为月嫂阿姨和家长设计。
