@@ -137,7 +137,7 @@ rm .env.production
 
 ### 必需 Secrets
 
-- `E2B_API_KEY`：E2B API key
+- `BUBU_LOG_E2B_API_KEY`：E2B API key
 - `E2B_PREVIEW_ENV_B64`：`apps/bubu-log` 预览环境变量（base64 编码后的 dotenv 文本）
 
 建议将本地 `apps/bubu-log/.env.preview.local` 作为来源，编码后写入 Secret：

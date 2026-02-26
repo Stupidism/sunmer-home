@@ -35,7 +35,7 @@ jobs:
       - name: Validate E2B secrets
         id: validate
         env:
-          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
         run: |
           if [ -z "${E2B_API_KEY}" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -48,7 +48,7 @@ jobs:
         if: steps.validate.outputs.enabled == 'true'
         run: node .github/scripts/e2b-preview.mjs create
         env:
-          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
           E2B_TEMPLATE: ${{ vars.E2B_TEMPLATE }}
           E2B_TIMEOUT_MS: ${{ vars.E2B_TIMEOUT_MS }}
           E2B_APP_PORT: ${{ vars.E2B_APP_PORT }}
@@ -87,7 +87,7 @@ jobs:
                   marker,
                   '### E2B Preview',
                   '',
-                  '- Skipped: missing `E2B_API_KEY` secret for this workflow context.',
+                  '- Skipped: missing `BUBU_LOG_E2B_API_KEY` secret for this workflow context.',
                 ].join('\n')
 
             const issue_number = context.issue.number
@@ -134,7 +134,7 @@ jobs:
       - name: Validate E2B secrets
         id: validate_cleanup
         env:
-          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
         run: |
           if [ -z "${E2B_API_KEY}" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -147,7 +147,7 @@ jobs:
         if: steps.validate_cleanup.outputs.enabled == 'true'
         run: node .github/scripts/e2b-preview.mjs cleanup
         env:
-          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
 
