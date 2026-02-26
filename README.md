@@ -33,7 +33,8 @@ pnpm lint
 
 ## 🔐 gh 账号自动选择（按目录）
 
-仓库提供 `.envrc.example` 模板。将其复制为本地 `.envrc` 后，进入目录会自动将 `GH_TOKEN` 指向 `Stupidism` 账号（优先于 `gh` 全局 active account）。
+仓库提交了 `.envrc`（不包含 token 或账号硬编码）。  
+具体账号通过本地忽略文件 `.envrc.local` 提供，这样每个人都能自行切换。
 
 ### 1) 安装并启用 direnv
 
@@ -47,7 +48,7 @@ exec zsh
 
 ```bash
 cd /Users/sun/Documents/personal/sunmer-home
-cp .envrc.example .envrc
+cp .envrc.local.example .envrc.local
 direnv allow
 ```
 
@@ -55,10 +56,10 @@ direnv allow
 
 ```bash
 gh auth status
-gh auth token -h github.com --user Stupidism | head -c 6; echo
+gh api user -q .login
 ```
 
-如果需要临时覆盖，可创建 `.envrc.local`（不会提交到仓库）。
+如果需要切换账号，修改 `.envrc.local` 里的 `GH_ACCOUNT` 后重新进入目录即可。
 
 ## 📱 宝宝日记 (apps/bubu-log)
 
