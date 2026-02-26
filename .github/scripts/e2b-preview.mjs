@@ -113,7 +113,7 @@ async function createPreview() {
   await sandbox.commands.run('corepack enable')
   await sandbox.commands.run('corepack prepare pnpm@10.2.0 --activate')
   await sandbox.commands.run(
-    `git -c http.extraheader='AUTHORIZATION: bearer ${escapeShell(githubToken)}' clone --depth 1 --branch '${escapeShell(headRef)}' 'https://github.com/${escapeShell(repo)}.git' app`
+    `git clone --depth 1 --branch '${escapeShell(headRef)}' 'https://x-access-token:${escapeShell(githubToken)}@github.com/${escapeShell(repo)}.git' app`
   )
   await sandbox.commands.run('pnpm install --frozen-lockfile', { cwd: '/home/user/app' })
   await sandbox.commands.run('pnpm build', {
