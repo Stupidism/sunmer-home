@@ -116,7 +116,7 @@ async function createPreview() {
     `git clone --depth 1 --branch '${escapeShell(headRef)}' 'https://x-access-token:${escapeShell(githubToken)}@github.com/${escapeShell(repo)}.git' app`
   )
   await sandbox.commands.run(
-    'pnpm install --frozen-lockfile --filter bubu-log... --child-concurrency=1 --workspace-concurrency=1 --network-concurrency=4',
+    'pnpm install --frozen-lockfile --filter bubu-log... --child-concurrency=1 --network-concurrency=4',
     {
     cwd: '/home/user/app',
     timeoutMs: 15 * 60 * 1000,
