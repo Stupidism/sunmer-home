@@ -74,6 +74,41 @@ function escapeShell(value) {
   return value.replace(/'/g, "'\"'\"'")
 }
 
+const logFile = process.env.E2B_LOG_FILE
+
+function writeLog(line) {
+  console.log(line)
+  if (logFile) {
+    appendFileSync(logFile, `${line}\n`)
+  }
+}
+
+async function runCommandWithLogs(sandbox, label, cmd, opts = {}) {
+  writeLog(`[e2b][start] ${label}: ${cmd}`)
+  try {
+    const result = await sandbox.commands.run(cmd, {
+      ...opts,
+      onStdout: (data) => {
+        const lines = data.split('\n').filter(Boolean)
+        for (const line of lines) {
+          writeLog(`[e2b][stdout][${label}] ${line}`)
+        }
+      },
+      onStderr: (data) => {
+        const lines = data.split('\n').filter(Boolean)
+        for (const line of lines) {
+          writeLog(`[e2b][stderr][${label}] ${line}`)
+        }
+      },
+    })
+    writeLog(`[e2b][done] ${label}: exit=${result.exitCode}`)
+    return result
+  } catch (error) {
+    writeLog(`[e2b][fail] ${label}: ${error instanceof Error ? error.message : String(error)}`)
+    throw error
+  }
+}
+
 async function createPreview() {
   const repo = requireEnv('GITHUB_REPOSITORY')
   const prNumber = requireEnv('PR_NUMBER')
@@ -94,7 +129,7 @@ async function createPreview() {
   }
 
   const killed = await killSandboxes(metadata)
-  console.log(`Killed existing sandboxes: ${killed}`)
+  writeLog(`Killed existing sandboxes: ${killed}`)
 
   const sandbox = template
     ? await Sandbox.create(template, { timeoutMs, metadata })
@@ -110,29 +145,36 @@ async function createPreview() {
     ...loadPreviewEnvFromBase64(),
   }
 
-  await sandbox.commands.run('corepack enable')
-  await sandbox.commands.run('corepack prepare pnpm@10.2.0 --activate')
-  await sandbox.commands.run(
+  writeLog(`Created sandbox: ${sandbox.sandboxId}`)
+  await runCommandWithLogs(sandbox, 'corepack-enable', 'corepack enable')
+  await runCommandWithLogs(sandbox, 'corepack-prepare', 'corepack prepare pnpm@10.2.0 --activate')
+  await runCommandWithLogs(
+    sandbox,
+    'git-clone',
     `git clone --depth 1 --branch '${escapeShell(headRef)}' 'https://x-access-token:${escapeShell(githubToken)}@github.com/${escapeShell(repo)}.git' app`
   )
-  await sandbox.commands.run(
+  await runCommandWithLogs(
+    sandbox,
+    'pnpm-install',
     'pnpm install --frozen-lockfile --filter bubu-log... --child-concurrency=1 --network-concurrency=4',
     {
-    cwd: '/home/user/app',
-    timeoutMs: 15 * 60 * 1000,
+      cwd: '/home/user/app',
+      timeoutMs: 15 * 60 * 1000,
     }
   )
-  await sandbox.commands.run('pnpm build', {
+  await runCommandWithLogs(sandbox, 'pnpm-build', 'pnpm build', {
     cwd: `/home/user/app/${appPath}`,
     envs: appEnv,
     timeoutMs: 20 * 60 * 1000,
   })
-  await sandbox.commands.run('pnpm start', {
+  await runCommandWithLogs(sandbox, 'pnpm-start', 'pnpm start', {
     cwd: `/home/user/app/${appPath}`,
     envs: appEnv,
     background: true,
   })
-  await sandbox.commands.run(
+  await runCommandWithLogs(
+    sandbox,
+    'healthcheck',
     `bash -lc 'for i in $(seq 1 60); do curl -fsS http://127.0.0.1:${port}/ >/dev/null && exit 0; sleep 2; done; exit 1'`,
     { timeoutMs: 2 * 60 * 1000 }
   )
@@ -148,8 +190,8 @@ async function createPreview() {
     appendFileSync(output, lines.join('\n') + '\n')
   }
 
-  console.log(`Preview URL: ${previewUrl}`)
-  console.log(`Sandbox ID: ${sandbox.sandboxId}`)
+  writeLog(`Preview URL: ${previewUrl}`)
+  writeLog(`Sandbox ID: ${sandbox.sandboxId}`)
 }
 
 async function cleanupPreview() {
@@ -163,7 +205,7 @@ async function cleanupPreview() {
   }
 
   const killed = await killSandboxes(metadata)
-  console.log(`Killed sandboxes: ${killed}`)
+  writeLog(`Killed sandboxes: ${killed}`)
 
   const output = process.env.GITHUB_OUTPUT
   if (output) {

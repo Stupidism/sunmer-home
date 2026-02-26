@@ -60,6 +60,15 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          E2B_LOG_FILE: ${{ runner.temp }}/e2b-preview.log
+
+      - name: Upload E2B preview logs
+        if: always() && steps.validate.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2b-preview-log-pr-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/e2b-preview.log
+          if-no-files-found: warn
 
       - name: Upsert PR comment
         uses: actions/github-script@v7
@@ -164,6 +173,15 @@ jobs:
           E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          E2B_LOG_FILE: ${{ runner.temp }}/e2b-preview-cleanup.log
+
+      - name: Upload E2B cleanup logs
+        if: always() && steps.validate_cleanup.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2b-preview-cleanup-log-pr-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/e2b-preview-cleanup.log
+          if-no-files-found: warn
 
       - name: Add cleanup comment
         uses: actions/github-script@v7
