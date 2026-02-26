@@ -131,9 +131,20 @@ jobs:
       - name: Install E2B SDK
         run: npm install --no-save e2b@2.13.0
 
+      - name: Validate E2B secrets
+        id: validate_cleanup
+        env:
+          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+        run: |
+          if [ -z "${E2B_API_KEY}" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Cleanup E2B preview sandbox
         id: cleanup_preview
-        if: secrets.E2B_API_KEY != ''
+        if: steps.validate_cleanup.outputs.enabled == 'true'
         run: node .github/scripts/e2b-preview.mjs cleanup
         env:
           E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
