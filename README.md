@@ -161,6 +161,16 @@ base64 < apps/bubu-log/.env.preview.local | tr -d '\n'
 - `E2B_APP_PORT`：应用端口（默认 `1030`）
 - `E2B_APP_PATH`：应用目录（默认 `apps/bubu-log`）
 
+### 查看 E2B 执行日志
+
+- 在 GitHub Actions 的 `E2B PR Preview` workflow 中，打开 `preview` job 的 `Create E2B preview sandbox` step
+- 日志中可搜索前缀：
+  - `[e2b][start]`
+  - `[e2b][stdout]`
+  - `[e2b][stderr]`
+  - `[e2b][fail]`
+- workflow 还会上传 artifact：`e2b-preview-log-pr-<PR号>`，可下载完整日志
+
 ## 访问地址
 
 - 🌐 https://bubu.sunmer.xyz
