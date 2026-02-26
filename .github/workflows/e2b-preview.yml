@@ -46,6 +46,7 @@ jobs:
       - name: Create E2B preview sandbox
         id: create_preview
         if: steps.validate.outputs.enabled == 'true'
+        continue-on-error: true
         run: node .github/scripts/e2b-preview.mjs create
         env:
           E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
@@ -64,25 +65,38 @@ jobs:
         uses: actions/github-script@v7
         env:
           PREVIEW_ENABLED: ${{ steps.validate.outputs.enabled }}
+          PREVIEW_OUTCOME: ${{ steps.create_preview.outcome }}
           PREVIEW_URL: ${{ steps.create_preview.outputs.preview_url }}
           SANDBOX_ID: ${{ steps.create_preview.outputs.sandbox_id }}
           KILLED_COUNT: ${{ steps.create_preview.outputs.killed_count }}
           HEAD_SHA: ${{ steps.create_preview.outputs.head_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             const marker = '<!-- e2b-pr-preview -->'
             const body = process.env.PREVIEW_ENABLED === 'true'
-              ? [
-                  marker,
-                  '### E2B Preview',
-                  '',
-                  `- URL: ${process.env.PREVIEW_URL}`,
-                  `- Sandbox: \`${process.env.SANDBOX_ID}\``,
-                  `- Replaced old sandboxes: ${process.env.KILLED_COUNT || '0'}`,
-                  `- Commit: \`${(process.env.HEAD_SHA || '').slice(0, 12)}\``,
-                  '',
-                  '_This preview is ephemeral and will be recreated on new commits._',
-                ].join('\n')
+              ? (
+                  process.env.PREVIEW_OUTCOME === 'success'
+                    ? [
+                        marker,
+                        '### E2B Preview',
+                        '',
+                        `- URL: ${process.env.PREVIEW_URL}`,
+                        `- Sandbox: \`${process.env.SANDBOX_ID}\``,
+                        `- Replaced old sandboxes: ${process.env.KILLED_COUNT || '0'}`,
+                        `- Commit: \`${(process.env.HEAD_SHA || '').slice(0, 12)}\``,
+                        '',
+                        '_This preview is ephemeral and will be recreated on new commits._',
+                      ].join('\n')
+                    : [
+                        marker,
+                        '### E2B Preview',
+                        '',
+                        '- Preview creation failed in this run (likely sandbox resource limit).',
+                        `- Logs: ${process.env.RUN_URL}`,
+                        '- Action: set `E2B_TEMPLATE` to a larger template, then rerun this workflow.',
+                      ].join('\n')
+                )
               : [
                   marker,
                   '### E2B Preview',
