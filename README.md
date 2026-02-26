@@ -33,7 +33,7 @@ pnpm lint
 
 ## 🔐 gh 账号自动选择（按目录）
 
-本仓库已提供 `.envrc`，进入目录后会自动将 `GH_TOKEN` 指向 `Stupidism` 账号（优先于 `gh` 全局 active account）。
+仓库提供 `.envrc.example` 模板。将其复制为本地 `.envrc` 后，进入目录会自动将 `GH_TOKEN` 指向 `Stupidism` 账号（优先于 `gh` 全局 active account）。
 
 ### 1) 安装并启用 direnv
 
@@ -47,6 +47,7 @@ exec zsh
 
 ```bash
 cd /Users/sun/Documents/personal/sunmer-home
+cp .envrc.example .envrc
 direnv allow
 ```
 

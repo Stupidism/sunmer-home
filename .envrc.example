@@ -1,5 +1,5 @@
-# Use the Stupidism GitHub account token for this repository.
-# gh CLI prefers GH_TOKEN over globally active account.
+# Copy this file to .envrc and run `direnv allow`.
+# This keeps .envrc local-only while still standardizing setup.
 if command -v gh >/dev/null 2>&1; then
   token="$(gh auth token -h github.com -u Stupidism 2>/dev/null || true)"
   if [ -n "${token}" ]; then
