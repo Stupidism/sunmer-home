@@ -123,6 +123,14 @@ function resolveInstallCommand(appPath) {
   return 'pnpm install --frozen-lockfile --filter bubu-log --filter @bubu-log/ui --filter @bubu-log/log-ui --filter @bubu-log/typescript-config --child-concurrency=1 --network-concurrency=2'
 }
 
+function resolveMigrationCommand(appPath) {
+  if (appPath === 'apps/nunu-island' || appPath === 'apps/wedding-invite') {
+    return 'pnpm db:migrate'
+  }
+
+  return null
+}
+
 const logFile = process.env.E2B_LOG_FILE
 
 function writeLog(line) {
@@ -207,6 +215,7 @@ async function createPreview() {
   const timeoutMs = parseOptionalInt(process.env.E2B_TIMEOUT_MS, 60 * 60 * 1000)
   const template = process.env.E2B_TEMPLATE
   const pnpmInstallCommand = resolveInstallCommand(appPath)
+  const migrationCommand = resolveMigrationCommand(appPath)
 
   const metadata = {
     owner: 'github-actions',
@@ -262,14 +271,15 @@ async function createPreview() {
       timeoutMs: 15 * 60 * 1000,
     }
   )
-
-  if (appId === 'wedding-invite') {
-    await runCommandWithLogs(sandbox, 'db-migrate', 'pnpm db:migrate', {
+  if (migrationCommand) {
+    await runCommandWithLogs(sandbox, 'db-migrate', migrationCommand, {
       cwd: `/home/user/app/${appPath}`,
       envs: appEnv,
       timeoutMs: 10 * 60 * 1000,
     })
+  }
 
+  if (appId === 'wedding-invite') {
     await runCommandWithLogs(sandbox, 'seed-e2e-admin', 'pnpm seed:e2e-admin', {
       cwd: `/home/user/app/${appPath}`,
       envs: appEnv,
