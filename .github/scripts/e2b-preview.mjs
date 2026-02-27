@@ -74,6 +74,27 @@ function escapeShell(value) {
   return value.replace(/'/g, "'\"'\"'")
 }
 
+function resolveInstallCommand(appPath) {
+  const customFilters = process.env.E2B_PNPM_FILTERS
+  if (customFilters) {
+    const filters = customFilters
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+
+    if (filters.length > 0) {
+      const filterFlags = filters.map((filter) => `--filter ${filter}`).join(' ')
+      return `pnpm install --frozen-lockfile ${filterFlags} --child-concurrency=1 --network-concurrency=2`
+    }
+  }
+
+  if (appPath === 'apps/nunu-island') {
+    return 'pnpm install --frozen-lockfile --filter nunu-island --filter @bubu-log/ui --filter @bubu-log/typescript-config --child-concurrency=1 --network-concurrency=2'
+  }
+
+  return 'pnpm install --frozen-lockfile --filter bubu-log --filter @bubu-log/ui --filter @bubu-log/log-ui --filter @bubu-log/typescript-config --child-concurrency=1 --network-concurrency=2'
+}
+
 const logFile = process.env.E2B_LOG_FILE
 
 function writeLog(line) {
@@ -120,6 +141,7 @@ async function createPreview() {
   const port = parseOptionalInt(process.env.E2B_APP_PORT, 1030)
   const timeoutMs = parseOptionalInt(process.env.E2B_TIMEOUT_MS, 60 * 60 * 1000)
   const template = process.env.E2B_TEMPLATE
+  const pnpmInstallCommand = resolveInstallCommand(appPath)
 
   const metadata = {
     owner: 'github-actions',
@@ -156,7 +178,7 @@ async function createPreview() {
   await runCommandWithLogs(
     sandbox,
     'pnpm-install',
-    'pnpm install --frozen-lockfile --filter bubu-log --filter @bubu-log/ui --filter @bubu-log/log-ui --filter @bubu-log/typescript-config --child-concurrency=1 --network-concurrency=2',
+    pnpmInstallCommand,
     {
       cwd: '/home/user/app',
       timeoutMs: 15 * 60 * 1000,
