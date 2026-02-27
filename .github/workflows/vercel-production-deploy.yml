@@ -1,0 +1,247 @@
+name: Vercel Production Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      deploy_all:
+        description: Deploy all apps
+        required: false
+        default: false
+        type: boolean
+      apps:
+        description: Comma-separated app ids (optional)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-production-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-affected:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix_json: ${{ steps.detect.outputs.matrix_json }}
+      affected_json: ${{ steps.detect.outputs.affected_json }}
+      deploy_count: ${{ steps.detect.outputs.deploy_count }}
+    steps:
+      - name: Detect affected apps
+        id: detect
+        uses: actions/github-script@v7
+        env:
+          INPUT_DEPLOY_ALL: ${{ github.event.inputs.deploy_all || 'false' }}
+          INPUT_APPS: ${{ github.event.inputs.apps || '' }}
+        with:
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+
+            const projects = [
+              {
+                appId: 'bubu-log',
+                appPath: 'apps/bubu-log',
+                projectIdSecret: 'VERCEL_PROJECT_ID_BUBU_LOG',
+                triggers: ['apps/bubu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'nunu-island',
+                appPath: 'apps/nunu-island',
+                projectIdSecret: 'VERCEL_PROJECT_ID_NUNU_ISLAND',
+                triggers: ['apps/nunu-island/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'nunu-log',
+                appPath: 'apps/nunu-log',
+                projectIdSecret: 'VERCEL_PROJECT_ID_NUNU_LOG',
+                triggers: ['apps/nunu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'wedding-invite',
+                appPath: 'apps/wedding-invite',
+                projectIdSecret: 'VERCEL_PROJECT_ID_WEDDING_INVITE',
+                triggers: ['apps/wedding-invite/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+            ]
+
+            const alwaysAffectAll = [
+              'pnpm-lock.yaml',
+              'pnpm-workspace.yaml',
+              'package.json',
+              'turbo.json',
+              '.github/workflows/vercel-production-deploy.yml',
+            ]
+
+            const isDispatch = context.eventName === 'workflow_dispatch'
+            const deployAllInput = (process.env.INPUT_DEPLOY_ALL || '').toLowerCase() === 'true'
+            const appsInput = (process.env.INPUT_APPS || '')
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean)
+
+            let affected = []
+            let changed = []
+
+            if (isDispatch && (deployAllInput || appsInput.length > 0)) {
+              if (deployAllInput) {
+                affected = projects
+              } else {
+                const selected = new Set(appsInput)
+                const unknown = appsInput.filter((appId) => !projects.some((project) => project.appId === appId))
+                if (unknown.length > 0) {
+                  core.setFailed(`Unknown app ids in workflow_dispatch input: ${unknown.join(', ')}`)
+                  return
+                }
+                affected = projects.filter((project) => selected.has(project.appId))
+              }
+            } else {
+              const before = context.payload.before
+              const after = context.sha
+
+              if (!before || /^0+$/.test(before)) {
+                affected = projects
+              } else {
+                const comparison = await github.rest.repos.compareCommitsWithBasehead({
+                  owner,
+                  repo,
+                  basehead: `${before}...${after}`,
+                })
+
+                changed = (comparison.data.files || []).map((file) => file.filename)
+
+                if ((comparison.data.files || []).length >= 300) {
+                  core.warning('Changed files reached API limit; deploying all apps for safety.')
+                  affected = projects
+                } else {
+                  const affectAll = changed.some((file) =>
+                    alwaysAffectAll.some((target) => file === target || file.startsWith(`${target}/`))
+                  )
+
+                  affected = projects.filter((project) => {
+                    if (affectAll) return true
+                    return changed.some((file) => project.triggers.some((prefix) => file.startsWith(prefix)))
+                  })
+                }
+              }
+            }
+
+            core.info(`Changed files: ${changed.length}`)
+            core.info(`Affected apps: ${affected.map((item) => item.appId).join(', ') || '(none)'}`)
+
+            core.setOutput('matrix_json', JSON.stringify({ include: affected }))
+            core.setOutput('affected_json', JSON.stringify(affected.map((item) => item.appId)))
+            core.setOutput('deploy_count', String(affected.length))
+
+  deploy-production:
+    needs: detect-affected
+    if: needs.detect-affected.outputs.deploy_count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-affected.outputs.matrix_json) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.2.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Vercel CLI
+        run: pnpm dlx vercel@latest --version
+
+      - name: Resolve app project id
+        id: resolve
+        env:
+          VERCEL_PROJECT_ID_BUBU_LOG: ${{ secrets.VERCEL_PROJECT_ID_BUBU_LOG }}
+          VERCEL_PROJECT_ID_NUNU_ISLAND: ${{ secrets.VERCEL_PROJECT_ID_NUNU_ISLAND }}
+          VERCEL_PROJECT_ID_NUNU_LOG: ${{ secrets.VERCEL_PROJECT_ID_NUNU_LOG }}
+          VERCEL_PROJECT_ID_WEDDING_INVITE: ${{ secrets.VERCEL_PROJECT_ID_WEDDING_INVITE }}
+        run: |
+          APP_ID='${{ matrix.appId }}'
+          PROJECT_ID=''
+
+          case "$APP_ID" in
+            bubu-log)
+              PROJECT_ID="$VERCEL_PROJECT_ID_BUBU_LOG"
+              ;;
+            nunu-island)
+              PROJECT_ID="$VERCEL_PROJECT_ID_NUNU_ISLAND"
+              ;;
+            nunu-log)
+              PROJECT_ID="$VERCEL_PROJECT_ID_NUNU_LOG"
+              ;;
+            wedding-invite)
+              PROJECT_ID="$VERCEL_PROJECT_ID_WEDDING_INVITE"
+              ;;
+            *)
+              ;;
+          esac
+
+          if [ -z "$PROJECT_ID" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "reason=missing-project-id" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "reason=ready" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Pull Vercel production env
+        if: steps.resolve.outputs.enabled == 'true'
+        working-directory: ${{ matrix.appPath }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: pnpm dlx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build production artifacts
+        if: steps.resolve.outputs.enabled == 'true'
+        working-directory: ${{ matrix.appPath }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: pnpm dlx vercel@latest build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy production artifacts
+        if: steps.resolve.outputs.enabled == 'true'
+        working-directory: ${{ matrix.appPath }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: pnpm dlx vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+
+      - name: Job summary
+        run: |
+          if [ '${{ steps.resolve.outputs.enabled }}' = 'true' ]; then
+            echo "✅ Deployed ${{ matrix.appId }} to production" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "⚠️ Skipped ${{ matrix.appId }} because project id secret was missing" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  no-op:
+    needs: detect-affected
+    if: needs.detect-affected.outputs.deploy_count == '0'
+    runs-on: ubuntu-latest
+    steps:
+      - name: No affected apps
+        run: echo "No affected apps detected. Skipping production deploy."
