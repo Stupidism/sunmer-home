@@ -124,7 +124,11 @@ function resolveInstallCommand(appPath) {
 }
 
 function resolveMigrationCommand(appPath) {
-  if (appPath === 'apps/nunu-island' || appPath === 'apps/wedding-invite') {
+  if (appPath === 'apps/nunu-island') {
+    return "NODE_OPTIONS='--import tsx -r ./scripts/shims/next-env-default.cjs' pnpm payload migrate"
+  }
+
+  if (appPath === 'apps/wedding-invite') {
     return 'pnpm db:migrate'
   }
 
