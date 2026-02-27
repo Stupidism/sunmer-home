@@ -36,10 +36,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.2.0 --activate
+      - name: Install E2B build deps
+        run: npm install --no-save e2b@2.13.0 tsx
 
       - name: Build template
         env:
@@ -52,7 +50,7 @@ jobs:
             echo "BUBU_LOG_E2B_API_KEY is missing."
             exit 1
           fi
-          npx -y -p e2b@2.13.0 -p tsx tsx scripts/e2b-template/build.prod.ts
+          npx tsx scripts/e2b-template/build.prod.ts
 
       - name: Set repository variable E2B_TEMPLATE
         if: inputs.update_repo_variable == 'true'
