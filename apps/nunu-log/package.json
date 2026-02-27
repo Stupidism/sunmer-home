@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 928",
     "build": "prisma generate && next build",
-    "start": "next start -p 928",
+    "start": "next start -p ${PORT:-928}",
     "lint": "eslint .",
     "postinstall": "prisma generate",
     "db:push": "prisma db push"
