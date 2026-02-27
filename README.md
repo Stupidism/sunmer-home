@@ -161,6 +161,30 @@ base64 < apps/bubu-log/.env.preview.local | tr -d '\n'
 - `E2B_APP_PORT`：应用端口（默认 `1030`）
 - `E2B_APP_PATH`：应用目录（默认 `apps/bubu-log`）
 
+### 构建更大规格 E2B Template（解决 `signal: killed`）
+
+当预览日志显示安装依赖阶段被 `signal: killed` 时，通常是沙箱资源不足。可构建更大模板并绑定到仓库变量：
+
+```bash
+cd /Users/sun/Documents/personal/sunmer-home
+export E2B_API_KEY=your_e2b_api_key
+
+# 默认构建: bubu-preview-large, 4 vCPU, 4096 MB
+pnpm dlx --package e2b@2.13.0 --package tsx tsx scripts/e2b-template/build.prod.ts
+
+# 绑定到仓库 E2B PR Preview workflow
+gh variable set E2B_TEMPLATE --repo Stupidism/sunmer-home --body bubu-preview-large
+```
+
+可选：提高规格
+
+```bash
+E2B_TEMPLATE_CPU=8 E2B_TEMPLATE_MEMORY_MB=8192 \
+pnpm dlx --package e2b@2.13.0 --package tsx tsx scripts/e2b-template/build.prod.ts
+```
+
+更多细节见：`scripts/e2b-template/README.md`
+
 ## 访问地址
 
 - 🌐 https://bubu.sunmer.xyz
