@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({} as Record<string, unknown>))
     const text = typeof body.text === 'string' ? body.text : ''
     const localTime = typeof body.localTime === 'string' ? body.localTime : null
+    const bodyBabyId = typeof body.babyId === 'string' && body.babyId.trim() ? body.babyId.trim() : null
 
     const apiKeyFromHeader = extractApiKey(request)
     const bearerToken = extractBearerToken(request)
@@ -71,15 +72,12 @@ export async function POST(request: NextRequest) {
     let identity: ResolvedIdentity | null = null
     let authMode: AuthMode | null = null
 
-    // TODO(BBL-019): Support selecting baby scope dynamically for one shortcut workflow.
-    // Current webhook tokens are intentionally bound to a single baby to avoid cross-baby writes.
-
     // Mode 1: signed user token
     if (bearerToken) {
       const payload = verifyVoiceWebhookToken(bearerToken)
       if (payload) {
         identity = {
-          babyId: payload.babyId,
+          babyId: bodyBabyId || payload.babyId,
           userId: payload.userId,
         }
         authMode = 'signed-token'
@@ -104,7 +102,6 @@ export async function POST(request: NextRequest) {
     if (!identity && configuredApiKey) {
       const incomingApiKey = apiKeyFromHeader || bearerToken
       if (incomingApiKey && secureCompare(incomingApiKey, configuredApiKey)) {
-        const bodyBabyId = typeof body.babyId === 'string' ? body.babyId : null
         const targetBabyId = bodyBabyId || process.env.VOICE_WEBHOOK_DEFAULT_BABY_ID || null
 
         if (!targetBabyId) {

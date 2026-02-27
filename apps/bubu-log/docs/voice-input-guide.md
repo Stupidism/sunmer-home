@@ -39,6 +39,7 @@
      - **JSON 内容**:
        - `text`: 选择「听写文本」变量
        - `localTime`: 建议传当前时间（格式示例：`2026-02-20 21:30`）
+       - `babyId`（可选）: 多宝宝场景可在同一条快捷指令里动态传入目标宝宝 ID；不传则使用 token 绑定宝宝
 
 > 注意：`shortcuts://create-shortcut` 只能打开空白编辑器，不能自动填充动作。
 > 若要一键安装模板，需使用 iCloud 快捷指令分享链接。
@@ -161,7 +162,8 @@ Content-Type: application/json
 
 {
   "text": "宝宝刚才喝了60毫升奶",
-  "localTime": "2026-02-20 21:30"
+  "localTime": "2026-02-20 21:30",
+  "babyId": "optional-target-baby-id"
 }
 ```
 

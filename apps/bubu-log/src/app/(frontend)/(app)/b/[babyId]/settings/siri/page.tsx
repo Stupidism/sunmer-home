@@ -177,9 +177,9 @@ export default function SiriShortcutPage() {
             </ol>
 
             <div className="rounded-xl border border-orange-200 bg-orange-50 dark:border-orange-800/60 dark:bg-orange-900/20 p-3">
-              <p className="text-xs font-medium text-orange-700 dark:text-orange-300">多宝宝提示（暂不支持）</p>
+              <p className="text-xs font-medium text-orange-700 dark:text-orange-300">多宝宝提示（支持切换）</p>
               <p className="text-xs text-orange-700/90 dark:text-orange-200/90 mt-1">
-                webhook 语音输入暂不支持在同一个快捷指令中切换宝宝。当前 token 会固定绑定创建时选中的宝宝，多宝宝家庭请为每个宝宝分别创建一条快捷指令。
+                webhook 语音输入支持在同一个快捷指令中切换宝宝，但快捷指令请求里需要带 `babyId`。若模板未带该参数，仍会使用当前 token 创建时的默认宝宝。
               </p>
             </div>
 
