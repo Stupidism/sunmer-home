@@ -3,34 +3,36 @@ import { expect, test, type Page } from '@playwright/test'
 const TEMPLATE_ID = 'gratitude-journal'
 
 async function answerCurrentQuestion(page: Page): Promise<boolean> {
-  const questionArticle = page.locator('article:has(h2)').first()
+  const questionArticle = page.locator('article:has(h2):visible').last()
 
   if ((await questionArticle.count()) === 0) {
     return false
   }
 
-  const choiceOptions = questionArticle.locator('.space-y-2 > button[type="button"]')
+  const choiceOptions = questionArticle.locator('.space-y-2 > button[type="button"]:visible')
   if ((await choiceOptions.count()) > 0) {
     await choiceOptions.first().click({ force: true })
     return true
   }
 
-  const slider = questionArticle.locator('[role="slider"]')
+  const slider = questionArticle.locator('[role="slider"]:visible')
   if ((await slider.count()) > 0) {
     await slider.first().focus()
     await page.keyboard.press('ArrowRight')
     return true
   }
 
-  const textarea = questionArticle.locator('textarea')
+  const textarea = questionArticle.locator('textarea:visible')
   if ((await textarea.count()) > 0) {
-    await textarea.first().fill(`e2e-answer-${Date.now()}`)
+    await textarea.first().click({ force: true })
+    await textarea.first().fill(`e2e-answer-${Date.now()}`, { timeout: 30000 })
     return true
   }
 
-  const textInput = questionArticle.locator('input')
+  const textInput = questionArticle.locator('input:visible')
   if ((await textInput.count()) > 0) {
-    await textInput.first().fill(`e2e-answer-${Date.now()}`)
+    await textInput.first().click({ force: true })
+    await textInput.first().fill(`e2e-answer-${Date.now()}`, { timeout: 30000 })
     return true
   }
 
