@@ -10,7 +10,12 @@
     "payload": "payload",
     "db:migrate": "PAYLOAD_DB_PUSH=false NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' pnpm payload migrate",
     "db:seed:articles": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/seed-articles.ts",
-    "db:seed:content": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/seed-content.ts"
+    "db:seed:content": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/seed-content.ts",
+    "test:e2e:run": "playwright test",
+    "test:e2e": "bash scripts/run-e2e.sh",
+    "test:e2e:ui": "bash scripts/run-e2e.sh --ui",
+    "test:e2e:headed": "bash scripts/run-e2e.sh --headed",
+    "test:e2e:debug": "bash scripts/run-e2e.sh --debug"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -66,6 +71,7 @@
     "zod": "^4.3.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
