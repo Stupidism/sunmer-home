@@ -1,0 +1,3 @@
+# Local-only settings for .envrc (this file is ignored by git when renamed to .envrc.local)
+# Set to your preferred gh account for this repository.
+GH_ACCOUNT=Stupidism

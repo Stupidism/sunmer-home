@@ -31,6 +31,36 @@ pnpm build
 pnpm lint
 ```
 
+## 🔐 gh 账号自动选择（按目录）
+
+仓库提交了 `.envrc`（不包含 token 或账号硬编码）。  
+具体账号通过本地忽略文件 `.envrc.local` 提供，这样每个人都能自行切换。
+
+### 1) 安装并启用 direnv
+
+```bash
+brew install direnv
+echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
+exec zsh
+```
+
+### 2) 在仓库目录授权一次
+
+```bash
+cd /Users/sun/Documents/personal/sunmer-home
+cp .envrc.local.example .envrc.local
+direnv allow
+```
+
+### 3) 验证
+
+```bash
+gh auth status
+gh api user -q .login
+```
+
+如果需要切换账号，修改 `.envrc.local` 里的 `GH_ACCOUNT` 后重新进入目录即可。
+
 ## 📱 宝宝日记 (apps/bubu-log)
 
 一个简单易用的婴儿护理记录应用，专为月嫂阿姨和家长设计。
