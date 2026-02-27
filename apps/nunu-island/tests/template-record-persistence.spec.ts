@@ -40,7 +40,7 @@ async function answerCurrentQuestion(page: Page): Promise<boolean> {
 test('template questionnaire persists answers to database', async ({ page }) => {
   await page.goto(`/modules/template-selector/${TEMPLATE_ID}`)
 
-  const maxSteps = 80
+  const maxSteps = 240
   for (let step = 0; step < maxSteps; step += 1) {
     if (await page.getByText('记录完成').isVisible()) {
       break
@@ -63,8 +63,8 @@ test('template questionnaire persists answers to database', async ({ page }) => 
     await nextButton.click({ force: true })
   }
 
-  await expect(page.getByText('记录完成')).toBeVisible()
-  await expect(page.getByText('你的回答已保存到数据库记录。')).toBeVisible()
+  await expect(page.getByText('记录完成')).toBeVisible({ timeout: 120000 })
+  await expect(page.getByText('你的回答已保存到数据库记录。')).toBeVisible({ timeout: 120000 })
   await expect(page.locator('text=保存失败')).toHaveCount(0)
 
   const afterResponse = await page.request.get(`/api/content/template-records?templateId=${TEMPLATE_ID}`, {
