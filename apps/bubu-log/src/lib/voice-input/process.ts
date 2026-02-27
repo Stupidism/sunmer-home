@@ -4,6 +4,8 @@ import { createAuditLog } from '@/lib/payload/audit'
 
 // Deepseek API configuration
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions'
+const DEEPSEEK_TIMEOUT_MS = Number(process.env.DEEPSEEK_TIMEOUT_MS || 15000)
+const VOICE_INPUT_TIMEOUT_MESSAGE = '语音解析超时，请按左边的时间轴手动添加事件。'
 
 // System prompt for parsing baby activity from natural language
 const SYSTEM_PROMPT = `你是一个宝宝活动记录助手。用户会用自然语言描述宝宝的活动，你需要解析并返回结构化的 JSON 数据。
@@ -175,6 +177,16 @@ interface ParseError {
   originalText: string
 }
 
+class DeepseekTimeoutError extends Error {
+  readonly timeoutMs: number
+
+  constructor(timeoutMs: number) {
+    super(`Deepseek request timed out after ${timeoutMs}ms`)
+    this.name = 'DeepseekTimeoutError'
+    this.timeoutMs = timeoutMs
+  }
+}
+
 export interface ProcessVoiceInputOptions {
   text: string
   localTime?: string | null
@@ -226,19 +238,34 @@ async function callDeepseek(text: string, userLocalTime: string): Promise<Parsed
     { role: 'user', content: `用户当前本地时间: ${userLocalTime}\n用户输入: ${text}` }
   ]
 
-  const response = await fetch(DEEPSEEK_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages,
-      temperature: 0.1, // Low temperature for more consistent parsing
-      max_tokens: 500
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), DEEPSEEK_TIMEOUT_MS)
+
+  let response: Response
+  try {
+    response = await fetch(DEEPSEEK_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages,
+        temperature: 0.1, // Low temperature for more consistent parsing
+        max_tokens: 500
+      }),
+      signal: controller.signal,
     })
-  })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new DeepseekTimeoutError(DEEPSEEK_TIMEOUT_MS)
+    }
+
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
 
   if (!response.ok) {
     const errorText = await response.text()
@@ -538,6 +565,50 @@ export async function processVoiceInput(options: ProcessVoiceInputOptions): Prom
 
   } catch (error) {
     console.error('Voice input processing failed:', error)
+
+    if (error instanceof DeepseekTimeoutError) {
+      const timeoutDetails = `Deepseek timed out after ${error.timeoutMs}ms`
+
+      try {
+        if (text) {
+          const payload = await getPayloadClient()
+          await createAuditLog(payload, {
+            action: 'CREATE',
+            resourceId: null,
+            inputMethod: 'VOICE',
+            inputText: text,
+            description: `语音: "${text}" - 语音解析超时`,
+            success: false,
+            errorMessage: timeoutDetails,
+            beforeData: null,
+            afterData: null,
+            activityId: null,
+            babyId,
+            userId,
+          })
+        }
+      } catch {
+        // Ignore audit log errors
+      }
+
+      logNonSuccess({
+        status: 504,
+        code: 'DEEPSEEK_TIMEOUT',
+        text,
+        babyId,
+        userId,
+        details: timeoutDetails,
+      })
+
+      return {
+        status: 504,
+        body: {
+          error: VOICE_INPUT_TIMEOUT_MESSAGE,
+          details: timeoutDetails,
+          code: 'DEEPSEEK_TIMEOUT',
+        },
+      }
+    }
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     
