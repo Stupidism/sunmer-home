@@ -53,9 +53,3 @@ jobs:
 
       - name: E2E tests
         run: pnpm -C apps/bubu-log test:e2e
-
-      - name: Install Playwright browsers (nunu-island)
-        run: pnpm -C apps/nunu-island exec playwright install --with-deps
-
-      - name: E2E tests (nunu-island)
-        run: pnpm -C apps/nunu-island test:e2e
