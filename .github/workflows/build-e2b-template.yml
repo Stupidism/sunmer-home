@@ -1,0 +1,59 @@
+name: Build E2B Template
+
+on:
+  workflow_dispatch:
+    inputs:
+      template_name:
+        description: Template name to build
+        required: true
+        default: bubu-preview-large
+      cpu:
+        description: vCPU count
+        required: true
+        default: "4"
+      memory_mb:
+        description: Memory in MB
+        required: true
+        default: "4096"
+      update_repo_variable:
+        description: Update repo variable E2B_TEMPLATE after build
+        required: true
+        default: "true"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build template
+        env:
+          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
+          E2B_TEMPLATE_NAME: ${{ inputs.template_name }}
+          E2B_TEMPLATE_CPU: ${{ inputs.cpu }}
+          E2B_TEMPLATE_MEMORY_MB: ${{ inputs.memory_mb }}
+        run: |
+          if [ -z "${E2B_API_KEY}" ]; then
+            echo "BUBU_LOG_E2B_API_KEY is missing."
+            exit 1
+          fi
+          pnpm dlx --package e2b@2.13.0 --package tsx tsx scripts/e2b-template/build.prod.ts
+
+      - name: Set repository variable E2B_TEMPLATE
+        if: inputs.update_repo_variable == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TEMPLATE_NAME: ${{ inputs.template_name }}
+        run: |
+          gh variable set E2B_TEMPLATE --repo "${{ github.repository }}" --body "${TEMPLATE_NAME}"
+          echo "Updated E2B_TEMPLATE=${TEMPLATE_NAME}"
