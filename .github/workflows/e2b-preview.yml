@@ -22,8 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix_json: ${{ steps.detect.outputs.matrix_json }}
-      all_projects_json: ${{ steps.detect.outputs.all_projects_json }}
-      affected_json: ${{ steps.detect.outputs.affected_json }}
       preview_count: ${{ steps.detect.outputs.preview_count }}
     steps:
       - name: Detect affected projects for E2B preview
@@ -101,9 +99,34 @@ jobs:
             core.info(`Affected projects: ${affected.map((p) => p.appId).join(', ') || '(none)'}`)
 
             core.setOutput('matrix_json', JSON.stringify({ include: affected }))
-            core.setOutput('all_projects_json', JSON.stringify(projects.map((p) => ({ appId: p.appId, appName: p.appName }))))
-            core.setOutput('affected_json', JSON.stringify(affected.map((p) => ({ appId: p.appId, appName: p.appName }))))
             core.setOutput('preview_count', String(affected.length))
+
+      - name: Remove legacy aggregated preview comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- e2b-pr-preview -->'
+            const issue_number = context.issue.number
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            })
+
+            const legacy = comments.find((comment) =>
+              comment.body && comment.body.includes(marker)
+            )
+
+            if (legacy) {
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: legacy.id,
+              })
+              core.info('Removed legacy aggregated preview comment.')
+            }
 
   preview:
     needs: detect-affected
@@ -264,144 +287,77 @@ jobs:
           path: ${{ runner.temp }}/e2b-result/${{ matrix.appId }}.json
           if-no-files-found: error
 
-  comment-preview:
-    needs:
-      - detect-affected
-      - preview
-    if: >
-      always() &&
-      github.event.action != 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download E2B preview result artifacts
-        if: needs.detect-affected.outputs.preview_count != '0'
-        uses: actions/download-artifact@v4
-        with:
-          pattern: e2b-preview-result-*
-          path: ${{ runner.temp }}/e2b-results
-          merge-multiple: true
-
-      - name: Upsert PR comment
+      - name: Upsert app preview comment
+        if: always()
         uses: actions/github-script@v7
         env:
-          PREVIEW_COUNT: ${{ needs.detect-affected.outputs.preview_count }}
-          ALL_PROJECTS_JSON: ${{ needs.detect-affected.outputs.all_projects_json }}
-          AFFECTED_JSON: ${{ needs.detect-affected.outputs.affected_json }}
-          RESULT_DIR: ${{ runner.temp }}/e2b-results
+          RESULT_FILE: ${{ runner.temp }}/e2b-result/${{ matrix.appId }}.json
+          APP_ID: ${{ matrix.appId }}
+          APP_NAME: ${{ matrix.appName }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             const fs = require('node:fs')
-            const path = require('node:path')
 
-            const marker = '<!-- e2b-pr-preview -->'
-            const allProjects = JSON.parse(process.env.ALL_PROJECTS_JSON || '[]')
-            const affectedProjects = JSON.parse(process.env.AFFECTED_JSON || '[]')
-            const affectedSet = new Set(affectedProjects.map((item) => item.appId))
-            const resultDir = process.env.RESULT_DIR
+            const marker = `<!-- e2b-pr-preview:${process.env.APP_ID} -->`
+            const issue_number = context.issue.number
+            const updated = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')
 
-            const results = []
-            if (process.env.PREVIEW_COUNT !== '0' && fs.existsSync(resultDir)) {
-              for (const entry of fs.readdirSync(resultDir)) {
-                if (!entry.endsWith('.json')) continue
-                const filePath = path.join(resultDir, entry)
-                try {
-                  const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-                  results.push(parsed)
-                } catch (error) {
-                  core.warning(`Failed to parse ${entry}: ${error}`)
-                }
-              }
+            let result = {
+              appId: process.env.APP_ID,
+              appName: process.env.APP_NAME,
+              status: 'failed',
+              reason: 'missing-result-file',
+              runUrl: process.env.RUN_URL,
             }
 
-            const resultByAppId = new Map(results.map((item) => [item.appId, item]))
-
-            const rows = []
-            const skippedRows = []
-
-            const now = new Date()
-            const updated = now.toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')
-
-            const makeRow = (project, result, fallbackStatus) => {
-              const status = result?.status || fallbackStatus
-              const icon = status === 'ready' ? '![Ready](https://vercel.com/static/status/ready.svg)' : status === 'failed' ? '![Error](https://vercel.com/static/status/error.svg)' : '![Skipped](https://vercel.com/static/status/canceled.svg)'
-              const statusLabel = status === 'ready' ? 'Ready' : status === 'failed' ? 'Failed' : 'Skipped'
-              const deployment = `${icon} ${statusLabel}`
-
-              const actions = []
-              if (result?.previewUrl) {
-                actions.push(`[Preview](${result.previewUrl})`)
-              }
-              if (result?.sandboxId) {
-                actions.push(`Sandbox: \`${result.sandboxId}\``)
-              }
-              if (result?.runUrl || status !== 'ready') {
-                actions.push(`[Logs](${result?.runUrl || process.env.RUN_URL})`)
-              }
-
-              return `| ${project.appName} | ${deployment} | ${actions.join(', ') || '-'} | ${updated} |`
+            try {
+              const raw = fs.readFileSync(process.env.RESULT_FILE, 'utf8')
+              result = JSON.parse(raw)
+            } catch (error) {
+              core.warning(`Failed to read preview result for ${process.env.APP_ID}: ${error}`)
             }
 
-            for (const project of allProjects) {
-              if (!affectedSet.has(project.appId)) {
-                skippedRows.push(makeRow(project, null, 'skipped'))
-                continue
-              }
+            const status = result.status || 'failed'
+            const icon = status === 'ready'
+              ? '![Ready](https://vercel.com/static/status/ready.svg)'
+              : status === 'failed'
+                ? '![Error](https://vercel.com/static/status/error.svg)'
+                : '![Skipped](https://vercel.com/static/status/canceled.svg)'
+            const statusLabel = status === 'ready' ? 'Ready' : status === 'failed' ? 'Failed' : 'Skipped'
 
-              const result = resultByAppId.get(project.appId)
-              if (!result) {
-                rows.push(makeRow(project, { status: 'failed', runUrl: process.env.RUN_URL }, 'failed'))
-                continue
-              }
-
-              if (result.status === 'ready') {
-                rows.push(makeRow(project, result, 'ready'))
-              } else if (result.status === 'failed') {
-                rows.push(makeRow(project, result, 'failed'))
-              } else {
-                skippedRows.push(makeRow(project, result, 'skipped'))
-              }
+            const actions = []
+            if (result.previewUrl) {
+              actions.push(`[Preview](${result.previewUrl})`)
+            }
+            if (result.sandboxId) {
+              actions.push(`Sandbox: \`${result.sandboxId}\``)
+            }
+            if (status !== 'ready') {
+              actions.push(`[Logs](${result.runUrl || process.env.RUN_URL})`)
             }
 
-            const header = [
+            const body = [
               marker,
-              '### E2B Preview',
+              `### E2B Preview · ${process.env.APP_NAME}`,
               '',
               '| Project | Deployment | Actions | Updated (UTC) |',
               '| :--- | :----- | :------ | :------ |',
-            ]
+              `| ${process.env.APP_NAME} | ${icon} ${statusLabel} | ${actions.join(', ') || '-'} | ${updated} |`,
+              '',
+              '_This preview is ephemeral and will be recreated on new commits._',
+            ].join('\n')
 
-            const bodyParts = [...header]
-            if (rows.length > 0) {
-              bodyParts.push(...rows)
-            } else {
-              bodyParts.push('| (none) | ![Skipped](https://vercel.com/static/status/canceled.svg) Skipped | No affected projects | ' + updated + ' |')
-            }
-
-            if (skippedRows.length > 0) {
-              bodyParts.push('')
-              bodyParts.push(`<details><summary>${skippedRows.length} Skipped Projects</summary>`)
-              bodyParts.push('')
-              bodyParts.push('| Project | Deployment | Actions | Updated (UTC) |')
-              bodyParts.push('| :--- | :----- | :------ | :------ |')
-              bodyParts.push(...skippedRows)
-              bodyParts.push('</details>')
-            }
-
-            bodyParts.push('')
-            bodyParts.push('_This preview is ephemeral and will be recreated on new commits._')
-
-            const body = bodyParts.join('\n')
-
-            const issue_number = context.issue.number
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number,
               per_page: 100,
             })
-            const existing = comments.find((comment) => comment.body && comment.body.includes(marker))
+
+            const existing = comments.find((comment) =>
+              comment.body && comment.body.includes(marker)
+            )
 
             if (existing) {
               await github.rest.issues.updateComment({
