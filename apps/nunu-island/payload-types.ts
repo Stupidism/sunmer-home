@@ -79,6 +79,7 @@ export interface Config {
     'mindfulness-habits': MindfulnessHabit;
     'life-events': LifeEvent;
     'belief-method-media': BeliefMethodMedia;
+    'template-records': TemplateRecord;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -98,6 +99,7 @@ export interface Config {
     'mindfulness-habits': MindfulnessHabitsSelect<false> | MindfulnessHabitsSelect<true>;
     'life-events': LifeEventsSelect<false> | LifeEventsSelect<true>;
     'belief-method-media': BeliefMethodMediaSelect<false> | BeliefMethodMediaSelect<true>;
+    'template-records': TemplateRecordsSelect<false> | TemplateRecordsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -420,6 +422,26 @@ export interface BeliefMethodMedia {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "template-records".
+ */
+export interface TemplateRecord {
+  id: number;
+  templateId: string;
+  templateTitle: string;
+  answers:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -489,6 +511,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'belief-method-media';
         value: number | BeliefMethodMedia;
+      } | null)
+    | ({
+        relationTo: 'template-records';
+        value: number | TemplateRecord;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -767,6 +793,17 @@ export interface BeliefMethodMediaSelect<T extends boolean = true> {
   url?: T;
   caption?: T;
   sortOrder?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "template-records_select".
+ */
+export interface TemplateRecordsSelect<T extends boolean = true> {
+  templateId?: T;
+  templateTitle?: T;
+  answers?: T;
   updatedAt?: T;
   createdAt?: T;
 }

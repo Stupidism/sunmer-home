@@ -12,6 +12,7 @@ import { MindfulnessScenarios } from './src/payload/collections/MindfulnessScena
 import { MindfulnessHabits } from './src/payload/collections/MindfulnessHabits.ts'
 import { LifeEvents } from './src/payload/collections/LifeEvents.ts'
 import { BeliefMethodMedia } from './src/payload/collections/BeliefMethodMedia.ts'
+import { TemplateRecords } from './src/payload/collections/TemplateRecords.ts'
 
 const normalizePGSSLMode = (url: string) => {
   if (!url) return url
@@ -63,6 +64,7 @@ const config = buildConfig({
     MindfulnessHabits,
     LifeEvents,
     BeliefMethodMedia,
+    TemplateRecords,
   ],
 })
 
