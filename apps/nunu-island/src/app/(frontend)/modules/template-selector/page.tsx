@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { babyRelationshipTemplate, otherTemplates } from '@/data/babyRelationshipTemplate'
 import { fetchTemplates } from '@/lib/content/fetch'
 import type { Template } from '@/types'
@@ -15,6 +16,7 @@ const templates = [
 ]
 
 export default function TemplateSelectorModulePage() {
+  const router = useRouter()
   const [templateList, setTemplateList] = useState<Template[]>(templates)
 
   useEffect(() => {
@@ -33,6 +35,16 @@ export default function TemplateSelectorModulePage() {
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    const hash = typeof window !== 'undefined' ? window.location.hash.replace('#', '') : ''
+    if (!hash) return
+
+    const exists = templateList.some((template) => template.id === hash)
+    if (exists) {
+      router.replace(`/modules/template-selector/${hash}`)
+    }
+  }, [router, templateList])
 
   return (
     <main className="min-h-screen gradient-warm px-6 py-8">
@@ -55,6 +67,12 @@ export default function TemplateSelectorModulePage() {
                 </div>
               </div>
               <p className="mt-3 text-sm text-gray-600">{template.description}</p>
+              <Link
+                href={`/modules/template-selector/${template.id}`}
+                className="mt-4 inline-flex rounded-xl bg-gray-900 px-3 py-2 text-sm font-medium text-white"
+              >
+                开始作答
+              </Link>
             </article>
           ))}
         </div>
