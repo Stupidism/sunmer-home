@@ -125,6 +125,30 @@ import { Drawer, DrawerContent } from '@bubu-log/ui'
 
 ## 部署到 Vercel
 
+### GitHub Actions 仅触发 Production 部署（按受影响 App）
+
+仓库已新增 workflow：`.github/workflows/vercel-production-deploy.yml`
+
+- 触发方式：
+  - `push` 到 `main`（默认按变更文件自动计算受影响 App）
+  - `workflow_dispatch`（可手动指定 `deploy_all=true` 或 `apps=bubu-log,nunu-log`）
+- 部署范围：仅部署受影响 App，不会全量部署全部应用
+- 部署方式：按 Vercel 官方 CLI 流程执行
+  - `vercel pull --environment=production`
+  - `vercel build --prod`
+  - `vercel deploy --prebuilt --prod`
+
+必需 GitHub Secrets：
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID_BUBU_LOG`
+- `VERCEL_PROJECT_ID_NUNU_ISLAND`
+- `VERCEL_PROJECT_ID_NUNU_LOG`
+- `VERCEL_PROJECT_ID_WEDDING_INVITE`
+
+如果不再使用 Vercel Preview，建议在 Vercel 项目设置中关闭 Preview Deployments（或断开 Git 自动部署），避免与 GitHub Actions 产生重复部署。
+
 ### 定时任务（每日统计自动计算）
 
 - 已配置 Vercel Cron：每天 `03:00`（Asia/Shanghai）执行一次
