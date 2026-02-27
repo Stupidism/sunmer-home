@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ChevronDown, Sparkles, Heart } from 'lucide-react';
 import { mindfulnessScenarios, mindfulnessHabits } from '@/data/mindfulness';
+import type { MindfulnessScenario } from '@/data/mindfulness'
 
 interface MindfulnessPageProps {
   onBack: () => void;
+  scenarios?: MindfulnessScenario[]
+  habits?: typeof mindfulnessHabits
 }
 
-export function MindfulnessPage({ onBack }: MindfulnessPageProps) {
+export function MindfulnessPage({ onBack, scenarios = mindfulnessScenarios, habits = mindfulnessHabits }: MindfulnessPageProps) {
   const [expandedScenario, setExpandedScenario] = useState<string | null>(null);
   const [expandedHabit, setExpandedHabit] = useState<string | null>(null);
 
@@ -68,7 +71,7 @@ export function MindfulnessPage({ onBack }: MindfulnessPageProps) {
           </h2>
 
           <div className="grid grid-cols-1 gap-4">
-            {mindfulnessScenarios.map((scenario, index) => (
+            {scenarios.map((scenario, index) => (
               <motion.div
                 key={scenario.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -172,7 +175,7 @@ export function MindfulnessPage({ onBack }: MindfulnessPageProps) {
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {mindfulnessHabits.map((habit, index) => (
+            {habits.map((habit, index) => (
               <motion.div
                 key={habit.title}
                 initial={{ opacity: 0, y: 20 }}

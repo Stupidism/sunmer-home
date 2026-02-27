@@ -190,6 +190,13 @@ base64 < apps/bubu-log/.env.preview.local | tr -d '\n'
 - `E2B_TIMEOUT_MS`：sandbox 生命周期（毫秒，默认 `3600000`）
 - `E2B_APP_PORT`：应用端口（默认 `1030`）
 - `E2B_APP_PATH`：应用目录（默认 `apps/bubu-log`）
+- `E2B_PNPM_FILTERS`：`pnpm install` 过滤包（逗号分隔，默认按 `E2B_APP_PATH` 自动选择）
+
+如果要给 `apps/nunu-island` 开启 E2B Preview，建议设置：
+
+- `E2B_APP_PATH=apps/nunu-island`
+- `E2B_APP_PORT=1040`
+- `E2B_PNPM_FILTERS=nunu-island,@bubu-log/ui,@bubu-log/typescript-config`
 
 ### 构建更大规格 E2B Template（解决 `signal: killed`）
 

@@ -6,13 +6,35 @@ on:
       - closed
 
 jobs:
-  delete_branch:
+  delete_bubu_log_branch:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Delete Neon branch
+      - name: Delete Neon branch for bubu-log
         uses: neondatabase/delete-branch-action@v3
         with:
           project_id: ${{ vars.BUBU_LOG_NEON_PROJECT_ID }}
           api_key: ${{ secrets.BUBU_LOG_NEON_API_KEY }}
+          branch: preview/${{ github.event.pull_request.head.ref }}
+
+  delete_nunu_island_branch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check nunu-island Neon credentials
+        id: creds
+        run: |
+          if [ -n "${{ vars.NUNU_ISLAND_NEON_PROJECT_ID }}" ] && [ -n "${{ secrets.NUNU_ISLAND_NEON_API_KEY }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Missing NUNU_ISLAND_NEON_PROJECT_ID or NUNU_ISLAND_NEON_API_KEY, skip delete."
+          fi
+
+      - name: Delete Neon branch for nunu-island
+        if: steps.creds.outputs.enabled == 'true'
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NUNU_ISLAND_NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NUNU_ISLAND_NEON_API_KEY }}
           branch: preview/${{ github.event.pull_request.head.ref }}

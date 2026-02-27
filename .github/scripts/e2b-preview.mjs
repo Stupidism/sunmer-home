@@ -17,6 +17,18 @@ function parseOptionalInt(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+function setGithubOutput(key, value) {
+  const output = process.env.GITHUB_OUTPUT
+  if (!output) return
+
+  if (typeof value === 'string' && !value.includes('\n')) {
+    appendFileSync(output, `${key}=${value}\n`)
+    return
+  }
+
+  appendFileSync(output, `${key}<<EOF\n${String(value)}\nEOF\n`)
+}
+
 function parseDotenv(content) {
   const env = {}
   for (const line of content.split('\n')) {
@@ -74,6 +86,27 @@ function escapeShell(value) {
   return value.replace(/'/g, "'\"'\"'")
 }
 
+function resolveInstallCommand(appPath) {
+  const customFilters = process.env.E2B_PNPM_FILTERS
+  if (customFilters) {
+    const filters = customFilters
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+
+    if (filters.length > 0) {
+      const filterFlags = filters.map((filter) => `--filter ${filter}`).join(' ')
+      return `pnpm install --frozen-lockfile ${filterFlags} --child-concurrency=1 --network-concurrency=2`
+    }
+  }
+
+  if (appPath === 'apps/nunu-island') {
+    return 'pnpm install --frozen-lockfile --filter nunu-island --filter @bubu-log/ui --filter @bubu-log/typescript-config --child-concurrency=1 --network-concurrency=2'
+  }
+
+  return 'pnpm install --frozen-lockfile --filter bubu-log --filter @bubu-log/ui --filter @bubu-log/log-ui --filter @bubu-log/typescript-config --child-concurrency=1 --network-concurrency=2'
+}
+
 const logFile = process.env.E2B_LOG_FILE
 
 function writeLog(line) {
@@ -117,15 +150,19 @@ async function createPreview() {
   const githubToken = requireEnv('GH_TOKEN')
 
   const appPath = process.env.E2B_APP_PATH || 'apps/bubu-log'
+  const appId = process.env.E2B_APP_ID || appPath.replace(/^apps\//, '')
+  const appName = process.env.E2B_APP_NAME || appId
   const port = parseOptionalInt(process.env.E2B_APP_PORT, 1030)
   const timeoutMs = parseOptionalInt(process.env.E2B_TIMEOUT_MS, 60 * 60 * 1000)
   const template = process.env.E2B_TEMPLATE
+  const pnpmInstallCommand = resolveInstallCommand(appPath)
 
   const metadata = {
     owner: 'github-actions',
     purpose: 'pr-preview',
     repo,
     pr: prNumber,
+    app: appId,
   }
 
   const killed = await killSandboxes(metadata)
@@ -156,7 +193,7 @@ async function createPreview() {
   await runCommandWithLogs(
     sandbox,
     'pnpm-install',
-    'pnpm install --frozen-lockfile --filter bubu-log --filter @bubu-log/ui --filter @bubu-log/log-ui --filter @bubu-log/typescript-config --child-concurrency=1 --network-concurrency=2',
+    pnpmInstallCommand,
     {
       cwd: '/home/user/app',
       timeoutMs: 15 * 60 * 1000,
@@ -179,16 +216,22 @@ async function createPreview() {
     { timeoutMs: 2 * 60 * 1000 }
   )
 
-  const output = process.env.GITHUB_OUTPUT
-  if (output) {
-    const lines = [
-      `preview_url=${previewUrl}`,
-      `sandbox_id=${sandbox.sandboxId}`,
-      `killed_count=${killed}`,
-      `head_sha=${headSha}`,
-    ]
-    appendFileSync(output, lines.join('\n') + '\n')
+  const result = {
+    appId,
+    appName,
+    appPath,
+    status: 'ready',
+    previewUrl,
+    sandboxId: sandbox.sandboxId,
+    killedCount: killed,
+    headSha,
   }
+
+  setGithubOutput('preview_url', previewUrl)
+  setGithubOutput('sandbox_id', sandbox.sandboxId)
+  setGithubOutput('killed_count', String(killed))
+  setGithubOutput('head_sha', headSha)
+  setGithubOutput('result_json', JSON.stringify(result))
 
   writeLog(`Preview URL: ${previewUrl}`)
   writeLog(`Sandbox ID: ${sandbox.sandboxId}`)
@@ -197,6 +240,7 @@ async function createPreview() {
 async function cleanupPreview() {
   const repo = requireEnv('GITHUB_REPOSITORY')
   const prNumber = requireEnv('PR_NUMBER')
+  const appId = process.env.E2B_APP_ID
   const metadata = {
     owner: 'github-actions',
     purpose: 'pr-preview',
@@ -204,13 +248,22 @@ async function cleanupPreview() {
     pr: prNumber,
   }
 
+  if (appId) {
+    metadata.app = appId
+  }
+
   const killed = await killSandboxes(metadata)
   writeLog(`Killed sandboxes: ${killed}`)
 
-  const output = process.env.GITHUB_OUTPUT
-  if (output) {
-    appendFileSync(output, `killed_count=${killed}\n`)
-  }
+  setGithubOutput('killed_count', String(killed))
+  setGithubOutput(
+    'result_json',
+    JSON.stringify({
+      appId: appId || 'all',
+      status: 'cleaned',
+      killedCount: killed,
+    })
+  )
 }
 
 const mode = process.argv[2]

@@ -15,11 +15,103 @@ permissions:
   pull-requests: write
 
 jobs:
-  preview:
+  detect-affected:
     if: >
       github.event.action != 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    outputs:
+      matrix_json: ${{ steps.detect.outputs.matrix_json }}
+      all_projects_json: ${{ steps.detect.outputs.all_projects_json }}
+      affected_json: ${{ steps.detect.outputs.affected_json }}
+      preview_count: ${{ steps.detect.outputs.preview_count }}
+    steps:
+      - name: Detect affected projects for E2B preview
+        id: detect
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const pull_number = context.payload.pull_request.number
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100,
+            })
+
+            const changed = files.map((f) => f.filename)
+            const alwaysAffectAll = [
+              'pnpm-lock.yaml',
+              'pnpm-workspace.yaml',
+              'package.json',
+              'turbo.json',
+              '.github/scripts/e2b-preview.mjs',
+              '.github/workflows/e2b-preview.yml',
+            ]
+
+            const projects = [
+              {
+                appId: 'bubu-log',
+                appName: 'bubu-log',
+                appPath: 'apps/bubu-log',
+                appPort: 1030,
+                pnpmFilters: 'bubu-log,@bubu-log/ui,@bubu-log/log-ui,@bubu-log/typescript-config',
+                triggers: ['apps/bubu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'nunu-island',
+                appName: 'nunu-island',
+                appPath: 'apps/nunu-island',
+                appPort: 1040,
+                pnpmFilters: 'nunu-island,@bubu-log/ui,@bubu-log/typescript-config',
+                triggers: ['apps/nunu-island/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'nunu-log',
+                appName: 'nunu-log',
+                appPath: 'apps/nunu-log',
+                appPort: 1050,
+                pnpmFilters: 'nunu-log,@bubu-log/ui,@bubu-log/log-ui,@bubu-log/typescript-config',
+                triggers: ['apps/nunu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'wedding-invite',
+                appName: 'wedding-invite',
+                appPath: 'apps/wedding-invite',
+                appPort: 1060,
+                pnpmFilters: 'wedding-invite,@bubu-log/ui,@bubu-log/typescript-config',
+                triggers: ['apps/wedding-invite/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+            ]
+
+            const affectAll = changed.some((file) =>
+              alwaysAffectAll.some((prefix) => file === prefix || file.startsWith(prefix))
+            )
+
+            const affected = projects.filter((project) => {
+              if (affectAll) return true
+              return changed.some((file) => project.triggers.some((prefix) => file.startsWith(prefix)))
+            })
+
+            core.info(`Changed files: ${changed.length}`)
+            core.info(`Affect all projects: ${affectAll}`)
+            core.info(`Affected projects: ${affected.map((p) => p.appId).join(', ') || '(none)'}`)
+
+            core.setOutput('matrix_json', JSON.stringify({ include: affected }))
+            core.setOutput('all_projects_json', JSON.stringify(projects.map((p) => ({ appId: p.appId, appName: p.appName }))))
+            core.setOutput('affected_json', JSON.stringify(affected.map((p) => ({ appId: p.appId, appName: p.appName }))))
+            core.setOutput('preview_count', String(affected.length))
+
+  preview:
+    needs: detect-affected
+    if: needs.detect-affected.outputs.preview_count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-affected.outputs.matrix_json) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,86 +124,275 @@ jobs:
       - name: Install E2B SDK
         run: npm install --no-save e2b@2.13.0
 
-      - name: Validate E2B secrets
-        id: validate
+      - name: Resolve app-specific E2B credentials
+        id: resolve
         env:
-          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
+          BUBU_LOG_E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
+          BUBU_LOG_E2B_PREVIEW_ENV_B64: ${{ secrets.E2B_PREVIEW_ENV_B64 }}
+          BUBU_LOG_E2B_TEMPLATE: ${{ vars.E2B_TEMPLATE }}
+          BUBU_LOG_E2B_TIMEOUT_MS: ${{ vars.E2B_TIMEOUT_MS }}
+
+          NUNU_ISLAND_E2B_API_KEY: ${{ secrets.NUNU_ISLAND_E2B_API_KEY }}
+          NUNU_ISLAND_E2B_PREVIEW_ENV_B64: ${{ secrets.NUNU_ISLAND_E2B_PREVIEW_ENV_B64 }}
+          NUNU_ISLAND_E2B_TEMPLATE: ${{ vars.NUNU_ISLAND_E2B_TEMPLATE }}
+          NUNU_ISLAND_E2B_TIMEOUT_MS: ${{ vars.NUNU_ISLAND_E2B_TIMEOUT_MS }}
+
+          NUNU_LOG_E2B_API_KEY: ${{ secrets.NUNU_LOG_E2B_API_KEY }}
+          NUNU_LOG_E2B_PREVIEW_ENV_B64: ${{ secrets.NUNU_LOG_E2B_PREVIEW_ENV_B64 }}
+          NUNU_LOG_E2B_TEMPLATE: ${{ vars.NUNU_LOG_E2B_TEMPLATE }}
+          NUNU_LOG_E2B_TIMEOUT_MS: ${{ vars.NUNU_LOG_E2B_TIMEOUT_MS }}
+
+          WEDDING_INVITE_E2B_API_KEY: ${{ secrets.WEDDING_INVITE_E2B_API_KEY }}
+          WEDDING_INVITE_E2B_PREVIEW_ENV_B64: ${{ secrets.WEDDING_INVITE_E2B_PREVIEW_ENV_B64 }}
+          WEDDING_INVITE_E2B_TEMPLATE: ${{ vars.WEDDING_INVITE_E2B_TEMPLATE }}
+          WEDDING_INVITE_E2B_TIMEOUT_MS: ${{ vars.WEDDING_INVITE_E2B_TIMEOUT_MS }}
         run: |
-          if [ -z "${E2B_API_KEY}" ]; then
+          APP_ID='${{ matrix.appId }}'
+
+          API_KEY=''
+          PREVIEW_ENV_B64=''
+          TEMPLATE=''
+          TIMEOUT_MS=''
+
+          case "$APP_ID" in
+            bubu-log)
+              API_KEY="$BUBU_LOG_E2B_API_KEY"
+              PREVIEW_ENV_B64="$BUBU_LOG_E2B_PREVIEW_ENV_B64"
+              TEMPLATE="$BUBU_LOG_E2B_TEMPLATE"
+              TIMEOUT_MS="$BUBU_LOG_E2B_TIMEOUT_MS"
+              ;;
+            nunu-island)
+              API_KEY="${NUNU_ISLAND_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
+              PREVIEW_ENV_B64="${NUNU_ISLAND_E2B_PREVIEW_ENV_B64:-$BUBU_LOG_E2B_PREVIEW_ENV_B64}"
+              TEMPLATE="${NUNU_ISLAND_E2B_TEMPLATE:-$BUBU_LOG_E2B_TEMPLATE}"
+              TIMEOUT_MS="${NUNU_ISLAND_E2B_TIMEOUT_MS:-$BUBU_LOG_E2B_TIMEOUT_MS}"
+              ;;
+            nunu-log)
+              API_KEY="${NUNU_LOG_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
+              PREVIEW_ENV_B64="${NUNU_LOG_E2B_PREVIEW_ENV_B64:-$BUBU_LOG_E2B_PREVIEW_ENV_B64}"
+              TEMPLATE="${NUNU_LOG_E2B_TEMPLATE:-$BUBU_LOG_E2B_TEMPLATE}"
+              TIMEOUT_MS="${NUNU_LOG_E2B_TIMEOUT_MS:-$BUBU_LOG_E2B_TIMEOUT_MS}"
+              ;;
+            wedding-invite)
+              API_KEY="${WEDDING_INVITE_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
+              PREVIEW_ENV_B64="${WEDDING_INVITE_E2B_PREVIEW_ENV_B64:-$BUBU_LOG_E2B_PREVIEW_ENV_B64}"
+              TEMPLATE="${WEDDING_INVITE_E2B_TEMPLATE:-$BUBU_LOG_E2B_TEMPLATE}"
+              TIMEOUT_MS="${WEDDING_INVITE_E2B_TIMEOUT_MS:-$BUBU_LOG_E2B_TIMEOUT_MS}"
+              ;;
+            *)
+              ;;
+          esac
+
+          if [ -z "$API_KEY" ] || [ -z "$PREVIEW_ENV_B64" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "reason=missing-credentials" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "reason=ready" >> "$GITHUB_OUTPUT"
           fi
+
+          echo "api_key=$API_KEY" >> "$GITHUB_OUTPUT"
+          echo "preview_env_b64=$PREVIEW_ENV_B64" >> "$GITHUB_OUTPUT"
+          echo "template=$TEMPLATE" >> "$GITHUB_OUTPUT"
+          echo "timeout_ms=$TIMEOUT_MS" >> "$GITHUB_OUTPUT"
 
       - name: Create E2B preview sandbox
         id: create_preview
-        if: steps.validate.outputs.enabled == 'true'
+        if: steps.resolve.outputs.enabled == 'true'
         continue-on-error: true
         run: node .github/scripts/e2b-preview.mjs create
         env:
-          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
-          E2B_TEMPLATE: ${{ vars.E2B_TEMPLATE }}
-          E2B_TIMEOUT_MS: ${{ vars.E2B_TIMEOUT_MS }}
-          E2B_APP_PORT: ${{ vars.E2B_APP_PORT }}
-          E2B_APP_PATH: ${{ vars.E2B_APP_PATH }}
-          E2B_PREVIEW_ENV_B64: ${{ secrets.E2B_PREVIEW_ENV_B64 }}
+          E2B_API_KEY: ${{ steps.resolve.outputs.api_key }}
+          E2B_TEMPLATE: ${{ steps.resolve.outputs.template }}
+          E2B_TIMEOUT_MS: ${{ steps.resolve.outputs.timeout_ms }}
+          E2B_APP_ID: ${{ matrix.appId }}
+          E2B_APP_NAME: ${{ matrix.appName }}
+          E2B_APP_PORT: ${{ matrix.appPort }}
+          E2B_APP_PATH: ${{ matrix.appPath }}
+          E2B_PNPM_FILTERS: ${{ matrix.pnpmFilters }}
+          E2B_PREVIEW_ENV_B64: ${{ steps.resolve.outputs.preview_env_b64 }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          E2B_LOG_FILE: ${{ runner.temp }}/e2b-preview.log
+          E2B_LOG_FILE: ${{ runner.temp }}/e2b-preview-${{ matrix.appId }}.log
+
+      - name: Persist preview result
+        run: |
+          mkdir -p "$RUNNER_TEMP/e2b-result"
+          RESULT_FILE="$RUNNER_TEMP/e2b-result/${{ matrix.appId }}.json"
+
+          if [ '${{ steps.resolve.outputs.enabled }}' != 'true' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "skipped",
+            "reason": "missing-credentials"
+          }
+          EOF
+          elif [ '${{ steps.create_preview.outcome }}' = 'success' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          ${{ steps.create_preview.outputs.result_json }}
+          EOF
+          else
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "failed",
+            "reason": "preview-create-failed",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF
+          fi
 
       - name: Upload E2B preview logs
-        if: always() && steps.validate.outputs.enabled == 'true'
+        if: always() && steps.resolve.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: e2b-preview-log-pr-${{ github.event.pull_request.number }}
-          path: ${{ runner.temp }}/e2b-preview.log
+          name: e2b-preview-log-${{ matrix.appId }}-pr-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/e2b-preview-${{ matrix.appId }}.log
           if-no-files-found: warn
+
+      - name: Upload E2B preview result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2b-preview-result-${{ matrix.appId }}
+          path: ${{ runner.temp }}/e2b-result/${{ matrix.appId }}.json
+          if-no-files-found: error
+
+  comment-preview:
+    needs:
+      - detect-affected
+      - preview
+    if: >
+      always() &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download E2B preview result artifacts
+        if: needs.detect-affected.outputs.preview_count != '0'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: e2b-preview-result-*
+          path: ${{ runner.temp }}/e2b-results
+          merge-multiple: true
 
       - name: Upsert PR comment
         uses: actions/github-script@v7
         env:
-          PREVIEW_ENABLED: ${{ steps.validate.outputs.enabled }}
-          PREVIEW_OUTCOME: ${{ steps.create_preview.outcome }}
-          PREVIEW_URL: ${{ steps.create_preview.outputs.preview_url }}
-          SANDBOX_ID: ${{ steps.create_preview.outputs.sandbox_id }}
-          KILLED_COUNT: ${{ steps.create_preview.outputs.killed_count }}
-          HEAD_SHA: ${{ steps.create_preview.outputs.head_sha }}
+          PREVIEW_COUNT: ${{ needs.detect-affected.outputs.preview_count }}
+          ALL_PROJECTS_JSON: ${{ needs.detect-affected.outputs.all_projects_json }}
+          AFFECTED_JSON: ${{ needs.detect-affected.outputs.affected_json }}
+          RESULT_DIR: ${{ runner.temp }}/e2b-results
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
+            const fs = require('node:fs')
+            const path = require('node:path')
+
             const marker = '<!-- e2b-pr-preview -->'
-            const body = process.env.PREVIEW_ENABLED === 'true'
-              ? (
-                  process.env.PREVIEW_OUTCOME === 'success'
-                    ? [
-                        marker,
-                        '### E2B Preview',
-                        '',
-                        `- URL: ${process.env.PREVIEW_URL}`,
-                        `- Sandbox: \`${process.env.SANDBOX_ID}\``,
-                        `- Replaced old sandboxes: ${process.env.KILLED_COUNT || '0'}`,
-                        `- Commit: \`${(process.env.HEAD_SHA || '').slice(0, 12)}\``,
-                        '',
-                        '_This preview is ephemeral and will be recreated on new commits._',
-                      ].join('\n')
-                    : [
-                        marker,
-                        '### E2B Preview',
-                        '',
-                        '- Preview creation failed in this run (likely sandbox resource limit).',
-                        `- Logs: ${process.env.RUN_URL}`,
-                        '- Action: set `E2B_TEMPLATE` to a larger template, then rerun this workflow.',
-                      ].join('\n')
-                )
-              : [
-                  marker,
-                  '### E2B Preview',
-                  '',
-                  '- Skipped: missing `BUBU_LOG_E2B_API_KEY` secret for this workflow context.',
-                ].join('\n')
+            const allProjects = JSON.parse(process.env.ALL_PROJECTS_JSON || '[]')
+            const affectedProjects = JSON.parse(process.env.AFFECTED_JSON || '[]')
+            const affectedSet = new Set(affectedProjects.map((item) => item.appId))
+            const resultDir = process.env.RESULT_DIR
+
+            const results = []
+            if (process.env.PREVIEW_COUNT !== '0' && fs.existsSync(resultDir)) {
+              for (const entry of fs.readdirSync(resultDir)) {
+                if (!entry.endsWith('.json')) continue
+                const filePath = path.join(resultDir, entry)
+                try {
+                  const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+                  results.push(parsed)
+                } catch (error) {
+                  core.warning(`Failed to parse ${entry}: ${error}`)
+                }
+              }
+            }
+
+            const resultByAppId = new Map(results.map((item) => [item.appId, item]))
+
+            const rows = []
+            const skippedRows = []
+
+            const now = new Date()
+            const updated = now.toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')
+
+            const makeRow = (project, result, fallbackStatus) => {
+              const status = result?.status || fallbackStatus
+              const icon = status === 'ready' ? '![Ready](https://vercel.com/static/status/ready.svg)' : status === 'failed' ? '![Error](https://vercel.com/static/status/error.svg)' : '![Skipped](https://vercel.com/static/status/canceled.svg)'
+              const statusLabel = status === 'ready' ? 'Ready' : status === 'failed' ? 'Failed' : 'Skipped'
+              const deployment = `${icon} ${statusLabel}`
+
+              const actions = []
+              if (result?.previewUrl) {
+                actions.push(`[Preview](${result.previewUrl})`)
+              }
+              if (result?.sandboxId) {
+                actions.push(`Sandbox: \`${result.sandboxId}\``)
+              }
+              if (result?.runUrl || status !== 'ready') {
+                actions.push(`[Logs](${result?.runUrl || process.env.RUN_URL})`)
+              }
+
+              return `| ${project.appName} | ${deployment} | ${actions.join(', ') || '-'} | ${updated} |`
+            }
+
+            for (const project of allProjects) {
+              if (!affectedSet.has(project.appId)) {
+                skippedRows.push(makeRow(project, null, 'skipped'))
+                continue
+              }
+
+              const result = resultByAppId.get(project.appId)
+              if (!result) {
+                rows.push(makeRow(project, { status: 'failed', runUrl: process.env.RUN_URL }, 'failed'))
+                continue
+              }
+
+              if (result.status === 'ready') {
+                rows.push(makeRow(project, result, 'ready'))
+              } else if (result.status === 'failed') {
+                rows.push(makeRow(project, result, 'failed'))
+              } else {
+                skippedRows.push(makeRow(project, result, 'skipped'))
+              }
+            }
+
+            const header = [
+              marker,
+              '### E2B Preview',
+              '',
+              '| Project | Deployment | Actions | Updated (UTC) |',
+              '| :--- | :----- | :------ | :------ |',
+            ]
+
+            const bodyParts = [...header]
+            if (rows.length > 0) {
+              bodyParts.push(...rows)
+            } else {
+              bodyParts.push('| (none) | ![Skipped](https://vercel.com/static/status/canceled.svg) Skipped | No affected projects | ' + updated + ' |')
+            }
+
+            if (skippedRows.length > 0) {
+              bodyParts.push('')
+              bodyParts.push(`<details><summary>${skippedRows.length} Skipped Projects</summary>`)
+              bodyParts.push('')
+              bodyParts.push('| Project | Deployment | Actions | Updated (UTC) |')
+              bodyParts.push('| :--- | :----- | :------ | :------ |')
+              bodyParts.push(...skippedRows)
+              bodyParts.push('</details>')
+            }
+
+            bodyParts.push('')
+            bodyParts.push('_This preview is ephemeral and will be recreated on new commits._')
+
+            const body = bodyParts.join('\n')
 
             const issue_number = context.issue.number
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -121,6 +402,7 @@ jobs:
               per_page: 100,
             })
             const existing = comments.find((comment) => comment.body && comment.body.includes(marker))
+
             if (existing) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
@@ -142,6 +424,18 @@ jobs:
       github.event.action == 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - appId: bubu-log
+            appName: bubu-log
+          - appId: nunu-island
+            appName: nunu-island
+          - appId: nunu-log
+            appName: nunu-log
+          - appId: wedding-invite
+            appName: wedding-invite
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -154,62 +448,57 @@ jobs:
       - name: Install E2B SDK
         run: npm install --no-save e2b@2.13.0
 
-      - name: Validate E2B secrets
-        id: validate_cleanup
+      - name: Resolve cleanup API key
+        id: resolve_cleanup
         env:
-          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
+          BUBU_LOG_E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
+          NUNU_ISLAND_E2B_API_KEY: ${{ secrets.NUNU_ISLAND_E2B_API_KEY }}
+          NUNU_LOG_E2B_API_KEY: ${{ secrets.NUNU_LOG_E2B_API_KEY }}
+          WEDDING_INVITE_E2B_API_KEY: ${{ secrets.WEDDING_INVITE_E2B_API_KEY }}
         run: |
-          if [ -z "${E2B_API_KEY}" ]; then
+          APP_ID='${{ matrix.appId }}'
+          API_KEY=''
+
+          case "$APP_ID" in
+            bubu-log)
+              API_KEY="$BUBU_LOG_E2B_API_KEY"
+              ;;
+            nunu-island)
+              API_KEY="${NUNU_ISLAND_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
+              ;;
+            nunu-log)
+              API_KEY="${NUNU_LOG_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
+              ;;
+            wedding-invite)
+              API_KEY="${WEDDING_INVITE_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
+              ;;
+            *)
+              ;;
+          esac
+
+          if [ -z "$API_KEY" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
 
+          echo "api_key=$API_KEY" >> "$GITHUB_OUTPUT"
+
       - name: Cleanup E2B preview sandbox
         id: cleanup_preview
-        if: steps.validate_cleanup.outputs.enabled == 'true'
+        if: steps.resolve_cleanup.outputs.enabled == 'true'
         run: node .github/scripts/e2b-preview.mjs cleanup
         env:
-          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
+          E2B_API_KEY: ${{ steps.resolve_cleanup.outputs.api_key }}
+          E2B_APP_ID: ${{ matrix.appId }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          E2B_LOG_FILE: ${{ runner.temp }}/e2b-preview-cleanup.log
+          E2B_LOG_FILE: ${{ runner.temp }}/e2b-preview-cleanup-${{ matrix.appId }}.log
 
       - name: Upload E2B cleanup logs
-        if: always() && steps.validate_cleanup.outputs.enabled == 'true'
+        if: always() && steps.resolve_cleanup.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: e2b-preview-cleanup-log-pr-${{ github.event.pull_request.number }}
-          path: ${{ runner.temp }}/e2b-preview-cleanup.log
+          name: e2b-preview-cleanup-log-${{ matrix.appId }}-pr-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/e2b-preview-cleanup-${{ matrix.appId }}.log
           if-no-files-found: warn
-
-      - name: Add cleanup comment
-        uses: actions/github-script@v7
-        env:
-          KILLED_COUNT: ${{ steps.cleanup_preview.outputs.killed_count }}
-        with:
-          script: |
-            const marker = '<!-- e2b-pr-preview -->'
-            const issue_number = context.issue.number
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number,
-              per_page: 100,
-            })
-            const existing = comments.find((comment) => comment.body && comment.body.includes(marker))
-            if (!existing) return
-
-            const body = [
-              marker,
-              '### E2B Preview',
-              '',
-              `PR closed. Cleaned up sandbox count: ${process.env.KILLED_COUNT || '0'}.`,
-            ].join('\n')
-
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: existing.id,
-              body,
-            })
