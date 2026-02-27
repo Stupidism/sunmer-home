@@ -72,7 +72,7 @@ function normalizeNameForMatch(value: string): string {
   return value.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '')
 }
 
-function pickBabyIdByNameHeuristic(text: string, candidates: BabyCandidate[]): string | null {
+export function pickBabyIdByNameHeuristic(text: string, candidates: BabyCandidate[]): string | null {
   const normalizedText = normalizeNameForMatch(text)
   if (!normalizedText) {
     return null

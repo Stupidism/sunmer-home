@@ -156,7 +156,7 @@ async function createPreview() {
   await runCommandWithLogs(
     sandbox,
     'pnpm-install',
-    'pnpm install --frozen-lockfile --filter bubu-log... --child-concurrency=1 --network-concurrency=4',
+    'pnpm install --frozen-lockfile --filter bubu-log --filter @bubu-log/ui --filter @bubu-log/log-ui --filter @bubu-log/typescript-config --child-concurrency=1 --network-concurrency=2',
     {
       cwd: '/home/user/app',
       timeoutMs: 15 * 60 * 1000,
