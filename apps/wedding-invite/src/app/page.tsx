@@ -128,6 +128,17 @@ interface SectionTitleProps {
   className?: string;
 }
 
+interface PersonalizedInviteData {
+  inviteCode: string;
+  guestName: string;
+  relationshipSide: string;
+  relationshipCategory: string;
+  relationshipNote: string;
+  memorySnippet: string;
+  customOpening: string;
+  maxGuestCount: number;
+}
+
 function SectionTitle({ title, subtitle, className }: SectionTitleProps) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
@@ -159,7 +170,7 @@ function SectionTitle({ title, subtitle, className }: SectionTitleProps) {
 
 // ==================== Hero Section ====================
 
-function HeroSection() {
+function HeroSection({ inviteData }: { inviteData: PersonalizedInviteData | null }) {
   const scrollToRSVP = () => {
     document.getElementById("rsvp")?.scrollIntoView({ behavior: "smooth" });
   };
@@ -219,8 +230,18 @@ function HeroSection() {
           variants={fadeInUp}
           className="text-xl sm:text-2xl md:text-3xl text-rose-700 dark:text-rose-300 mb-8 font-light"
         >
-          邀请您见证我们的幸福时刻
+          {inviteData?.customOpening || "邀请您见证我们的幸福时刻"}
         </motion.p>
+
+        {inviteData && (
+          <motion.p
+            variants={fadeInUp}
+            className="text-base sm:text-lg text-rose-700/90 dark:text-rose-300/90 mb-6"
+          >
+            亲爱的 {inviteData.guestName}（{inviteData.relationshipSide} ·
+            {inviteData.relationshipCategory}），诚挚邀请您参加我们的婚礼。
+          </motion.p>
+        )}
 
         {/* Date */}
         <motion.div
@@ -261,7 +282,7 @@ function HeroSection() {
 
 // ==================== Couple Story Section ====================
 
-function StorySection() {
+function StorySection({ inviteData }: { inviteData: PersonalizedInviteData | null }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
 
@@ -311,6 +332,11 @@ function StorySection() {
           {/* Story Text */}
           <motion.div variants={fadeInUp} className="space-y-6">
             <div className="prose prose-rose dark:prose-invert max-w-none">
+              {inviteData?.memorySnippet ? (
+                <p className="text-lg leading-relaxed text-rose-900/90 dark:text-rose-100/90 font-medium">
+                  {inviteData.memorySnippet}
+                </p>
+              ) : null}
               <p className="text-lg leading-relaxed text-rose-800/80 dark:text-rose-200/80">
                 那是一个阳光明媚的春日，我们在朋友的聚会上第一次相遇。你的笑容如同春风般温暖，
                 瞬间融化了我的心。从那一刻起，我就知道，你就是我一直在等待的那个人。
@@ -503,7 +529,11 @@ function GallerySection() {
 
 // ==================== RSVP Form Section ====================
 
-function RSVPSection() {
+function RSVPSection({
+  inviteData,
+}: {
+  inviteData: PersonalizedInviteData | null;
+}) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
 
@@ -516,9 +546,19 @@ function RSVPSection() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const inviteCode = inviteData?.inviteCode || "";
+
+  useEffect(() => {
+    if (inviteData?.guestName) {
+      setFormData((prev) => ({ ...prev, name: inviteData.guestName }));
+    }
+  }, [inviteData?.guestName]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    if (!inviteCode) {
+      newErrors.guests = "邀请链接无效，请联系新人确认";
+    }
     if (!formData.name.trim()) {
       newErrors.name = "请输入您的姓名";
     }
@@ -544,11 +584,18 @@ function RSVPSection() {
           phone: formData.phone,
           message: formData.message,
           status: "attending",
+          inviteCode,
         }),
       });
 
       if (response.ok) {
         setIsSubmitted(true);
+      } else {
+        const result = await response.json();
+        setErrors((prev) => ({
+          ...prev,
+          guests: typeof result.error === "string" ? result.error : "提交失败，请稍后重试",
+        }));
       }
     } catch (error) {
       console.error("RSVP submission error:", error);
@@ -628,7 +675,10 @@ function RSVPSection() {
                         <SelectValue placeholder="请选择参加人数" />
                       </SelectTrigger>
                       <SelectContent>
-                        {[1, 2, 3, 4, 5].map((num) => (
+                        {Array.from(
+                          { length: Math.max(inviteData?.maxGuestCount || 1, 1) },
+                          (_, i) => i + 1
+                        ).map((num) => (
                           <SelectItem key={num} value={String(num)}>
                             {num} 人
                           </SelectItem>
@@ -675,7 +725,7 @@ function RSVPSection() {
                   {/* Submit Button */}
                   <Button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !inviteCode}
                     className="w-full bg-rose-500 hover:bg-rose-600 text-white py-6 rounded-xl text-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-70"
                   >
                     {isSubmitting ? (
@@ -1003,16 +1053,50 @@ function Navbar() {
 // ==================== Main Page Component ====================
 
 export default function WeddingInvitationPage() {
+  const [inviteData, setInviteData] = useState<PersonalizedInviteData | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code") || "";
+
+    if (!code) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const loadInvitation = async () => {
+      try {
+        const response = await fetch(`/api/invitation?code=${encodeURIComponent(code)}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          return;
+        }
+        const payload = await response.json();
+        if (payload?.success && payload?.data) {
+          setInviteData(payload.data as PersonalizedInviteData);
+        }
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          console.error("Failed to load invitation personalization:", error);
+        }
+      }
+    };
+
+    loadInvitation();
+    return () => controller.abort();
+  }, []);
+
   return (
     <main className="min-h-screen bg-background">
       {/* Navigation */}
       <Navbar />
 
       {/* Hero Section */}
-      <HeroSection />
+      <HeroSection inviteData={inviteData} />
 
       {/* Couple Story Section */}
-      <StorySection />
+      <StorySection inviteData={inviteData} />
 
       {/* Wedding Details Section */}
       <DetailsSection />
@@ -1021,7 +1105,7 @@ export default function WeddingInvitationPage() {
       <GallerySection />
 
       {/* RSVP Form Section */}
-      <RSVPSection />
+      <RSVPSection inviteData={inviteData} />
 
       {/* Footer */}
       <Footer />

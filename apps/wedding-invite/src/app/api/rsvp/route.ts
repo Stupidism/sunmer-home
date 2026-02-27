@@ -1,44 +1,142 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllRSVPs, createRSVP, initRSVPTable } from "@/lib/db";
+import { getPayloadClient } from "@/lib/payload/client";
 
-// Initialize table on first request
-let tableInitialized = false;
-
-async function ensureTable() {
-  if (!tableInitialized) {
-    await initRSVPTable();
-    tableInitialized = true;
+function toGuestName(guest: unknown): string {
+  if (!guest || typeof guest !== "object") {
+    return "未知宾客";
   }
+
+  const value = (guest as { name?: unknown }).name;
+  return typeof value === "string" && value.trim() ? value : "未知宾客";
 }
 
 export async function GET() {
-  try {
-    await ensureTable();
-    const rsvps = await getAllRSVPs();
-    return NextResponse.json(rsvps);
-  } catch (error) {
-    console.error("Failed to fetch RSVPs:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch RSVPs" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ success: false, error: "Not allowed" }, { status: 405 });
 }
 
 export async function POST(request: NextRequest) {
   try {
-    await ensureTable();
     const body = await request.json();
-    
-    const rsvp = await createRSVP({
-      name: body.name,
-      guestCount: parseInt(body.guestCount) || 1,
-      phone: body.phone || "",
-      message: body.message || "",
-      status: body.status || "attending",
+
+    const guestCount = Number.parseInt(String(body.guestCount), 10) || 1;
+    const guestName = typeof body.name === "string" ? body.name.trim() : "";
+    const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+    const message = typeof body.message === "string" ? body.message.trim() : "";
+    const status =
+      body.status === "not_attending" || body.status === "pending"
+        ? body.status
+        : "attending";
+    const inviteCode = typeof body.inviteCode === "string" ? body.inviteCode.trim() : "";
+
+    if (!guestName || !inviteCode) {
+      return NextResponse.json(
+        { success: false, error: "Name and invite code are required" },
+        { status: 400 }
+      );
+    }
+
+    const payload = await getPayloadClient();
+
+    const invitationResult = await payload.find({
+      collection: "invitations",
+      limit: 1,
+      where: { inviteCode: { equals: inviteCode } },
+      overrideAccess: true,
     });
 
-    return NextResponse.json({ success: true, data: rsvp }, { status: 201 });
+    const invitationDoc = invitationResult.docs[0];
+    if (!invitationDoc) {
+      return NextResponse.json(
+        { success: false, error: "Invitation not found" },
+        { status: 404 }
+      );
+    }
+
+    const invitationGuest = invitationDoc.guest;
+    const guestId =
+      invitationGuest && typeof invitationGuest === "object"
+        ? String(invitationGuest.id)
+        : String(invitationGuest || "");
+
+    if (!guestId) {
+      return NextResponse.json(
+        { success: false, error: "Invalid invitation guest" },
+        { status: 400 }
+      );
+    }
+
+    const guestNameFromInvite =
+      invitationGuest && typeof invitationGuest === "object"
+        ? toGuestName(invitationGuest)
+        : guestName;
+
+    const maxGuestCount = Number(invitationDoc.maxGuestCount ?? 1);
+    if (guestCount > maxGuestCount) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Guest count exceeds limit (${maxGuestCount})`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const existingRSVPResult = await payload.find({
+      collection: "rsvps",
+      limit: 1,
+      where: { invitation: { equals: invitationDoc.id } },
+      overrideAccess: true,
+    });
+
+    const rsvpData = {
+      displayTitle: `${guestNameFromInvite}-${new Date().toISOString().slice(0, 10)}`,
+      guest: guestId,
+      invitation: String(invitationDoc.id),
+      status,
+      confirmedGuestCount: guestCount,
+      phone,
+      message,
+      respondedAt: new Date().toISOString(),
+    };
+
+    const existingRSVP = existingRSVPResult.docs[0];
+    const rsvp = existingRSVP
+      ? await payload.update({
+          collection: "rsvps",
+          id: existingRSVP.id,
+          data: rsvpData,
+          overrideAccess: true,
+        })
+      : await payload.create({
+          collection: "rsvps",
+          data: rsvpData,
+          overrideAccess: true,
+        });
+
+    await payload.update({
+      collection: "invitations",
+      id: invitationDoc.id,
+      data: {
+        status: "responded",
+      },
+      overrideAccess: true,
+    });
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          id: rsvp.id,
+          name: guestNameFromInvite,
+          guest_count: guestCount,
+          phone,
+          message,
+          status,
+          submitted_at: rsvp.respondedAt,
+        },
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Failed to create RSVP:", error);
     return NextResponse.json(
