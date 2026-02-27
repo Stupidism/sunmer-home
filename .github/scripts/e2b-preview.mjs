@@ -17,6 +17,22 @@ function parseOptionalInt(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+const e2bRequestTimeoutMs = parseOptionalInt(process.env.E2B_REQUEST_TIMEOUT_MS, 60_000)
+
+async function withRequestTimeout(task, label) {
+  let timeoutId
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`[e2b][request-timeout] ${label} exceeded ${e2bRequestTimeoutMs}ms`))
+    }, e2bRequestTimeoutMs)
+  })
+
+  try {
+    return await Promise.race([task, timeoutPromise])
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
 function setGithubOutput(key, value) {
   const output = process.env.GITHUB_OUTPUT
   if (!output) return
@@ -67,7 +83,7 @@ async function listSandboxesByMetadata(metadata) {
   const all = []
 
   while (paginator.hasNext) {
-    const page = await paginator.nextItems()
+    const page = await withRequestTimeout(paginator.nextItems(), 'Sandbox.list.nextItems')
     all.push(...page)
   }
 
@@ -77,7 +93,7 @@ async function listSandboxesByMetadata(metadata) {
 async function killSandboxes(metadata) {
   const sandboxes = await listSandboxesByMetadata(metadata)
   for (const sandbox of sandboxes) {
-    await Sandbox.kill(sandbox.sandboxId)
+    await withRequestTimeout(Sandbox.kill(sandbox.sandboxId), `Sandbox.kill(${sandbox.sandboxId})`)
   }
   return sandboxes.length
 }
@@ -169,8 +185,8 @@ async function createPreview() {
   writeLog(`Killed existing sandboxes: ${killed}`)
 
   const sandbox = template
-    ? await Sandbox.create(template, { timeoutMs, metadata })
-    : await Sandbox.create({ timeoutMs, metadata })
+    ? await withRequestTimeout(Sandbox.create(template, { timeoutMs, metadata }), 'Sandbox.create(template)')
+    : await withRequestTimeout(Sandbox.create({ timeoutMs, metadata }), 'Sandbox.create(default)')
 
   const previewUrl = `https://${sandbox.getHost(port)}`
   const appEnv = {
@@ -181,6 +197,7 @@ async function createPreview() {
     AUTH_TRUST_HOST: 'true',
     ...loadPreviewEnvFromBase64(),
   }
+  writeLog(`[e2b][config] requestTimeoutMs=${e2bRequestTimeoutMs}`)
 
   if (appId === 'wedding-invite') {
     appEnv.ALLOW_ADMIN_BOOTSTRAP = appEnv.ALLOW_ADMIN_BOOTSTRAP || 'true'

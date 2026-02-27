@@ -131,21 +131,25 @@ jobs:
           BUBU_LOG_E2B_PREVIEW_ENV_B64: ${{ secrets.E2B_PREVIEW_ENV_B64 }}
           BUBU_LOG_E2B_TEMPLATE: ${{ vars.E2B_TEMPLATE }}
           BUBU_LOG_E2B_TIMEOUT_MS: ${{ vars.E2B_TIMEOUT_MS }}
+          BUBU_LOG_E2B_REQUEST_TIMEOUT_MS: ${{ vars.E2B_REQUEST_TIMEOUT_MS }}
 
           NUNU_ISLAND_E2B_API_KEY: ${{ secrets.NUNU_ISLAND_E2B_API_KEY }}
           NUNU_ISLAND_E2B_PREVIEW_ENV_B64: ${{ secrets.NUNU_ISLAND_E2B_PREVIEW_ENV_B64 }}
           NUNU_ISLAND_E2B_TEMPLATE: ${{ vars.NUNU_ISLAND_E2B_TEMPLATE }}
           NUNU_ISLAND_E2B_TIMEOUT_MS: ${{ vars.NUNU_ISLAND_E2B_TIMEOUT_MS }}
+          NUNU_ISLAND_E2B_REQUEST_TIMEOUT_MS: ${{ vars.NUNU_ISLAND_E2B_REQUEST_TIMEOUT_MS }}
 
           NUNU_LOG_E2B_API_KEY: ${{ secrets.NUNU_LOG_E2B_API_KEY }}
           NUNU_LOG_E2B_PREVIEW_ENV_B64: ${{ secrets.NUNU_LOG_E2B_PREVIEW_ENV_B64 }}
           NUNU_LOG_E2B_TEMPLATE: ${{ vars.NUNU_LOG_E2B_TEMPLATE }}
           NUNU_LOG_E2B_TIMEOUT_MS: ${{ vars.NUNU_LOG_E2B_TIMEOUT_MS }}
+          NUNU_LOG_E2B_REQUEST_TIMEOUT_MS: ${{ vars.NUNU_LOG_E2B_REQUEST_TIMEOUT_MS }}
 
           WEDDING_INVITE_E2B_API_KEY: ${{ secrets.WEDDING_INVITE_E2B_API_KEY }}
           WEDDING_INVITE_E2B_PREVIEW_ENV_B64: ${{ secrets.WEDDING_INVITE_E2B_PREVIEW_ENV_B64 }}
           WEDDING_INVITE_E2B_TEMPLATE: ${{ vars.WEDDING_INVITE_E2B_TEMPLATE }}
           WEDDING_INVITE_E2B_TIMEOUT_MS: ${{ vars.WEDDING_INVITE_E2B_TIMEOUT_MS }}
+          WEDDING_INVITE_E2B_REQUEST_TIMEOUT_MS: ${{ vars.WEDDING_INVITE_E2B_REQUEST_TIMEOUT_MS }}
         run: |
           APP_ID='${{ matrix.appId }}'
 
@@ -153,6 +157,7 @@ jobs:
           PREVIEW_ENV_B64=''
           TEMPLATE=''
           TIMEOUT_MS=''
+          REQUEST_TIMEOUT_MS=''
 
           case "$APP_ID" in
             bubu-log)
@@ -160,24 +165,28 @@ jobs:
               PREVIEW_ENV_B64="$BUBU_LOG_E2B_PREVIEW_ENV_B64"
               TEMPLATE="$BUBU_LOG_E2B_TEMPLATE"
               TIMEOUT_MS="$BUBU_LOG_E2B_TIMEOUT_MS"
+              REQUEST_TIMEOUT_MS="$BUBU_LOG_E2B_REQUEST_TIMEOUT_MS"
               ;;
             nunu-island)
               API_KEY="${NUNU_ISLAND_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
               PREVIEW_ENV_B64="${NUNU_ISLAND_E2B_PREVIEW_ENV_B64:-$BUBU_LOG_E2B_PREVIEW_ENV_B64}"
               TEMPLATE="${NUNU_ISLAND_E2B_TEMPLATE:-$BUBU_LOG_E2B_TEMPLATE}"
               TIMEOUT_MS="${NUNU_ISLAND_E2B_TIMEOUT_MS:-$BUBU_LOG_E2B_TIMEOUT_MS}"
+              REQUEST_TIMEOUT_MS="${NUNU_ISLAND_E2B_REQUEST_TIMEOUT_MS:-$BUBU_LOG_E2B_REQUEST_TIMEOUT_MS}"
               ;;
             nunu-log)
               API_KEY="${NUNU_LOG_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
               PREVIEW_ENV_B64="${NUNU_LOG_E2B_PREVIEW_ENV_B64:-$BUBU_LOG_E2B_PREVIEW_ENV_B64}"
               TEMPLATE="${NUNU_LOG_E2B_TEMPLATE:-$BUBU_LOG_E2B_TEMPLATE}"
               TIMEOUT_MS="${NUNU_LOG_E2B_TIMEOUT_MS:-$BUBU_LOG_E2B_TIMEOUT_MS}"
+              REQUEST_TIMEOUT_MS="${NUNU_LOG_E2B_REQUEST_TIMEOUT_MS:-$BUBU_LOG_E2B_REQUEST_TIMEOUT_MS}"
               ;;
             wedding-invite)
               API_KEY="${WEDDING_INVITE_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
               PREVIEW_ENV_B64="${WEDDING_INVITE_E2B_PREVIEW_ENV_B64:-$BUBU_LOG_E2B_PREVIEW_ENV_B64}"
               TEMPLATE="${WEDDING_INVITE_E2B_TEMPLATE:-$BUBU_LOG_E2B_TEMPLATE}"
               TIMEOUT_MS="${WEDDING_INVITE_E2B_TIMEOUT_MS:-$BUBU_LOG_E2B_TIMEOUT_MS}"
+              REQUEST_TIMEOUT_MS="${WEDDING_INVITE_E2B_REQUEST_TIMEOUT_MS:-$BUBU_LOG_E2B_REQUEST_TIMEOUT_MS}"
               ;;
             *)
               ;;
@@ -195,6 +204,7 @@ jobs:
           echo "preview_env_b64=$PREVIEW_ENV_B64" >> "$GITHUB_OUTPUT"
           echo "template=$TEMPLATE" >> "$GITHUB_OUTPUT"
           echo "timeout_ms=$TIMEOUT_MS" >> "$GITHUB_OUTPUT"
+          echo "request_timeout_ms=${REQUEST_TIMEOUT_MS:-60000}" >> "$GITHUB_OUTPUT"
 
       - name: Create E2B preview sandbox
         id: create_preview
@@ -205,6 +215,7 @@ jobs:
           E2B_API_KEY: ${{ steps.resolve.outputs.api_key }}
           E2B_TEMPLATE: ${{ steps.resolve.outputs.template }}
           E2B_TIMEOUT_MS: ${{ steps.resolve.outputs.timeout_ms }}
+          E2B_REQUEST_TIMEOUT_MS: ${{ steps.resolve.outputs.request_timeout_ms }}
           E2B_APP_ID: ${{ matrix.appId }}
           E2B_APP_NAME: ${{ matrix.appName }}
           E2B_APP_PORT: ${{ matrix.appPort }}
@@ -551,6 +562,7 @@ jobs:
         run: node .github/scripts/e2b-preview.mjs cleanup
         env:
           E2B_API_KEY: ${{ steps.resolve_cleanup.outputs.api_key }}
+          E2B_REQUEST_TIMEOUT_MS: 60000
           E2B_APP_ID: ${{ matrix.appId }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
