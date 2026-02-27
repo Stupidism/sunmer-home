@@ -4,13 +4,8 @@ import { ArrowLeft, Heart, Shield, Sparkles, TrendingUp } from 'lucide-react';
 import { LifeLineVisualizer } from '@/components/LifeLineVisualizer';
 import { LifeEventDialog } from '@/components/LifeEventDialog';
 import type { LifeEvent } from '@/data/lifeLine';
-import { 
-  getLifeEvents, 
-  addLifeEvent, 
-  updateLifeEvent, 
-  deleteLifeEvent,
-  sortEventsByDate 
-} from '@/data/lifeLine';
+import { sortEventsByDate } from '@/data/lifeLine';
+import { fetchLifeEvents } from '@/lib/content/fetch'
 
 interface LifeLinePageProps {
   onBack: () => void;
@@ -24,8 +19,20 @@ export function LifeLinePage({ onBack }: LifeLinePageProps) {
 
   // 加载事件
   useEffect(() => {
-    const loadedEvents = getLifeEvents();
-    setEvents(loadedEvents);
+    let active = true
+
+    const load = async () => {
+      const loadedEvents = await fetchLifeEvents()
+      if (active) {
+        setEvents(loadedEvents)
+      }
+    }
+
+    void load()
+
+    return () => {
+      active = false
+    }
   }, []);
 
   // 统计数据
@@ -47,21 +54,51 @@ export function LifeLinePage({ onBack }: LifeLinePageProps) {
     setIsDialogOpen(true);
   };
 
-  const handleSaveEvent = (eventData: Omit<LifeEvent, 'id' | 'createdAt'>) => {
+  const handleSaveEvent = async (eventData: Omit<LifeEvent, 'id' | 'createdAt'>) => {
     if (editingEvent) {
-      const updated = updateLifeEvent(editingEvent.id, eventData);
-      if (updated) {
-        setEvents((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      const response = await fetch('/api/content/life-events', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: editingEvent.id,
+          ...eventData,
+        }),
+      })
+
+      const data = (await response.json().catch(() => ({}))) as { events?: LifeEvent[] }
+      if (response.ok && Array.isArray(data.events)) {
+        setEvents(data.events)
       }
     } else {
-      const newEvent = addLifeEvent(eventData);
-      setEvents((prev) => [...prev, newEvent]);
+      const response = await fetch('/api/content/life-events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(eventData),
+      })
+
+      const data = (await response.json().catch(() => ({}))) as { events?: LifeEvent[] }
+      if (response.ok && Array.isArray(data.events)) {
+        setEvents(data.events)
+      }
     }
   };
 
-  const handleDeleteEvent = (id: string) => {
-    if (deleteLifeEvent(id)) {
-      setEvents((prev) => prev.filter((e) => e.id !== id));
+  const handleDeleteEvent = async (id: string) => {
+    const response = await fetch('/api/content/life-events', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ id }),
+    })
+
+    const data = (await response.json().catch(() => ({}))) as { events?: LifeEvent[] }
+    if (response.ok && Array.isArray(data.events)) {
+      setEvents(data.events)
     }
   };
 

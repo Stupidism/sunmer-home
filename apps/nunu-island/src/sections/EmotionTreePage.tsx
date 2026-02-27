@@ -1,11 +1,21 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Clock, ChevronRight } from 'lucide-react';
-import { emotionBranches, getRecommendedTools, tools } from '@/data/emotionTree';
+import { emotionBranches, tools } from '@/data/emotionTree';
+import type { EmotionBranch, Tool } from '@/data/emotionTree'
 
 interface EmotionTreePageProps {
   onBack: () => void;
   onSelectTool: (toolId: string) => void;
+  branches?: EmotionBranch[];
+  emotionTools?: Tool[];
+}
+
+function getRecommendedToolsByBranch(emotionName: string, branches: EmotionBranch[], allTools: Tool[]): Tool[] {
+  const branch = branches.find((item) => item.leaves.some((leaf) => leaf.name === emotionName))
+  if (!branch) return allTools.slice(0, 3)
+
+  return allTools.filter((tool) => branch.recommendedTools.includes(tool.id)).slice(0, 3)
 }
 
 // 情绪树叶组件
@@ -14,7 +24,7 @@ function EmotionLeaf({
   branchColor,
   onClick 
 }: { 
-  leaf: typeof emotionBranches[0]['leaves'][0];
+  leaf: EmotionBranch['leaves'][number];
   branchColor: string;
   onClick: () => void;
 }) {
@@ -45,7 +55,7 @@ function ToolCard({
   onClick,
   index
 }: { 
-  tool: typeof tools[0];
+  tool: Tool;
   onClick: () => void;
   index: number;
 }) {
@@ -83,7 +93,7 @@ function ToolGuide({
   onBack,
   onComplete
 }: { 
-  tool: typeof tools[0];
+  tool: Tool;
   onBack: () => void;
   onComplete: () => void;
 }) {
@@ -226,14 +236,14 @@ function ToolGuide({
 }
 
 // 主页面
-export function EmotionTreePage({ onBack, onSelectTool }: EmotionTreePageProps) {
-  const [selectedBranch, setSelectedBranch] = useState<typeof emotionBranches[0] | null>(null);
+export function EmotionTreePage({ onBack, onSelectTool, branches = emotionBranches, emotionTools = tools }: EmotionTreePageProps) {
+  const [selectedBranch, setSelectedBranch] = useState<EmotionBranch | null>(null);
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
-  const [selectedTool, setSelectedTool] = useState<typeof tools[0] | null>(null);
+  const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
 
   // 选择情绪后显示工具推荐
   if (selectedEmotion && !selectedTool) {
-    const recommendedTools = getRecommendedTools(selectedEmotion);
+    const recommendedTools = getRecommendedToolsByBranch(selectedEmotion, branches, emotionTools);
 
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
@@ -314,7 +324,7 @@ export function EmotionTreePage({ onBack, onSelectTool }: EmotionTreePageProps) 
 
         {/* 情绪树 */}
         <div className="space-y-4">
-          {emotionBranches.map((branch, index) => (
+          {branches.map((branch, index) => (
             <motion.div
               key={branch.id}
               initial={{ opacity: 0, y: 20 }}

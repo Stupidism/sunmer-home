@@ -1,15 +1,36 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X } from 'lucide-react';
 import { emotionCategories, emotionIndex } from '@/data/emotions';
+import { fetchEmotions } from '@/lib/content/fetch'
 
 export function EmotionTree() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showIndex, setShowIndex] = useState(false);
+  const [categories, setCategories] = useState(emotionCategories)
+  const [indexItems, setIndexItems] = useState(emotionIndex)
+
+  useEffect(() => {
+    let active = true
+
+    const load = async () => {
+      const data = await fetchEmotions()
+      if (active) {
+        setCategories(data.categories)
+        setIndexItems(data.index)
+      }
+    }
+
+    void load()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const filteredIndex = searchTerm
-    ? emotionIndex.filter(
+    ? indexItems.filter(
         (e) =>
           e.name.includes(searchTerm) ||
           e.scenario.includes(searchTerm) ||
@@ -88,7 +109,7 @@ export function EmotionTree() {
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scrollbar">
-                  {emotionIndex.map((emotion, idx) => (
+                  {indexItems.map((emotion, idx) => (
                     <span
                       key={idx}
                       className="px-3 py-1.5 rounded-full bg-white border border-gray-200 text-sm text-gray-600 hover:border-rose-300 hover:text-rose-600 cursor-pointer transition-colors"
@@ -113,7 +134,7 @@ export function EmotionTree() {
 
         {/* Branches */}
         <div className="grid grid-cols-2 gap-4">
-          {emotionCategories.map((category, index) => (
+          {categories.map((category, index) => (
             <motion.div
               key={category.id}
               initial={{ opacity: 0, y: 20 }}

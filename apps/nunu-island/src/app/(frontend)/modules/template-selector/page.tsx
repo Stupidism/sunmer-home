@@ -1,7 +1,10 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { babyRelationshipTemplate, otherTemplates } from '@/data/babyRelationshipTemplate'
+import { fetchTemplates } from '@/lib/content/fetch'
+import type { Template } from '@/types'
 
 const templates = [
   ...otherTemplates.filter((t) => t.id === 'gratitude-journal'),
@@ -12,6 +15,25 @@ const templates = [
 ]
 
 export default function TemplateSelectorModulePage() {
+  const [templateList, setTemplateList] = useState<Template[]>(templates)
+
+  useEffect(() => {
+    let active = true
+
+    const load = async () => {
+      const nextTemplates = await fetchTemplates()
+      if (active) {
+        setTemplateList(nextTemplates)
+      }
+    }
+
+    void load()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
   return (
     <main className="min-h-screen gradient-warm px-6 py-8">
       <section className="mx-auto max-w-4xl space-y-4">
@@ -21,7 +43,7 @@ export default function TemplateSelectorModulePage() {
         </header>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {templates.map((template) => (
+          {templateList.map((template) => (
             <article key={template.id} className="rounded-2xl bg-white p-5 shadow-soft">
               <div className="flex items-center gap-3">
                 <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${template.color} flex items-center justify-center text-2xl`}>

@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "payload": "payload",
     "db:migrate": "PAYLOAD_DB_PUSH=false NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' pnpm payload migrate",
-    "db:seed:articles": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/seed-articles.ts"
+    "db:seed:articles": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/seed-articles.ts",
+    "db:seed:content": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/seed-content.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

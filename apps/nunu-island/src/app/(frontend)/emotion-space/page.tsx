@@ -1,11 +1,32 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { HomePage } from '@/sections/HomePage'
-import { beliefs } from '@/data/beliefs'
+import { defaultBeliefs } from '@/data/beliefs'
+import { fetchBeliefs } from '@/lib/content/fetch'
+import type { Belief } from '@/types'
 
 export default function EmotionSpaceVersionPage() {
   const router = useRouter()
+  const [beliefs, setBeliefs] = useState<Belief[]>(defaultBeliefs)
+
+  useEffect(() => {
+    let active = true
+
+    const load = async () => {
+      const nextBeliefs = await fetchBeliefs()
+      if (active) {
+        setBeliefs(nextBeliefs)
+      }
+    }
+
+    void load()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   return (
     <HomePage

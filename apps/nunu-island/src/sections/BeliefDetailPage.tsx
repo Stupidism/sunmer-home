@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, BookOpen, Lightbulb, Wand2, CheckCircle, Plus, Image, Video, Music, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Lightbulb, Wand2, CheckCircle, Plus, Image as ImageIconLucide, Video, Music, X } from 'lucide-react';
 import type { Belief } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -12,15 +12,12 @@ interface BeliefDetailPageProps {
   onBack: () => void;
 }
 
-// 本地存储方法媒体内容
-const getMethodMedia = (methodId: string): { type: 'image' | 'video' | 'audio'; url: string; caption?: string }[] => {
-  const stored = localStorage.getItem(`belief-method-media-${methodId}`);
-  return stored ? JSON.parse(stored) : [];
-};
-
-const saveMethodMedia = (methodId: string, media: { type: 'image' | 'video' | 'audio'; url: string; caption?: string }[]) => {
-  localStorage.setItem(`belief-method-media-${methodId}`, JSON.stringify(media));
-};
+type MethodMedia = {
+  id: string
+  type: 'image' | 'video' | 'audio'
+  url: string
+  caption?: string
+}
 
 export function BeliefDetailPage({ belief, onBack }: BeliefDetailPageProps) {
   const [expandedMethod, setExpandedMethod] = useState<string | null>(null);
@@ -29,40 +26,66 @@ export function BeliefDetailPage({ belief, onBack }: BeliefDetailPageProps) {
   const [mediaType, setMediaType] = useState<'image' | 'video' | 'audio'>('image');
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaCaption, setMediaCaption] = useState('');
-  const [methodMedias, setMethodMedias] = useState<Record<string, { type: 'image' | 'video' | 'audio'; url: string; caption?: string }[]>>({});
+  const [methodMedias, setMethodMedias] = useState<Record<string, MethodMedia[]>>({});
 
   // 加载媒体内容
-  const loadMethodMedia = (methodId: string) => {
+  const loadMethodMedia = async (methodId: string) => {
     if (!methodMedias[methodId]) {
-      const media = getMethodMedia(methodId);
-      setMethodMedias((prev) => ({ ...prev, [methodId]: media }));
+      const response = await fetch(`/api/content/belief-method-media?methodId=${encodeURIComponent(methodId)}`, {
+        cache: 'no-store',
+      })
+      const data = (await response.json().catch(() => ({}))) as { media?: MethodMedia[] }
+      if (response.ok && Array.isArray(data.media)) {
+        const media = data.media
+        setMethodMedias((prev) => ({ ...prev, [methodId]: media }))
+      }
     }
   };
 
-  const handleAddMedia = () => {
+  const handleAddMedia = async () => {
     if (!selectedMethodId || !mediaUrl) return;
 
-    const newMedia = {
-      type: mediaType,
-      url: mediaUrl,
-      caption: mediaCaption || undefined,
-    };
+    const response = await fetch('/api/content/belief-method-media', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        methodId: selectedMethodId,
+        type: mediaType,
+        url: mediaUrl,
+        caption: mediaCaption,
+      }),
+    })
 
-    const currentMedia = getMethodMedia(selectedMethodId);
-    const updatedMedia = [...currentMedia, newMedia];
-    saveMethodMedia(selectedMethodId, updatedMedia);
+    const data = (await response.json().catch(() => ({}))) as { media?: MethodMedia[] }
+    if (response.ok && Array.isArray(data.media)) {
+      const media = data.media
+      setMethodMedias((prev) => ({ ...prev, [selectedMethodId]: media }))
+    }
 
-    setMethodMedias((prev) => ({ ...prev, [selectedMethodId]: updatedMedia }));
     setIsAddMediaDialogOpen(false);
     setMediaUrl('');
     setMediaCaption('');
   };
 
-  const handleDeleteMedia = (methodId: string, index: number) => {
-    const currentMedia = getMethodMedia(methodId);
-    const updatedMedia = currentMedia.filter((_, i) => i !== index);
-    saveMethodMedia(methodId, updatedMedia);
-    setMethodMedias((prev) => ({ ...prev, [methodId]: updatedMedia }));
+  const handleDeleteMedia = async (methodId: string, mediaId: string) => {
+    const response = await fetch('/api/content/belief-method-media', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        methodId,
+        mediaId,
+      }),
+    })
+
+    const data = (await response.json().catch(() => ({}))) as { media?: MethodMedia[] }
+    if (response.ok && Array.isArray(data.media)) {
+      const media = data.media
+      setMethodMedias((prev) => ({ ...prev, [methodId]: media }))
+    }
   };
 
   const openAddMediaDialog = (methodId: string) => {
@@ -161,7 +184,7 @@ export function BeliefDetailPage({ belief, onBack }: BeliefDetailPageProps) {
               >
                 <button
                   onClick={() => {
-                    loadMethodMedia(method.id);
+                    void loadMethodMedia(method.id);
                     setExpandedMethod(expandedMethod === method.id ? null : method.id);
                   }}
                   className="w-full p-4 flex items-center justify-between text-left"
@@ -214,16 +237,16 @@ export function BeliefDetailPage({ belief, onBack }: BeliefDetailPageProps) {
 
                           {/* Media List */}
                           <div className="space-y-2">
-                            {(methodMedias[method.id] || []).map((media, mediaIndex) => (
-                              <div key={mediaIndex} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                                {media.type === 'image' && <Image className="w-5 h-5 text-blue-500" />}
+                            {(methodMedias[method.id] || []).map((media) => (
+                              <div key={media.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                                {media.type === 'image' && <ImageIconLucide className="w-5 h-5 text-blue-500" />}
                                 {media.type === 'video' && <Video className="w-5 h-5 text-red-500" />}
                                 {media.type === 'audio' && <Music className="w-5 h-5 text-green-500" />}
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm text-gray-700 truncate">{media.caption || media.url}</p>
                                 </div>
                                 <button
-                                  onClick={() => handleDeleteMedia(method.id, mediaIndex)}
+                                  onClick={() => void handleDeleteMedia(method.id, media.id)}
                                   className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-red-500 transition-colors"
                                 >
                                   <X className="w-4 h-4" />
@@ -284,7 +307,7 @@ export function BeliefDetailPage({ belief, onBack }: BeliefDetailPageProps) {
                   mediaType === 'image' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
                 }`}
               >
-                <Image className="w-4 h-4" />
+                <ImageIconLucide className="w-4 h-4" />
                 图片
               </button>
               <button
