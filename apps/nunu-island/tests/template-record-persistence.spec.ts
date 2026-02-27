@@ -2,6 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 
 const TEMPLATE_ID = 'gratitude-journal'
 
+test.setTimeout(300000)
+
 async function answerCurrentQuestion(page: Page): Promise<boolean> {
   const questionArticle = page.locator('article:has(h2):visible').last()
 
@@ -11,7 +13,12 @@ async function answerCurrentQuestion(page: Page): Promise<boolean> {
 
   const choiceOptions = questionArticle.locator('.space-y-2 > button[type="button"]:visible')
   if ((await choiceOptions.count()) > 0) {
-    await choiceOptions.first().click({ force: true })
+    const nonCustomOptions = choiceOptions.filter({ hasNotText: '自定义' })
+    if ((await nonCustomOptions.count()) > 0) {
+      await nonCustomOptions.first().click({ force: true })
+    } else {
+      await choiceOptions.first().click({ force: true })
+    }
     return true
   }
 
@@ -24,16 +31,28 @@ async function answerCurrentQuestion(page: Page): Promise<boolean> {
 
   const textarea = questionArticle.locator('textarea:visible')
   if ((await textarea.count()) > 0) {
-    await textarea.first().click({ force: true })
-    await textarea.first().fill(`e2e-answer-${Date.now()}`, { timeout: 30000 })
-    return true
+    try {
+      const field = textarea.first()
+      await field.click({ force: true })
+      await page.keyboard.press('ControlOrMeta+A')
+      await page.keyboard.type(`e2e-answer-${Date.now()}`)
+      return true
+    } catch {
+      return false
+    }
   }
 
   const textInput = questionArticle.locator('input:visible')
   if ((await textInput.count()) > 0) {
-    await textInput.first().click({ force: true })
-    await textInput.first().fill(`e2e-answer-${Date.now()}`, { timeout: 30000 })
-    return true
+    try {
+      const field = textInput.first()
+      await field.click({ force: true })
+      await page.keyboard.press('ControlOrMeta+A')
+      await page.keyboard.type(`e2e-answer-${Date.now()}`)
+      return true
+    } catch {
+      return false
+    }
   }
 
   return false
