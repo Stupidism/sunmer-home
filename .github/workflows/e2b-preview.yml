@@ -333,7 +333,7 @@ jobs:
       - name: Run nunu-island E2E against E2B preview
         env:
           PLAYWRIGHT_BASE_URL: ${{ steps.resolve_preview_url.outputs.preview_url }}
-        run: pnpm -C apps/nunu-island test:e2e:run tests/template-record-persistence.spec.ts
+        run: pnpm -C apps/nunu-island test:e2e:run tests/template-record-persistence-api.spec.ts
 
   comment-preview:
     needs:
