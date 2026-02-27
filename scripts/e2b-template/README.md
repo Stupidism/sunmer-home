@@ -32,3 +32,12 @@ gh variable set E2B_TEMPLATE \
 ```
 
 Then re-run the `E2B PR Preview` workflow on a PR to verify preview URL generation.
+
+## Build via GitHub Actions (no local E2B key)
+
+If local `E2B_API_KEY` is unavailable, run workflow `Build E2B Template` with inputs:
+
+- `template_name`: `bubu-preview-large`
+- `cpu`: `4`
+- `memory_mb`: `4096`
+- `update_repo_variable`: `true`
