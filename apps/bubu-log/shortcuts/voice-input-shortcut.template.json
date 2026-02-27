@@ -9,6 +9,7 @@
       "Content-Type": "application/json"
     },
     "json": {
+      "babyId": "TARGET_BABY_ID",
       "text": "{{Dictated Text}}",
       "localTime": "{{Current Date:yyyy-MM-dd HH:mm}}"
     }

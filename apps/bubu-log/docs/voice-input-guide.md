@@ -14,7 +14,7 @@
 
 ## 方案一：iPhone Siri Shortcuts（推荐）
 
-> 最新版本建议使用「用户专属 Bearer Token webhook」：自动绑定当前登录用户和宝宝。
+> 最新版本建议使用「用户专属 Bearer Token webhook」：默认使用当前宝宝，也支持在请求体里传 `babyId` 切换目标宝宝（会做权限校验）。
 
 ### 设置步骤
 
@@ -39,6 +39,7 @@
      - **JSON 内容**:
        - `text`: 选择「听写文本」变量
        - `localTime`: 建议传当前时间（格式示例：`2026-02-20 21:30`）
+       - `babyId`（可选）：多宝宝场景时指定目标宝宝 ID
 
 > 注意：`shortcuts://create-shortcut` 只能打开空白编辑器，不能自动填充动作。
 > 若要一键安装模板，需使用 iCloud 快捷指令分享链接。
@@ -160,6 +161,7 @@ Authorization: Bearer <SIGNED_WEBHOOK_TOKEN>
 Content-Type: application/json
 
 {
+  "babyId": "target-baby-id",
   "text": "宝宝刚才喝了60毫升奶",
   "localTime": "2026-02-20 21:30"
 }
