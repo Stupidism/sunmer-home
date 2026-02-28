@@ -245,6 +245,11 @@ async function createPreview() {
     AUTH_TRUST_HOST: 'true',
     ...loadPreviewEnvFromBase64(),
   }
+
+  if (appPath === 'apps/nunu-island') {
+    appEnv.PAYLOAD_DB_PUSH = 'true'
+    appEnv.PAYLOAD_ALLOW_DESTRUCTIVE_PUSH = 'true'
+  }
   const appLogPath = '/tmp/e2b-app.log'
   const appPidPath = '/tmp/e2b-app.pid'
   const escapedAppLogPath = escapeShell(appLogPath)
