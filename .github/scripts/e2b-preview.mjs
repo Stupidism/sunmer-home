@@ -304,7 +304,7 @@ async function createPreview() {
   await runCommandWithLogs(
     sandbox,
     'pnpm-start-detached',
-    `bash -lc 'rm -f '\''${escapedAppPidPath}'\''; nohup pnpm start > '\''${escapedAppLogPath}'\'' 2>&1 < /dev/null & echo $! > '\''${escapedAppPidPath}'\''; APP_PID=$(cat '\''${escapedAppPidPath}'\''); echo "[e2b][start] app pid=\${APP_PID} log=${appLogPath}"; sleep 1; ps -p "\${APP_PID}" -o pid=,ppid=,stat=,etime=,comm='`,
+    `bash -lc 'rm -f '\''${escapedAppPidPath}'\''; nohup pnpm start > '\''${escapedAppLogPath}'\'' 2>&1 < /dev/null & echo $! > '\''${escapedAppPidPath}'\''; APP_PID=$(cat '\''${escapedAppPidPath}'\''); echo "[e2b][start] app pid=\${APP_PID} log=${appLogPath}"; sleep 1; ps -p "\${APP_PID}" -o pid=,ppid=,stat=,etime=,comm= || true'`,
     {
       cwd: `/home/user/app/${appPath}`,
       envs: appEnv,
