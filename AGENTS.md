@@ -15,3 +15,14 @@
 ## Project Workflow States
 
 - When you pick up a ticket you should move it to `Ready` before starting (so the board knows it is queued). Switch it to `In progress` when you begin active development, change it to `In review` once the PR is opened, and mark it `Done` immediately after the PR merges. This keeps the board aligned with actual work state transitions.
+
+## GitHub Account (Required)
+
+- For this repository, always use the `Stupidism` GitHub account when creating PRs, issues, project updates, comments, or running any `gh` commands that write data.
+- Before any write operation with `gh`, verify active auth context is `Stupidism` and switch if needed.
+
+## Worktree-first Development (Required)
+
+- Do not implement feature/fix work directly in the local main workspace.
+- Always create and use a dedicated `git worktree` per task/branch (for example under `worktrees/`), and perform code changes, commits, and pushes from that worktree.
+- Only exception: read-only inspection commands are allowed in the main workspace.
