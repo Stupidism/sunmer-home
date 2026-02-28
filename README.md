@@ -147,7 +147,29 @@ import { Drawer, DrawerContent } from '@bubu-log/ui'
 - `VERCEL_PROJECT_ID_NUNU_LOG`
 - `VERCEL_PROJECT_ID_WEDDING_INVITE`
 
-如果不再使用 Vercel Preview，建议在 Vercel 项目设置中关闭 Preview Deployments（或断开 Git 自动部署），避免与 GitHub Actions 产生重复部署。
+如果希望只保留 GitHub Actions 触发的 Preview，建议在 Vercel 项目设置中关闭 Git 自动 Preview Deployments，避免重复部署。
+
+### GitHub Actions 触发 PR Preview（按受影响 App）
+
+仓库已新增 workflow：`.github/workflows/vercel-preview.yml`
+
+- 触发方式：PR `opened/reopened/synchronize/ready_for_review`
+- 清理提示：PR `closed` 时会在同一条预览评论追加关闭说明（部署资源由 Vercel 管理回收）
+- 部署范围：仅部署受影响 App，不会全量部署全部应用
+- 部署方式：按 Vercel 官方 CLI 流程执行
+  - `vercel pull --environment=preview`
+  - `vercel build`
+  - `vercel deploy --prebuilt`
+- 结果呈现：在 PR 评论中汇总每个 App 的状态（Ready/Failed/Skipped）和 Preview 链接
+
+必需 GitHub Secrets：
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID_BUBU_LOG`
+- `VERCEL_PROJECT_ID_NUNU_ISLAND`
+- `VERCEL_PROJECT_ID_NUNU_LOG`
+- `VERCEL_PROJECT_ID_WEDDING_INVITE`
 
 ### 定时任务（每日统计自动计算）
 
@@ -181,7 +203,7 @@ rm .env.production
 
 **注意**: 确保已安装并登录 Vercel CLI: `pnpm add -g vercel && vercel login`
 
-## 使用 E2B 做 PR 分支预览（替代 Vercel Preview）
+## 使用 E2B 做 PR 分支预览（可与 Vercel Preview 并行）
 
 仓库已新增 workflow：`.github/workflows/e2b-preview.yml`
 
