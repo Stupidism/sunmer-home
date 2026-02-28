@@ -406,7 +406,7 @@ jobs:
               }
               if (item.sandboxId) {
                 const sandboxUrl = item.sandboxUrl || `https://e2b.dev/dashboard?search=${encodeURIComponent(item.sandboxId)}`
-                actions.push(`[Sandbox ${item.sandboxId}](${sandboxUrl})`)
+                actions.push(`[Sandbox](${sandboxUrl})`)
               }
               if (status === 'failed') {
                 actions.push(`[Logs](${item.runUrl || process.env.RUN_URL})`)
