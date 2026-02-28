@@ -1,40 +1,157 @@
-name: Delete Neon Branch on PR Close
+name: Create/Delete Neon Branch for Pull Request
 
 on:
   pull_request:
     types:
+      - opened
+      - reopened
+      - synchronize
       - closed
 
-jobs:
-  delete_bubu_log_branch:
-    if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    steps:
-      - name: Delete Neon branch for bubu-log
-        uses: neondatabase/delete-branch-action@v3
-        with:
-          project_id: ${{ vars.BUBU_LOG_NEON_PROJECT_ID }}
-          api_key: ${{ secrets.BUBU_LOG_NEON_API_KEY }}
-          branch: preview/${{ github.event.pull_request.head.ref }}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
 
-  delete_nunu_island_branch:
+jobs:
+  setup:
+    name: Setup
     if: github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      branch: ${{ steps.branch_name.outputs.current_branch }}
     runs-on: ubuntu-latest
     steps:
-      - name: Check nunu-island Neon credentials
+      - name: Get branch name
+        id: branch_name
+        uses: tj-actions/branch-names@v8
+
+  create_neon_branch:
+    name: Create Neon Branch
+    needs: setup
+    if: |
+      github.event_name == 'pull_request' && (
+      github.event.action == 'synchronize'
+      || github.event.action == 'opened'
+      || github.event.action == 'reopened')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - appId: bubu-log
+          - appId: nunu-island
+          - appId: nunu-log
+          - appId: wedding-invite
+    steps:
+      - name: Get branch expiration date as an env variable (2 weeks from now)
+        run: echo "EXPIRES_AT=$(date -u --date '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+
+      - name: Resolve Neon credentials
         id: creds
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
         run: |
-          if [ -n "${{ vars.NUNU_ISLAND_NEON_PROJECT_ID }}" ] && [ -n "${{ secrets.NUNU_ISLAND_NEON_API_KEY }}" ]; then
+          APP_ID='${{ matrix.appId }}'
+          PROJECT_ID=''
+          API_KEY=''
+
+          case "$APP_ID" in
+            bubu-log)
+              PROJECT_ID="morning-mouse-25532220"
+              API_KEY="$NEON_API_KEY"
+              ;;
+            nunu-island)
+              PROJECT_ID="shy-feather-65398796"
+              API_KEY="$NEON_API_KEY"
+              ;;
+            nunu-log)
+              PROJECT_ID="shiny-dream-05784525"
+              API_KEY="$NEON_API_KEY"
+              ;;
+            wedding-invite)
+              PROJECT_ID="small-wind-49890586"
+              API_KEY="$NEON_API_KEY"
+              ;;
+            *)
+              ;;
+          esac
+
+          if [ -n "$PROJECT_ID" ] && [ -n "$API_KEY" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Missing NUNU_ISLAND_NEON_PROJECT_ID or NUNU_ISLAND_NEON_API_KEY, skip delete."
+            echo "Missing Neon credentials for $APP_ID, skip create."
           fi
 
-      - name: Delete Neon branch for nunu-island
+          echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
+          echo "api_key=$API_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Create Neon Branch
+        if: steps.creds.outputs.enabled == 'true'
+        id: create_neon_branch
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ steps.creds.outputs.project_id }}
+          branch_name: preview/pr-${{ github.event.number }}-${{ needs.setup.outputs.branch }}
+          api_key: ${{ steps.creds.outputs.api_key }}
+          expires_at: ${{ env.EXPIRES_AT }}
+
+  delete_neon_branch:
+    name: Delete Neon Branch
+    needs: setup
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - appId: bubu-log
+          - appId: nunu-island
+          - appId: nunu-log
+          - appId: wedding-invite
+    steps:
+      - name: Resolve Neon credentials
+        id: creds
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          APP_ID='${{ matrix.appId }}'
+          PROJECT_ID=''
+          API_KEY=''
+
+          case "$APP_ID" in
+            bubu-log)
+              PROJECT_ID="morning-mouse-25532220"
+              API_KEY="$NEON_API_KEY"
+              ;;
+            nunu-island)
+              PROJECT_ID="shy-feather-65398796"
+              API_KEY="$NEON_API_KEY"
+              ;;
+            nunu-log)
+              PROJECT_ID="shiny-dream-05784525"
+              API_KEY="$NEON_API_KEY"
+              ;;
+            wedding-invite)
+              PROJECT_ID="small-wind-49890586"
+              API_KEY="$NEON_API_KEY"
+              ;;
+            *)
+              ;;
+          esac
+
+          if [ -n "$PROJECT_ID" ] && [ -n "$API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Missing Neon credentials for $APP_ID, skip delete."
+          fi
+
+          echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
+          echo "api_key=$API_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Delete Neon Branch
         if: steps.creds.outputs.enabled == 'true'
         uses: neondatabase/delete-branch-action@v3
         with:
-          project_id: ${{ vars.NUNU_ISLAND_NEON_PROJECT_ID }}
-          api_key: ${{ secrets.NUNU_ISLAND_NEON_API_KEY }}
-          branch: preview/${{ github.event.pull_request.head.ref }}
+          project_id: ${{ steps.creds.outputs.project_id }}
+          branch: preview/pr-${{ github.event.number }}-${{ needs.setup.outputs.branch }}
+          api_key: ${{ steps.creds.outputs.api_key }}
