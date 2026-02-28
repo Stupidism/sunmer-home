@@ -22,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix_json: ${{ steps.detect.outputs.matrix_json }}
+      all_projects_json: ${{ steps.detect.outputs.all_projects_json }}
+      affected_json: ${{ steps.detect.outputs.affected_json }}
       preview_count: ${{ steps.detect.outputs.preview_count }}
     steps:
       - name: Detect affected projects for E2B preview
@@ -99,13 +101,15 @@ jobs:
             core.info(`Affected projects: ${affected.map((p) => p.appId).join(', ') || '(none)'}`)
 
             core.setOutput('matrix_json', JSON.stringify({ include: affected }))
+            core.setOutput('all_projects_json', JSON.stringify(projects.map((p) => ({ appId: p.appId, appName: p.appName }))))
+            core.setOutput('affected_json', JSON.stringify(affected.map((p) => ({ appId: p.appId, appName: p.appName }))))
             core.setOutput('preview_count', String(affected.length))
 
-      - name: Remove legacy aggregated preview comment
+      - name: Remove legacy per-app preview comments
         uses: actions/github-script@v7
         with:
           script: |
-            const marker = '<!-- e2b-pr-preview -->'
+            const marker = '<!-- e2b-pr-preview:'
             const issue_number = context.issue.number
 
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -115,18 +119,18 @@ jobs:
               per_page: 100,
             })
 
-            const legacy = comments.find((comment) =>
+            const legacy = comments.filter((comment) =>
               comment.body && comment.body.includes(marker)
             )
 
-            if (legacy) {
+            for (const item of legacy) {
               await github.rest.issues.deleteComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                comment_id: legacy.id,
+                comment_id: item.id,
               })
-              core.info('Removed legacy aggregated preview comment.')
             }
+            core.info(`Removed ${legacy.length} legacy per-app preview comments.`)
 
   preview:
     needs: detect-affected
@@ -293,19 +297,24 @@ jobs:
         env:
           RESULT_FILE: ${{ runner.temp }}/e2b-result/${{ matrix.appId }}.json
           APP_ID: ${{ matrix.appId }}
-          APP_NAME: ${{ matrix.appName }}
+          ALL_PROJECTS_JSON: ${{ needs.detect-affected.outputs.all_projects_json }}
+          AFFECTED_JSON: ${{ needs.detect-affected.outputs.affected_json }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             const fs = require('node:fs')
 
-            const marker = `<!-- e2b-pr-preview:${process.env.APP_ID} -->`
+            const marker = '<!-- e2b-pr-preview -->'
+            const statePrefix = '<!-- e2b-pr-preview-state '
             const issue_number = context.issue.number
             const updated = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')
+            const allProjects = JSON.parse(process.env.ALL_PROJECTS_JSON || '[]')
+            const affectedProjects = JSON.parse(process.env.AFFECTED_JSON || '[]')
+            const affectedSet = new Set(affectedProjects.map((item) => item.appId))
 
             let result = {
               appId: process.env.APP_ID,
-              appName: process.env.APP_NAME,
+              appName: process.env.APP_ID,
               status: 'failed',
               reason: 'missing-result-file',
               runUrl: process.env.RUN_URL,
@@ -318,36 +327,6 @@ jobs:
               core.warning(`Failed to read preview result for ${process.env.APP_ID}: ${error}`)
             }
 
-            const status = result.status || 'failed'
-            const icon = status === 'ready'
-              ? '![Ready](https://vercel.com/static/status/ready.svg)'
-              : status === 'failed'
-                ? '![Error](https://vercel.com/static/status/error.svg)'
-                : '![Skipped](https://vercel.com/static/status/canceled.svg)'
-            const statusLabel = status === 'ready' ? 'Ready' : status === 'failed' ? 'Failed' : 'Skipped'
-
-            const actions = []
-            if (result.previewUrl) {
-              actions.push(`[Preview](${result.previewUrl})`)
-            }
-            if (result.sandboxId) {
-              actions.push(`Sandbox: \`${result.sandboxId}\``)
-            }
-            if (status !== 'ready') {
-              actions.push(`[Logs](${result.runUrl || process.env.RUN_URL})`)
-            }
-
-            const body = [
-              marker,
-              `### E2B Preview · ${process.env.APP_NAME}`,
-              '',
-              '| Project | Deployment | Actions | Updated (UTC) |',
-              '| :--- | :----- | :------ | :------ |',
-              `| ${process.env.APP_NAME} | ${icon} ${statusLabel} | ${actions.join(', ') || '-'} | ${updated} |`,
-              '',
-              '_This preview is ephemeral and will be recreated on new commits._',
-            ].join('\n')
-
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -358,6 +337,95 @@ jobs:
             const existing = comments.find((comment) =>
               comment.body && comment.body.includes(marker)
             )
+
+            let existingState = {}
+            if (existing?.body) {
+              const match = existing.body.match(/<!-- e2b-pr-preview-state ([\s\S]*?) -->/)
+              if (match?.[1]) {
+                try {
+                  existingState = JSON.parse(match[1])
+                } catch (error) {
+                  core.warning(`Failed to parse existing preview state: ${error}`)
+                }
+              }
+            }
+
+            const nextState = {}
+            for (const project of allProjects) {
+              if (affectedSet.has(project.appId)) {
+                nextState[project.appId] = {
+                  appId: project.appId,
+                  appName: project.appName,
+                  status: 'running',
+                  reason: 'waiting-for-result',
+                  runUrl: process.env.RUN_URL,
+                }
+              } else {
+                nextState[project.appId] = {
+                  appId: project.appId,
+                  appName: project.appName,
+                  status: 'skipped',
+                  reason: 'not-affected',
+                }
+              }
+            }
+
+            for (const [appId, state] of Object.entries(existingState)) {
+              if (nextState[appId]) {
+                nextState[appId] = { ...nextState[appId], ...state }
+              }
+            }
+            nextState[result.appId] = { ...nextState[result.appId], ...result }
+
+            const toRow = (project) => {
+              const item = nextState[project.appId] || {
+                appId: project.appId,
+                appName: project.appName,
+                status: 'skipped',
+                reason: 'not-affected',
+              }
+              const status = item.status || 'failed'
+              const icon = status === 'ready'
+                ? '![Ready](https://vercel.com/static/status/ready.svg)'
+                : status === 'failed'
+                  ? '![Error](https://vercel.com/static/status/error.svg)'
+                  : status === 'running'
+                    ? '![Building](https://vercel.com/static/status/building.svg)'
+                    : '![Skipped](https://vercel.com/static/status/canceled.svg)'
+              const statusLabel = status === 'ready'
+                ? 'Ready'
+                : status === 'failed'
+                  ? 'Failed'
+                  : status === 'running'
+                    ? 'Running'
+                    : 'Skipped'
+
+              const actions = []
+              if (item.previewUrl) {
+                actions.push(`[Preview](${item.previewUrl})`)
+              }
+              if (item.sandboxId) {
+                const sandboxUrl = item.sandboxUrl || `https://e2b.dev/dashboard?search=${encodeURIComponent(item.sandboxId)}`
+                actions.push(`[Sandbox ${item.sandboxId}](${sandboxUrl})`)
+              }
+              if (status === 'failed') {
+                actions.push(`[Logs](${item.runUrl || process.env.RUN_URL})`)
+              }
+
+              return `| ${project.appName} | ${icon} ${statusLabel} | ${actions.join(', ') || '-'} | ${updated} |`
+            }
+
+            const body = [
+              marker,
+              `<!-- e2b-pr-preview-state ${JSON.stringify(nextState)} -->`,
+              '### E2B Preview',
+              '',
+              '| Project | Deployment | Actions | Updated (UTC) |',
+              '| :--- | :----- | :------ | :------ |',
+              ...allProjects.map(toRow),
+              '',
+              '_This preview is ephemeral and will be recreated on new commits._',
+            ].join('\n')
 
             if (existing) {
               await github.rest.issues.updateComment({
