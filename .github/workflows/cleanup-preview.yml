@@ -87,6 +87,7 @@ jobs:
       - name: Create Neon Branch
         if: steps.creds.outputs.enabled == 'true'
         id: create_neon_branch
+        continue-on-error: true
         uses: neondatabase/create-branch-action@v6
         with:
           project_id: ${{ steps.creds.outputs.project_id }}
@@ -150,6 +151,7 @@ jobs:
 
       - name: Delete Neon Branch
         if: steps.creds.outputs.enabled == 'true'
+        continue-on-error: true
         uses: neondatabase/delete-branch-action@v3
         with:
           project_id: ${{ steps.creds.outputs.project_id }}
