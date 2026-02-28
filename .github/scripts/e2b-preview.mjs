@@ -310,6 +310,16 @@ async function createPreview() {
       envs: appEnv,
     }
   )
+  await runCommandWithLogs(
+    sandbox,
+    'runtime-log-forwarder',
+    `bash -lc 'touch '\''${escapedAppLogPath}'\'' && tail -n +1 -F '\''${escapedAppLogPath}'\'''`,
+    {
+      background: true,
+      cwd: `/home/user/app/${appPath}`,
+      envs: appEnv,
+    }
+  )
 
   try {
     await runCommandWithLogs(
