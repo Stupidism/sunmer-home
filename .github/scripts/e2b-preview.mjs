@@ -186,6 +186,7 @@ async function createPreview() {
     appEnv.ALLOW_ADMIN_BOOTSTRAP = appEnv.ALLOW_ADMIN_BOOTSTRAP || 'true'
     appEnv.E2E_ADMIN_EMAIL = appEnv.E2E_ADMIN_EMAIL || 'wedding-e2e-admin@example.com'
     appEnv.E2E_ADMIN_PASSWORD = appEnv.E2E_ADMIN_PASSWORD || 'Passw0rd!123456'
+    appEnv.PAYLOAD_DB_PUSH = appEnv.PAYLOAD_DB_PUSH || 'true'
   }
 
   writeLog(`Created sandbox: ${sandbox.sandboxId}`)
