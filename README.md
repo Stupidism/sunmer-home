@@ -138,14 +138,15 @@ import { Drawer, DrawerContent } from '@bubu-log/ui'
   - `vercel build --prod`
   - `vercel deploy --prebuilt --prod`
 
-必需 GitHub Secrets：
+必需配置：
 
-- `VERCEL_TOKEN`
-- `VERCEL_ORG_ID`
-- `VERCEL_PROJECT_ID_BUBU_LOG`
-- `VERCEL_PROJECT_ID_NUNU_ISLAND`
-- `VERCEL_PROJECT_ID_NUNU_LOG`
-- `VERCEL_PROJECT_ID_WEDDING_INVITE`
+- GitHub Secret：`VERCEL_TOKEN`
+- GitHub Variables：
+  - `VERCEL_ORG_ID`
+  - `VERCEL_PROJECT_ID_BUBU_LOG`
+  - `VERCEL_PROJECT_ID_NUNU_ISLAND`
+  - `VERCEL_PROJECT_ID_NUNU_LOG`
+  - `VERCEL_PROJECT_ID_WEDDING_INVITE`
 
 如果希望只保留 GitHub Actions 触发的 Preview，建议在 Vercel 项目设置中关闭 Git 自动 Preview Deployments，避免重复部署。
 
