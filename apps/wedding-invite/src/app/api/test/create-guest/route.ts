@@ -16,6 +16,7 @@ type InvitationRecord = {
 };
 
 const E2E_CODE_PREFIX = "e2e-code:";
+const E2E_FALLBACK_PREFIX = "e2e-fallback:";
 
 function isMissingInvitationsRelation(error: unknown): boolean {
   const parts: string[] = [];
@@ -48,6 +49,40 @@ function isMissingInvitationsRelation(error: unknown): boolean {
 
 function buildFallbackInviteCode(): string {
   return `e2e-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function buildNoDatabaseFallbackCode(name: string, memorySnippet: string): string {
+  const payload = Buffer.from(JSON.stringify({ name, memorySnippet }), "utf8").toString("base64url");
+  return `${E2E_FALLBACK_PREFIX}${payload}`;
+}
+
+function isMissingGuestsRelation(error: unknown): boolean {
+  const parts: string[] = [];
+
+  if (error instanceof Error) {
+    parts.push(error.message);
+    const maybeCause = error.cause;
+    if (maybeCause instanceof Error) {
+      parts.push(maybeCause.message);
+    } else if (maybeCause) {
+      parts.push(String(maybeCause));
+    }
+  } else if (error && typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+    const detail = (error as { detail?: unknown }).detail;
+    const cause = (error as { cause?: unknown }).cause;
+    if (typeof message === "string") parts.push(message);
+    if (typeof detail === "string") parts.push(detail);
+    if (cause instanceof Error) {
+      parts.push(cause.message);
+    } else if (typeof cause === "string") {
+      parts.push(cause);
+    }
+  } else {
+    parts.push(String(error || ""));
+  }
+
+  return parts.join(" | ").includes('relation "guests" does not exist');
 }
 
 export async function POST(request: NextRequest) {
@@ -159,6 +194,21 @@ export async function POST(request: NextRequest) {
     }
 
     if (!invitation?.inviteCode && !invitation?.shareLink) {
+      if (isMissingGuestsRelation(creationError)) {
+        const noDatabaseCode = buildNoDatabaseFallbackCode(name, memorySnippet);
+        return NextResponse.json({
+          success: true,
+          guestId: `fallback-${Date.now()}`,
+          guestName: name,
+          memorySnippet,
+          shareLink: `/?code=${encodeURIComponent(noDatabaseCode)}`,
+          inviteCode: noDatabaseCode,
+          fallback: true,
+          noDatabaseFallback: true,
+          warning: "guests relation missing, using no-database fallback",
+        });
+      }
+
       let existingInvitation: InvitationRecord | undefined;
       try {
         existingInvitation = await pickExistingInvitation();

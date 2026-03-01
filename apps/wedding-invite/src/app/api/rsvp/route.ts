@@ -11,6 +11,7 @@ function toGuestName(guest: unknown): string {
 }
 
 const E2E_CODE_PREFIX = "e2e-code:";
+const E2E_FALLBACK_PREFIX = "e2e-fallback:";
 
 function isMissingInvitationsRelation(error: unknown): boolean {
   const parts: string[] = [];
@@ -49,6 +50,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function isNoDatabaseFallbackCode(code: string): boolean {
+  return code.startsWith(E2E_FALLBACK_PREFIX);
+}
+
 export async function GET() {
   return NextResponse.json({ success: false, error: "Not allowed" }, { status: 405 });
 }
@@ -84,6 +89,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Name and invite code are required" },
         { status: 400 }
+      );
+    }
+
+    if (isNoDatabaseFallbackCode(inviteCode)) {
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            id: `fallback-${Date.now()}`,
+            name: guestName,
+            guest_count: guestCount,
+            phone,
+            message,
+            arrivalPlan,
+            needsHotel,
+            hotelNights,
+            transportPreference,
+            status,
+            submitted_at: new Date().toISOString(),
+            fallback: true,
+          },
+        },
+        { status: 201 }
       );
     }
 

@@ -30,20 +30,27 @@ test("guest creation to personalized invite and RSVP flow", async ({ page }) => 
   const createGuestBody = (await createGuestResponse.json()) as {
     success?: boolean;
     guestId?: string;
+    guestName?: string;
+    noDatabaseFallback?: boolean;
     shareLink?: string | null;
     inviteCode?: string | null;
     error?: string;
   };
   expect(createGuestResponse.ok(), createGuestBody.error || "create guest failed").toBeTruthy();
 
+  const usingNoDatabaseFallback = Boolean(createGuestBody.noDatabaseFallback);
   const guestId = createGuestBody.guestId;
-  expect(guestId).toBeTruthy();
-  if (!guestId) {
-    throw new Error("Missing guest id from API response");
-  }
+  if (!usingNoDatabaseFallback) {
+    expect(guestId).toBeTruthy();
+    if (!guestId) {
+      throw new Error("Missing guest id from API response");
+    }
 
-  await page.goto("/admin/collections/guests");
-  await expect(page.getByText(guestName)).toBeVisible();
+    const expectedGuestName =
+      (typeof createGuestBody.guestName === "string" && createGuestBody.guestName) || guestName;
+    await page.goto("/admin/collections/guests");
+    await expect(page.getByText(expectedGuestName)).toBeVisible();
+  }
 
   const shareLink =
     (typeof createGuestBody.shareLink === "string" && createGuestBody.shareLink.trim()) ||

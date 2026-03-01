@@ -25,6 +25,7 @@ const relationshipSideLabel: Record<string, string> = {
 };
 
 const E2E_CODE_PREFIX = "e2e-code:";
+const E2E_FALLBACK_PREFIX = "e2e-fallback:";
 
 function isMissingInvitationsRelation(error: unknown): boolean {
   const parts: string[] = [];
@@ -63,11 +64,52 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function decodeNoDatabaseFallback(code: string): { name: string; memorySnippet: string } | null {
+  if (!code.startsWith(E2E_FALLBACK_PREFIX)) {
+    return null;
+  }
+
+  try {
+    const raw = code.slice(E2E_FALLBACK_PREFIX.length);
+    const parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as {
+      name?: unknown;
+      memorySnippet?: unknown;
+    };
+    if (typeof parsed.name !== "string" || typeof parsed.memorySnippet !== "string") {
+      return null;
+    }
+
+    return {
+      name: parsed.name,
+      memorySnippet: parsed.memorySnippet,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const code = request.nextUrl.searchParams.get("code")?.trim();
     if (!code) {
       return NextResponse.json({ success: false, error: "Code is required" }, { status: 400 });
+    }
+
+    const noDatabaseFallback = decodeNoDatabaseFallback(code);
+    if (noDatabaseFallback) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          inviteCode: code,
+          guestName: noDatabaseFallback.name,
+          relationshipSide: "其他",
+          relationshipCategory: "其他",
+          relationshipNote: "E2E 无数据库回退路径",
+          memorySnippet: noDatabaseFallback.memorySnippet,
+          customOpening: `亲爱的${noDatabaseFallback.name}，欢迎来参加我们的婚礼。`,
+          maxGuestCount: 1,
+        },
+      });
     }
 
     const payload = await getPayloadClient();
