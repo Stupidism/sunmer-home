@@ -189,7 +189,6 @@ jobs:
         id: pull_vercel_preview_env
         if: steps.resolve.outputs.enabled == 'true'
         continue-on-error: true
-        working-directory: ${{ matrix.appPath }}
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
           VERCEL_SCOPE: ${{ steps.resolve.outputs.scope }}
@@ -201,7 +200,6 @@ jobs:
         id: build_preview_artifacts
         if: steps.resolve.outputs.enabled == 'true'
         continue-on-error: true
-        working-directory: ${{ matrix.appPath }}
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
           VERCEL_SCOPE: ${{ steps.resolve.outputs.scope }}
@@ -213,7 +211,6 @@ jobs:
         id: deploy_preview
         if: steps.resolve.outputs.enabled == 'true'
         continue-on-error: true
-        working-directory: ${{ matrix.appPath }}
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
           VERCEL_SCOPE: ${{ steps.resolve.outputs.scope }}
