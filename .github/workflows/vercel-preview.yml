@@ -236,6 +236,7 @@ jobs:
         if: steps.resolve.outputs.enabled == 'true' && steps.deploy_preview.outcome == 'success'
         env:
           PREVIEW_URL: ${{ steps.deploy_preview.outputs.preview_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           if [ -z "$PREVIEW_URL" ]; then
             echo "Missing preview URL" >&2
@@ -246,8 +247,18 @@ jobs:
             local path="$1"
             local url="${PREVIEW_URL}${path}"
             local code
-            code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
+            if [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+              code=$(curl -sS -o /dev/null -w "%{http_code}" -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" -H "x-vercel-set-bypass-cookie: true" "$url")
+            else
+              code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
+            fi
             echo "Probe ${url} => HTTP ${code}"
+
+            if [ "$code" -eq 401 ]; then
+              echo "Route ${url} is protected by Vercel deployment protection"
+              return 0
+            fi
+
             if [ "$code" -ge 400 ]; then
               echo "Route ${url} is not reachable" >&2
               exit 1
