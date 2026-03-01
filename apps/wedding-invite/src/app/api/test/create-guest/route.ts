@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { getPayloadClient } from "@/lib/payload/client";
 
 type CreateGuestBody = {
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
     const guest = await payload.create({
       collection: "guests",
       data: {
+        id: randomUUID(),
         name,
         memorySnippet,
         relationshipNote: relationshipNote || "E2E created guest",
@@ -69,6 +71,7 @@ export async function POST(request: NextRequest) {
         const createdInvitation = (await payload.create({
           collection: "invitations",
           data: {
+            id: randomUUID(),
             title: `${name} 的邀请函`,
             guest: guest.id,
             maxGuestCount: 1,
