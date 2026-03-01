@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "payload": "payload",
+    "db:push": "pnpm db:migrate",
+    "db:migrate": "PAYLOAD_DB_PUSH=false NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/migrate-payload.ts",
     "seed:initial-guests": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/seed-initial-guests.ts",
     "seed:e2e-admin": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/seed-e2e-admin.ts",
     "test:e2e": "playwright test"

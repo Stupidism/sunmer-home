@@ -208,6 +208,12 @@ async function createPreview() {
   )
 
   if (appId === 'wedding-invite') {
+    await runCommandWithLogs(sandbox, 'db-migrate', 'pnpm db:migrate', {
+      cwd: `/home/user/app/${appPath}`,
+      envs: appEnv,
+      timeoutMs: 10 * 60 * 1000,
+    })
+
     await runCommandWithLogs(sandbox, 'seed-e2e-admin', 'pnpm seed:e2e-admin', {
       cwd: `/home/user/app/${appPath}`,
       envs: appEnv,
