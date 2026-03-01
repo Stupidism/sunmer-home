@@ -125,7 +125,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Resolve Vercel project id
+      - name: Resolve Vercel project and org id
         id: resolve
         env:
           VERCEL_PROJECT_ID_BUBU_LOG: ${{ vars.VERCEL_PROJECT_ID_BUBU_LOG }}
@@ -134,9 +134,11 @@ jobs:
           VERCEL_PROJECT_ID_WEDDING_INVITE: ${{ vars.VERCEL_PROJECT_ID_WEDDING_INVITE }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_SCOPE: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
         run: |
           APP_ID='${{ matrix.appId }}'
           PROJECT_ID=''
+          ORG_ID=''
 
           case "$APP_ID" in
             bubu-log)
@@ -155,7 +157,23 @@ jobs:
               ;;
           esac
 
-          if [ -z "$PROJECT_ID" ] || [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_SCOPE" ]; then
+          if [ -n "$VERCEL_TEAM_ID" ]; then
+            ORG_ID="$VERCEL_TEAM_ID"
+          elif [ -n "$VERCEL_SCOPE" ] && [[ "$VERCEL_SCOPE" == team_* ]]; then
+            ORG_ID="$VERCEL_SCOPE"
+          elif [ -n "$VERCEL_SCOPE" ]; then
+            ORG_ID=$(curl -fsSL -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v2/teams/$VERCEL_SCOPE" \
+              | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);if(j.id)process.stdout.write(j.id)}catch{}})" \
+              || true)
+
+            if [ -z "$ORG_ID" ]; then
+              ORG_ID=$(curl -fsSL -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v2/teams?slug=$VERCEL_SCOPE" \
+                | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);if(Array.isArray(j.teams)&&j.teams[0]&&j.teams[0].id)process.stdout.write(j.teams[0].id)}catch{}})" \
+                || true)
+            fi
+          fi
+
+          if [ -z "$PROJECT_ID" ] || [ -z "$VERCEL_TOKEN" ] || [ -z "$ORG_ID" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "reason=missing-vercel-credentials" >> "$GITHUB_OUTPUT"
           else
@@ -164,6 +182,8 @@ jobs:
           fi
 
           echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
+          echo "org_id=$ORG_ID" >> "$GITHUB_OUTPUT"
+          echo "scope=${VERCEL_SCOPE:-$ORG_ID}" >> "$GITHUB_OUTPUT"
 
       - name: Pull Vercel preview env
         id: pull_vercel_preview_env
@@ -171,7 +191,8 @@ jobs:
         continue-on-error: true
         working-directory: ${{ matrix.appPath }}
         env:
-          VERCEL_SCOPE: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
+          VERCEL_SCOPE: ${{ steps.resolve.outputs.scope }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: pnpm dlx vercel@latest pull --yes --environment=preview --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN"
@@ -182,7 +203,8 @@ jobs:
         continue-on-error: true
         working-directory: ${{ matrix.appPath }}
         env:
-          VERCEL_SCOPE: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
+          VERCEL_SCOPE: ${{ steps.resolve.outputs.scope }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: pnpm dlx vercel@latest build --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN"
@@ -193,7 +215,8 @@ jobs:
         continue-on-error: true
         working-directory: ${{ matrix.appPath }}
         env:
-          VERCEL_SCOPE: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
+          VERCEL_SCOPE: ${{ steps.resolve.outputs.scope }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

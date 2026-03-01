@@ -143,6 +143,7 @@ import { Drawer, DrawerContent } from '@bubu-log/ui'
 - GitHub Secret：`VERCEL_TOKEN`
 - GitHub Variables：
   - `VERCEL_ORG_ID`（可填 team slug 或 team id）
+  - `VERCEL_TEAM_ID`（可选；若填写则优先用于 CLI 的 `VERCEL_ORG_ID`）
   - `VERCEL_PROJECT_ID_BUBU_LOG`
   - `VERCEL_PROJECT_ID_NUNU_ISLAND`
   - `VERCEL_PROJECT_ID_NUNU_LOG`
