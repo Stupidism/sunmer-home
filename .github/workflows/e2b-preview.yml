@@ -201,8 +201,8 @@ jobs:
               TIMEOUT_MS="${NUNU_LOG_E2B_TIMEOUT_MS:-$BUBU_LOG_E2B_TIMEOUT_MS}"
               ;;
             wedding-invite)
-              API_KEY="$WEDDING_INVITE_E2B_API_KEY"
-              PREVIEW_ENV_B64="$WEDDING_INVITE_E2B_PREVIEW_ENV_B64"
+              API_KEY="${WEDDING_INVITE_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
+              PREVIEW_ENV_B64="${WEDDING_INVITE_E2B_PREVIEW_ENV_B64:-$BUBU_LOG_E2B_PREVIEW_ENV_B64}"
               TEMPLATE="${WEDDING_INVITE_E2B_TEMPLATE:-$BUBU_LOG_E2B_TEMPLATE}"
               TIMEOUT_MS="${WEDDING_INVITE_E2B_TIMEOUT_MS:-$BUBU_LOG_E2B_TIMEOUT_MS}"
               ;;
@@ -494,7 +494,7 @@ jobs:
               API_KEY="${NUNU_LOG_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
               ;;
             wedding-invite)
-              API_KEY="$WEDDING_INVITE_E2B_API_KEY"
+              API_KEY="${WEDDING_INVITE_E2B_API_KEY:-$BUBU_LOG_E2B_API_KEY}"
               ;;
             *)
               ;;
