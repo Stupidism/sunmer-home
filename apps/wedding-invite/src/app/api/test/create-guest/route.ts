@@ -41,22 +41,51 @@ export async function POST(request: NextRequest) {
     });
 
     let invitation: { shareLink?: string; inviteCode?: string } | undefined;
+    let lastError: unknown;
 
     for (let attempt = 0; attempt < 20; attempt += 1) {
-      const invitations = await payload.find({
-        collection: "invitations",
-        where: { guest: { equals: guest.id } },
-        limit: 1,
-        depth: 0,
-        overrideAccess: true,
-      });
+      try {
+        const invitations = await payload.find({
+          collection: "invitations",
+          where: { guest: { equals: guest.id } },
+          limit: 1,
+          depth: 0,
+          overrideAccess: true,
+        });
 
-      invitation = invitations.docs[0] as { shareLink?: string; inviteCode?: string } | undefined;
-      if (invitation?.shareLink || invitation?.inviteCode) {
-        break;
+        invitation = invitations.docs[0] as { shareLink?: string; inviteCode?: string } | undefined;
+        if (invitation?.shareLink || invitation?.inviteCode) {
+          break;
+        }
+      } catch (error) {
+        lastError = error;
       }
 
       await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    if (!invitation?.inviteCode && !invitation?.shareLink) {
+      try {
+        const createdInvitation = (await payload.create({
+          collection: "invitations",
+          data: {
+            title: `${name} 的邀请函`,
+            guest: guest.id,
+            maxGuestCount: 1,
+            status: "draft",
+            customOpening: `亲爱的${name}，欢迎来参加我们的婚礼。`,
+          },
+          overrideAccess: true,
+        })) as { shareLink?: string; inviteCode?: string };
+
+        invitation = createdInvitation;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (!invitation?.inviteCode && !invitation?.shareLink && lastError) {
+      throw lastError;
     }
 
     return NextResponse.json({
@@ -67,6 +96,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Failed to create E2E guest", error);
-    return NextResponse.json({ success: false, error: "Failed to create E2E guest" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to create E2E guest";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
