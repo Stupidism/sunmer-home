@@ -222,6 +222,7 @@ jobs:
           DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --yes --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" 2>&1)
           echo "$DEPLOY_OUTPUT"
           DEPLOY_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/[^\s"\)]+\.vercel\.app[^\s"\)]*)/g) { $u=$1 } END { print $u if defined $u }')
+          BUILD_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/vercel\.com\/[^\s\]]+)/g) { $u=$1 } END { print $u if defined $u }')
 
           if [ -z "$DEPLOY_URL" ]; then
             echo "Failed to parse deploy URL from Vercel output" >&2
@@ -229,6 +230,7 @@ jobs:
           fi
 
           echo "preview_url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+          echo "build_url=$BUILD_URL" >> "$GITHUB_OUTPUT"
 
       - name: Persist preview result
         run: |
@@ -253,6 +255,7 @@ jobs:
             "status": "ready",
             "reason": "ready",
             "previewUrl": "${{ steps.deploy_preview.outputs.preview_url }}",
+            "buildUrl": "${{ steps.deploy_preview.outputs.build_url }}",
             "headSha": "${{ github.event.pull_request.head.sha }}"
           }
           EOF
@@ -414,6 +417,9 @@ jobs:
               const actions = []
               if (item.previewUrl) {
                 actions.push(`[Preview](${item.previewUrl})`)
+              }
+              if (item.buildUrl) {
+                actions.push(`[Build](${item.buildUrl})`)
               }
               if (status === 'failed') {
                 actions.push(`[Logs](${item.runUrl || process.env.RUN_URL})`)
