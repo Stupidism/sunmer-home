@@ -219,7 +219,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --prebuilt --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" 2>&1)
+          DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --yes --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" 2>&1)
           echo "$DEPLOY_OUTPUT"
           DEPLOY_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/[^\s"\)]+\.vercel\.app[^\s"\)]*)/g) { $u=$1 } END { print $u if defined $u }')
 
@@ -241,7 +241,19 @@ jobs:
             "appId": "${{ matrix.appId }}",
             "appName": "${{ matrix.appName }}",
             "status": "skipped",
-            "reason": "missing-vercel-credentials"
+            "reason": "missing-vercel-credentials",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
+          }
+          EOF
+          elif [ '${{ steps.deploy_preview.outcome }}' = 'success' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "ready",
+            "reason": "ready",
+            "previewUrl": "${{ steps.deploy_preview.outputs.preview_url }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
           }
           EOF
           elif [ '${{ steps.pull_vercel_preview_env.outcome }}' = 'failure' ]; then
@@ -251,7 +263,8 @@ jobs:
             "appName": "${{ matrix.appName }}",
             "status": "failed",
             "reason": "preview-pull-failed",
-            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
           }
           EOF
           elif [ '${{ steps.build_preview_artifacts.outcome }}' = 'failure' ]; then
@@ -261,16 +274,7 @@ jobs:
             "appName": "${{ matrix.appName }}",
             "status": "failed",
             "reason": "preview-build-failed",
-            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          }
-          EOF
-          elif [ '${{ steps.deploy_preview.outcome }}' = 'success' ]; then
-            cat > "$RESULT_FILE" <<EOF
-          {
-            "appId": "${{ matrix.appId }}",
-            "appName": "${{ matrix.appName }}",
-            "status": "ready",
-            "previewUrl": "${{ steps.deploy_preview.outputs.preview_url }}",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
             "headSha": "${{ github.event.pull_request.head.sha }}"
           }
           EOF
@@ -281,7 +285,8 @@ jobs:
             "appName": "${{ matrix.appName }}",
             "status": "failed",
             "reason": "preview-deploy-failed",
-            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
           }
           EOF
           fi
