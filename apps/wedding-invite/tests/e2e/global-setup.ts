@@ -1,6 +1,13 @@
 import { execSync } from "node:child_process";
 
 async function globalSetup() {
+  const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3212";
+  const isRemoteBaseURL = /^https?:\/\//.test(baseURL) && !baseURL.includes("127.0.0.1") && !baseURL.includes("localhost");
+
+  if (isRemoteBaseURL) {
+    return;
+  }
+
   const databaseURL =
     process.env.PAYLOAD_DATABASE_URL ||
     process.env.DATABASE_URL ||

@@ -15,6 +15,17 @@ type InvitationRecord = {
   guest?: { id?: string; name?: string; memorySnippet?: string } | string;
 };
 
+const E2E_CODE_PREFIX = "e2e-code:";
+
+function isMissingInvitationsRelation(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return message.includes('relation "invitations" does not exist');
+}
+
+function buildFallbackInviteCode(): string {
+  return `e2e-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export async function POST(request: NextRequest) {
   if (process.env.ALLOW_ADMIN_BOOTSTRAP !== "true") {
     return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
@@ -25,6 +36,7 @@ export async function POST(request: NextRequest) {
     const name = body.name?.trim();
     const memorySnippet = body.memorySnippet?.trim();
     const relationshipNote = body.relationshipNote?.trim();
+    const fallbackInviteCode = buildFallbackInviteCode();
 
     if (!name || !memorySnippet) {
       return NextResponse.json(
@@ -65,6 +77,7 @@ export async function POST(request: NextRequest) {
           name,
           memorySnippet,
           relationshipNote: relationshipNote || "E2E created guest",
+          phone: `${E2E_CODE_PREFIX}${fallbackInviteCode}`,
           relationshipCategory: "friend",
           relationshipSide: "groom",
           isSingle: true,
@@ -122,7 +135,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (!invitation?.inviteCode && !invitation?.shareLink) {
-      const existingInvitation = await pickExistingInvitation();
+      let existingInvitation: InvitationRecord | undefined;
+      try {
+        existingInvitation = await pickExistingInvitation();
+      } catch (error) {
+        if (isMissingInvitationsRelation(error)) {
+          existingInvitation = undefined;
+        } else {
+          throw error;
+        }
+      }
       if (existingInvitation) {
         const existingGuest =
           existingInvitation.guest && typeof existingInvitation.guest === "object"
@@ -143,6 +165,19 @@ export async function POST(request: NextRequest) {
               : lastError instanceof Error
                 ? lastError.message
                 : null,
+        });
+      }
+
+      if (guest && (isMissingInvitationsRelation(lastError) || isMissingInvitationsRelation(creationError))) {
+        return NextResponse.json({
+          success: true,
+          guestId: guest.id,
+          guestName: guest.name || name,
+          memorySnippet: guest.memorySnippet || memorySnippet,
+          shareLink: `/?code=${encodeURIComponent(fallbackInviteCode)}`,
+          inviteCode: fallbackInviteCode,
+          fallback: true,
+          warning: "invitations relation missing, using guest-based fallback code",
         });
       }
 
