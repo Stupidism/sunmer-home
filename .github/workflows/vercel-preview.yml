@@ -133,7 +133,7 @@ jobs:
           VERCEL_PROJECT_ID_NUNU_LOG: ${{ vars.VERCEL_PROJECT_ID_NUNU_LOG }}
           VERCEL_PROJECT_ID_WEDDING_INVITE: ${{ vars.VERCEL_PROJECT_ID_WEDDING_INVITE }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_SCOPE: ${{ vars.VERCEL_ORG_ID }}
         run: |
           APP_ID='${{ matrix.appId }}'
           PROJECT_ID=''
@@ -155,7 +155,7 @@ jobs:
               ;;
           esac
 
-          if [ -z "$PROJECT_ID" ] || [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ]; then
+          if [ -z "$PROJECT_ID" ] || [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_SCOPE" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "reason=missing-vercel-credentials" >> "$GITHUB_OUTPUT"
           else
@@ -166,22 +166,26 @@ jobs:
           echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
 
       - name: Pull Vercel preview env
+        id: pull_vercel_preview_env
         if: steps.resolve.outputs.enabled == 'true'
+        continue-on-error: true
         working-directory: ${{ matrix.appPath }}
         env:
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_SCOPE: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: pnpm dlx vercel@latest pull --yes --environment=preview --token="$VERCEL_TOKEN"
+        run: pnpm dlx vercel@latest pull --yes --environment=preview --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN"
 
       - name: Build preview artifacts
+        id: build_preview_artifacts
         if: steps.resolve.outputs.enabled == 'true'
+        continue-on-error: true
         working-directory: ${{ matrix.appPath }}
         env:
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_SCOPE: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: pnpm dlx vercel@latest build --token="$VERCEL_TOKEN"
+        run: pnpm dlx vercel@latest build --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN"
 
       - name: Deploy preview artifacts
         id: deploy_preview
@@ -189,13 +193,13 @@ jobs:
         continue-on-error: true
         working-directory: ${{ matrix.appPath }}
         env:
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_SCOPE: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --prebuilt --token="$VERCEL_TOKEN" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" 2>&1)
+          DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --prebuilt --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" 2>&1)
           echo "$DEPLOY_OUTPUT"
           DEPLOY_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/[^\s"\)]+\.vercel\.app[^\s"\)]*)/g) { $u=$1 } END { print $u if defined $u }')
 
@@ -218,6 +222,26 @@ jobs:
             "appName": "${{ matrix.appName }}",
             "status": "skipped",
             "reason": "missing-vercel-credentials"
+          }
+          EOF
+          elif [ '${{ steps.pull_vercel_preview_env.outcome }}' = 'failure' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "failed",
+            "reason": "preview-pull-failed",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF
+          elif [ '${{ steps.build_preview_artifacts.outcome }}' = 'failure' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "failed",
+            "reason": "preview-build-failed",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           }
           EOF
           elif [ '${{ steps.deploy_preview.outcome }}' = 'success' ]; then
