@@ -1,0 +1,499 @@
+name: Vercel PR Preview
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+      - closed
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  detect-affected:
+    if: >
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      matrix_json: ${{ steps.detect.outputs.matrix_json }}
+      all_projects_json: ${{ steps.detect.outputs.all_projects_json }}
+      affected_json: ${{ steps.detect.outputs.affected_json }}
+      preview_count: ${{ steps.detect.outputs.preview_count }}
+    steps:
+      - name: Detect affected projects for Vercel preview
+        id: detect
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const pull_number = context.payload.pull_request.number
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100,
+            })
+
+            const changed = files.map((f) => f.filename)
+            const alwaysAffectAll = [
+              'pnpm-lock.yaml',
+              'pnpm-workspace.yaml',
+              'package.json',
+              'turbo.json',
+              '.github/workflows/vercel-preview.yml',
+            ]
+
+            const projects = [
+              {
+                appId: 'bubu-log',
+                appName: 'bubu-log',
+                appPath: 'apps/bubu-log',
+                projectIdSecret: 'VERCEL_PROJECT_ID_BUBU_LOG',
+                triggers: ['apps/bubu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'nunu-island',
+                appName: 'nunu-island',
+                appPath: 'apps/nunu-island',
+                projectIdSecret: 'VERCEL_PROJECT_ID_NUNU_ISLAND',
+                triggers: ['apps/nunu-island/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'nunu-log',
+                appName: 'nunu-log',
+                appPath: 'apps/nunu-log',
+                projectIdSecret: 'VERCEL_PROJECT_ID_NUNU_LOG',
+                triggers: ['apps/nunu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'wedding-invite',
+                appName: 'wedding-invite',
+                appPath: 'apps/wedding-invite',
+                projectIdSecret: 'VERCEL_PROJECT_ID_WEDDING_INVITE',
+                triggers: ['apps/wedding-invite/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+            ]
+
+            const affectAll = changed.some((file) =>
+              alwaysAffectAll.some((target) => file === target || file.startsWith(`${target}/`))
+            )
+
+            const affected = projects.filter((project) => {
+              if (affectAll) return true
+              return changed.some((file) => project.triggers.some((prefix) => file.startsWith(prefix)))
+            })
+
+            core.info(`Changed files: ${changed.length}`)
+            core.info(`Affect all projects: ${affectAll}`)
+            core.info(`Affected projects: ${affected.map((p) => p.appId).join(', ') || '(none)'}`)
+
+            core.setOutput('matrix_json', JSON.stringify({ include: affected }))
+            core.setOutput('all_projects_json', JSON.stringify(projects.map((p) => ({ appId: p.appId, appName: p.appName }))))
+            core.setOutput('affected_json', JSON.stringify(affected.map((p) => ({ appId: p.appId, appName: p.appName }))))
+            core.setOutput('preview_count', String(affected.length))
+
+  preview:
+    needs: detect-affected
+    if: needs.detect-affected.outputs.preview_count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-affected.outputs.matrix_json) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.2.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve Vercel project and org id
+        id: resolve
+        env:
+          VERCEL_PROJECT_ID_BUBU_LOG: ${{ vars.VERCEL_PROJECT_ID_BUBU_LOG }}
+          VERCEL_PROJECT_ID_NUNU_ISLAND: ${{ vars.VERCEL_PROJECT_ID_NUNU_ISLAND }}
+          VERCEL_PROJECT_ID_NUNU_LOG: ${{ vars.VERCEL_PROJECT_ID_NUNU_LOG }}
+          VERCEL_PROJECT_ID_WEDDING_INVITE: ${{ vars.VERCEL_PROJECT_ID_WEDDING_INVITE }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_SCOPE: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+        run: |
+          APP_ID='${{ matrix.appId }}'
+          PROJECT_ID=''
+          ORG_ID=''
+
+          case "$APP_ID" in
+            bubu-log)
+              PROJECT_ID="$VERCEL_PROJECT_ID_BUBU_LOG"
+              ;;
+            nunu-island)
+              PROJECT_ID="$VERCEL_PROJECT_ID_NUNU_ISLAND"
+              ;;
+            nunu-log)
+              PROJECT_ID="$VERCEL_PROJECT_ID_NUNU_LOG"
+              ;;
+            wedding-invite)
+              PROJECT_ID="$VERCEL_PROJECT_ID_WEDDING_INVITE"
+              ;;
+            *)
+              ;;
+          esac
+
+          if [ -n "$VERCEL_TEAM_ID" ]; then
+            ORG_ID="$VERCEL_TEAM_ID"
+          elif [ -n "$VERCEL_SCOPE" ] && [[ "$VERCEL_SCOPE" == team_* ]]; then
+            ORG_ID="$VERCEL_SCOPE"
+          elif [ -n "$VERCEL_SCOPE" ]; then
+            ORG_ID=$(curl -fsSL -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v2/teams/$VERCEL_SCOPE" \
+              | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);if(j.id)process.stdout.write(j.id)}catch{}})" \
+              || true)
+
+            if [ -z "$ORG_ID" ]; then
+              ORG_ID=$(curl -fsSL -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v2/teams?slug=$VERCEL_SCOPE" \
+                | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);if(Array.isArray(j.teams)&&j.teams[0]&&j.teams[0].id)process.stdout.write(j.teams[0].id)}catch{}})" \
+                || true)
+            fi
+          fi
+
+          if [ -z "$PROJECT_ID" ] || [ -z "$VERCEL_TOKEN" ] || [ -z "$ORG_ID" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "reason=missing-vercel-credentials" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "reason=ready" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
+          echo "org_id=$ORG_ID" >> "$GITHUB_OUTPUT"
+          echo "scope=${VERCEL_SCOPE:-$ORG_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Pull Vercel preview env
+        id: pull_vercel_preview_env
+        if: steps.resolve.outputs.enabled == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
+          VERCEL_SCOPE: ${{ steps.resolve.outputs.scope }}
+          VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: pnpm dlx vercel@latest pull --yes --environment=preview --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN"
+
+      - name: Build preview artifacts
+        id: build_preview_artifacts
+        if: steps.resolve.outputs.enabled == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
+          VERCEL_SCOPE: ${{ steps.resolve.outputs.scope }}
+          VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: pnpm dlx vercel@latest build --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN"
+
+      - name: Deploy preview artifacts
+        id: deploy_preview
+        if: steps.resolve.outputs.enabled == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
+          VERCEL_SCOPE: ${{ steps.resolve.outputs.scope }}
+          VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --yes --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" 2>&1)
+          echo "$DEPLOY_OUTPUT"
+          DEPLOY_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/[^\s"\)]+\.vercel\.app[^\s"\)]*)/g) { $u=$1 } END { print $u if defined $u }')
+          BUILD_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/vercel\.com\/[^\s\]]+)/g) { $u=$1 } END { print $u if defined $u }')
+
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "Failed to parse deploy URL from Vercel output" >&2
+            exit 1
+          fi
+
+          echo "preview_url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+          echo "build_url=$BUILD_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Persist preview result
+        run: |
+          mkdir -p "$RUNNER_TEMP/vercel-preview-result"
+          RESULT_FILE="$RUNNER_TEMP/vercel-preview-result/${{ matrix.appId }}.json"
+
+          if [ '${{ steps.resolve.outputs.enabled }}' != 'true' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "skipped",
+            "reason": "missing-vercel-credentials",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
+          }
+          EOF
+          elif [ '${{ steps.deploy_preview.outcome }}' = 'success' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "ready",
+            "reason": "ready",
+            "previewUrl": "${{ steps.deploy_preview.outputs.preview_url }}",
+            "buildUrl": "${{ steps.deploy_preview.outputs.build_url }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
+          }
+          EOF
+          elif [ '${{ steps.pull_vercel_preview_env.outcome }}' = 'failure' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "failed",
+            "reason": "preview-pull-failed",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
+          }
+          EOF
+          elif [ '${{ steps.build_preview_artifacts.outcome }}' = 'failure' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "failed",
+            "reason": "preview-build-failed",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
+          }
+          EOF
+          else
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "failed",
+            "reason": "preview-deploy-failed",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
+          }
+          EOF
+          fi
+
+      - name: Upload Vercel preview result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vercel-preview-result-${{ matrix.appId }}
+          path: ${{ runner.temp }}/vercel-preview-result/${{ matrix.appId }}.json
+          if-no-files-found: error
+
+      - name: Upsert preview comment
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          RESULT_FILE: ${{ runner.temp }}/vercel-preview-result/${{ matrix.appId }}.json
+          APP_ID: ${{ matrix.appId }}
+          ALL_PROJECTS_JSON: ${{ needs.detect-affected.outputs.all_projects_json }}
+          AFFECTED_JSON: ${{ needs.detect-affected.outputs.affected_json }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const fs = require('node:fs')
+
+            const marker = '<!-- vercel-pr-preview -->'
+            const statePrefix = '<!-- vercel-pr-preview-state '
+            const issue_number = context.issue.number
+            const updated = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')
+            const allProjects = JSON.parse(process.env.ALL_PROJECTS_JSON || '[]')
+            const affectedProjects = JSON.parse(process.env.AFFECTED_JSON || '[]')
+            const affectedSet = new Set(affectedProjects.map((item) => item.appId))
+
+            let result = {
+              appId: process.env.APP_ID,
+              appName: process.env.APP_ID,
+              status: 'failed',
+              reason: 'missing-result-file',
+              runUrl: process.env.RUN_URL,
+              headSha: process.env.HEAD_SHA,
+            }
+
+            try {
+              const raw = fs.readFileSync(process.env.RESULT_FILE, 'utf8')
+              result = JSON.parse(raw)
+            } catch (error) {
+              core.warning(`Failed to read preview result for ${process.env.APP_ID}: ${error}`)
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            })
+
+            const existing = comments.find((comment) =>
+              comment.body && comment.body.includes(marker)
+            )
+
+            let existingState = {}
+            if (existing?.body) {
+              const match = existing.body.match(/<!-- vercel-pr-preview-state ([\s\S]*?) -->/)
+              if (match?.[1]) {
+                try {
+                  existingState = JSON.parse(match[1])
+                } catch (error) {
+                  core.warning(`Failed to parse existing preview state: ${error}`)
+                }
+              }
+            }
+
+            const nextState = {}
+            for (const project of allProjects) {
+              if (affectedSet.has(project.appId)) {
+                nextState[project.appId] = {
+                  appId: project.appId,
+                  appName: project.appName,
+                  status: 'running',
+                  reason: 'waiting-for-result',
+                  runUrl: process.env.RUN_URL,
+                }
+              } else {
+                nextState[project.appId] = {
+                  appId: project.appId,
+                  appName: project.appName,
+                  status: 'skipped',
+                  reason: 'not-affected',
+                }
+              }
+            }
+
+            for (const [appId, state] of Object.entries(existingState)) {
+              if (nextState[appId]) {
+                nextState[appId] = { ...nextState[appId], ...state }
+              }
+            }
+
+            nextState[result.appId] = { ...nextState[result.appId], ...result }
+
+            const toRow = (project) => {
+              const item = nextState[project.appId] || {
+                appId: project.appId,
+                appName: project.appName,
+                status: 'skipped',
+                reason: 'not-affected',
+              }
+              const status = item.status || 'failed'
+              const icon = status === 'ready'
+                ? '![Ready](https://vercel.com/static/status/ready.svg)'
+                : status === 'failed'
+                  ? '![Error](https://vercel.com/static/status/error.svg)'
+                  : status === 'running'
+                    ? '![Building](https://vercel.com/static/status/building.svg)'
+                    : '![Skipped](https://vercel.com/static/status/canceled.svg)'
+              const statusLabel = status === 'ready'
+                ? 'Ready'
+                : status === 'failed'
+                  ? 'Failed'
+                  : status === 'running'
+                    ? 'Running'
+                    : 'Skipped'
+
+              const actions = []
+              if (item.previewUrl) {
+                actions.push(`[Preview](${item.previewUrl})`)
+              }
+              if (item.buildUrl) {
+                actions.push(`[Build](${item.buildUrl})`)
+              }
+              if (status === 'failed') {
+                actions.push(`[Logs](${item.runUrl || process.env.RUN_URL})`)
+              }
+
+              return `| ${project.appName} | ${icon} ${statusLabel} | ${actions.join(', ') || '-'} | ${updated} |`
+            }
+
+            const body = [
+              marker,
+              `<!-- vercel-pr-preview-state ${JSON.stringify(nextState)} -->`,
+              '### Vercel Preview',
+              '',
+              '| Project | Deployment | Actions | Updated (UTC) |',
+              '| :--- | :----- | :------ | :------ |',
+              ...allProjects.map(toRow),
+              '',
+              '_This preview is recreated on new commits and managed by Vercel._',
+            ].join('\n')
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body,
+              })
+            }
+
+  close-note:
+    if: >
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark preview comment closed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- vercel-pr-preview -->'
+            const issue_number = context.issue.number
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            })
+
+            const existing = comments.find((comment) =>
+              comment.body && comment.body.includes(marker)
+            )
+
+            if (!existing) {
+              core.info('No Vercel preview comment found.')
+              return
+            }
+
+            const closedNote = '\n\n_This PR is closed. Existing preview deployments may be garbage-collected by Vercel._'
+            if (existing.body.includes(closedNote.trim())) {
+              core.info('Close note already present; skip update.')
+              return
+            }
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body: `${existing.body}${closedNote}`,
+            })
