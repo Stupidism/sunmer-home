@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    if (!invitation?.inviteCode && !invitation?.shareLink) {
+    if (guest && !invitation?.inviteCode && !invitation?.shareLink) {
       try {
         const createdInvitation = (await payload.create({
           collection: "invitations",
