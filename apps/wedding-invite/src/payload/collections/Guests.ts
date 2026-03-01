@@ -21,6 +21,52 @@ export const Guests: CollectionConfig = {
     update: isCMSAdmin,
     delete: isCMSAdmin,
   },
+  hooks: {
+    afterChange: [
+      async ({ doc, req }) => {
+        const guestID = doc.id;
+        const guestName = doc.name;
+
+        void (async () => {
+          for (let attempt = 0; attempt < 20; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 50 : 150));
+
+            const existingInvitation = await req.payload.find({
+              collection: "invitations",
+              where: { guest: { equals: guestID } },
+              limit: 1,
+              overrideAccess: true,
+            });
+
+            if (existingInvitation.docs.length > 0) {
+              return;
+            }
+
+            try {
+              await req.payload.create({
+                collection: "invitations",
+                data: {
+                  title: `${guestName} 的邀请函`,
+                  guest: guestID,
+                  maxGuestCount: 1,
+                  status: "draft",
+                  customOpening: `亲爱的${guestName}，欢迎来参加我们的婚礼。`,
+                },
+                overrideAccess: true,
+              });
+              return;
+            } catch (error) {
+              if (attempt === 19) {
+                console.error("Failed to auto-create invitation", { guestID, error });
+              }
+            }
+          }
+        })();
+
+        return doc;
+      },
+    ],
+  },
   fields: [
     {
       name: "name",

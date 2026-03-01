@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint .",
     "payload": "payload",
-    "seed:initial-guests": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/seed-initial-guests.ts"
+    "seed:initial-guests": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/seed-initial-guests.ts",
+    "seed:e2e-admin": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/seed-e2e-admin.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.77.0",
@@ -52,6 +54,7 @@
     "vaul": "^1.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",
     "@typescript-eslint/parser": "^8.46.2",
     "@types/node": "^20",

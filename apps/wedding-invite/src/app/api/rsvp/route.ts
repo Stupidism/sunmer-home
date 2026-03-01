@@ -26,6 +26,19 @@ export async function POST(request: NextRequest) {
       body.status === "not_attending" || body.status === "pending"
         ? body.status
         : "attending";
+    const arrivalPlan =
+      body.arrivalPlan === "arrive_early" ||
+      body.arrivalPlan === "leave_late" ||
+      body.arrivalPlan === "both"
+        ? body.arrivalPlan
+        : "same_day";
+    const needsHotel = Boolean(body.needsHotel);
+    const hotelNights =
+      body.hotelNights === "before" || body.hotelNights === "after" || body.hotelNights === "both"
+        ? body.hotelNights
+        : "none";
+    const transportPreference =
+      body.transportPreference === "far_combo" ? "far_combo" : "near_rideshare_hsr";
     const inviteCode = typeof body.inviteCode === "string" ? body.inviteCode.trim() : "";
 
     if (!guestName || !inviteCode) {
@@ -55,10 +68,10 @@ export async function POST(request: NextRequest) {
     const invitationGuest = invitationDoc.guest;
     const guestId =
       invitationGuest && typeof invitationGuest === "object"
-        ? String(invitationGuest.id)
-        : String(invitationGuest || "");
+        ? invitationGuest.id
+        : invitationGuest;
 
-    if (!guestId) {
+    if (guestId === undefined || guestId === null || guestId === "") {
       return NextResponse.json(
         { success: false, error: "Invalid invitation guest" },
         { status: 400 }
@@ -91,11 +104,15 @@ export async function POST(request: NextRequest) {
     const rsvpData = {
       displayTitle: `${guestNameFromInvite}-${new Date().toISOString().slice(0, 10)}`,
       guest: guestId,
-      invitation: String(invitationDoc.id),
+      invitation: invitationDoc.id,
       status,
       confirmedGuestCount: guestCount,
       phone,
       message,
+      arrivalPlan,
+      needsHotel,
+      hotelNights,
+      transportPreference,
       respondedAt: new Date().toISOString(),
     };
 
@@ -131,6 +148,10 @@ export async function POST(request: NextRequest) {
           guest_count: guestCount,
           phone,
           message,
+          arrivalPlan,
+          needsHotel,
+          hotelNights,
+          transportPreference,
           status,
           submitted_at: rsvp.respondedAt,
         },

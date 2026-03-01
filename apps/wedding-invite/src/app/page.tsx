@@ -383,22 +383,29 @@ function DetailsSection() {
       icon: Calendar,
       title: "时间",
       content: "2025年5月5日",
-      subContent: "中午 12:00",
+      subContent: "11:30 签到 | 12:00 仪式 | 13:00 宴席",
       color: "from-rose-400 to-pink-400",
     },
     {
       icon: MapPin,
       title: "地点",
-      content: "XX酒店 宴会厅",
-      subContent: "北京市朝阳区XX路XX号",
+      content: "上海 · XX酒店宴会厅",
+      subContent: "酒店名称：XX Hotel（将发布最终定位）",
       color: "from-pink-400 to-rose-400",
     },
     {
       icon: Clock,
-      title: "流程",
-      content: "婚礼仪式 & 晚宴",
-      subContent: "11:30 签到 | 12:00 仪式 | 13:00 宴席",
+      title: "特别说明",
+      content: "婚礼当天宝宝约 6 个月",
+      subContent: "我们会准备更友好的亲子动线与安静区域",
       color: "from-rose-400 to-pink-400",
+    },
+    {
+      icon: MapPin,
+      title: "推荐出行方式",
+      content: "近距离：顺风车 / 高铁",
+      subContent: "远距离：高铁+顺风车，或飞机到上海后转顺风车/高铁",
+      color: "from-pink-400 to-rose-400",
     },
   ];
 
@@ -412,7 +419,7 @@ function DetailsSection() {
 
         <motion.div
           ref={ref}
-          className="grid grid-cols-1 md:grid-cols-3 gap-8"
+          className="grid grid-cols-1 md:grid-cols-2 gap-8"
           initial="hidden"
           animate={isInView ? "visible" : "hidden"}
           variants={staggerContainer}
@@ -466,14 +473,8 @@ function GallerySection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
 
-  const photos = [
-    { id: 1, span: "col-span-1 row-span-1" },
-    { id: 2, span: "col-span-1 row-span-1" },
-    { id: 3, span: "col-span-1 row-span-1" },
-    { id: 4, span: "col-span-1 row-span-1" },
-    { id: 5, span: "col-span-1 row-span-1" },
-    { id: 6, span: "col-span-1 row-span-1" },
-  ];
+  const couplePhotos = [1, 2, 3, 4];
+  const babyPhotos = [1, 2, 3, 4];
 
   return (
     <section
@@ -481,46 +482,68 @@ function GallerySection() {
       className="py-20 md:py-32 bg-gradient-to-b from-white to-rose-50/30 dark:from-background dark:to-rose-950/10"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <SectionTitle title="甜蜜瞬间" subtitle="记录我们最美好的时光" />
+        <SectionTitle title="照片墙" subtitle="我们的回忆与宝宝成长都在这里" />
 
         <motion.div
           ref={ref}
-          className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6"
+          className="space-y-10"
           initial="hidden"
           animate={isInView ? "visible" : "hidden"}
           variants={staggerContainer}
         >
-          {photos.map((photo, index) => (
-            <motion.div
-              key={photo.id}
-              variants={scaleIn}
-              className={`relative group overflow-hidden rounded-2xl aspect-square bg-gradient-to-br from-rose-100 to-pink-100 dark:from-rose-900/30 dark:to-pink-900/20 cursor-pointer`}
-            >
-              {/* Placeholder Content */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Heart className="w-12 h-12 text-rose-300/50 group-hover:scale-110 transition-transform duration-500" />
-              </div>
+          <motion.div variants={fadeInUp}>
+            <h3 className="text-2xl font-serif text-rose-900 dark:text-rose-100 mb-4">我们俩的照片墙</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              {couplePhotos.map((photo) => (
+                <motion.div
+                  key={`couple-${photo}`}
+                  variants={scaleIn}
+                  className="relative group overflow-hidden rounded-2xl aspect-square bg-gradient-to-br from-rose-100 to-pink-100 dark:from-rose-900/30 dark:to-pink-900/20 cursor-pointer"
+                >
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Heart className="w-12 h-12 text-rose-300/50 group-hover:scale-110 transition-transform duration-500" />
+                  </div>
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-t from-rose-900/80 via-rose-900/40 to-transparent flex items-end justify-center pb-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    whileHover={{ scale: 1.02 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <div className="text-center">
+                      <Heart className="w-6 h-6 text-white mx-auto mb-2 fill-white" />
+                      <p className="text-white text-sm font-medium">我们俩 · 瞬间 {photo}</p>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
 
-              {/* Hover Overlay */}
-              <motion.div
-                className="absolute inset-0 bg-gradient-to-t from-rose-900/80 via-rose-900/40 to-transparent flex items-end justify-center pb-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                whileHover={{ scale: 1.02 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="text-center">
-                  <Heart className="w-6 h-6 text-white mx-auto mb-2 fill-white" />
-                  <p className="text-white text-sm font-medium">甜蜜瞬间 {photo.id}</p>
-                </div>
-              </motion.div>
-
-              {/* Scale Effect on Hover */}
-              <motion.div
-                className="absolute inset-0"
-                whileHover={{ scale: 1.05 }}
-                transition={{ duration: 0.4 }}
-              />
-            </motion.div>
-          ))}
+          <motion.div variants={fadeInUp}>
+            <h3 className="text-2xl font-serif text-rose-900 dark:text-rose-100 mb-4">宝宝照片墙</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              {babyPhotos.map((photo) => (
+                <motion.div
+                  key={`baby-${photo}`}
+                  variants={scaleIn}
+                  className="relative group overflow-hidden rounded-2xl aspect-square bg-gradient-to-br from-amber-100 to-rose-100 dark:from-amber-900/30 dark:to-rose-900/20 cursor-pointer"
+                >
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Heart className="w-12 h-12 text-amber-300/60 group-hover:scale-110 transition-transform duration-500" />
+                  </div>
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-t from-rose-900/80 via-rose-900/40 to-transparent flex items-end justify-center pb-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    whileHover={{ scale: 1.02 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <div className="text-center">
+                      <Heart className="w-6 h-6 text-white mx-auto mb-2 fill-white" />
+                      <p className="text-white text-sm font-medium">宝宝 · 成长 {photo}</p>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
         </motion.div>
       </div>
     </section>
@@ -539,8 +562,13 @@ function RSVPSection({
 
   const [formData, setFormData] = useState({
     name: "",
+    attendance: "attending",
     guests: "",
     phone: "",
+    arrivalPlan: "same_day",
+    needsHotel: "no",
+    hotelNights: "none",
+    transportPreference: "near_rideshare_hsr",
     message: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -583,8 +611,12 @@ function RSVPSection({
           guestCount: formData.guests,
           phone: formData.phone,
           message: formData.message,
-          status: "attending",
+          status: formData.attendance,
           inviteCode,
+          arrivalPlan: formData.arrivalPlan,
+          needsHotel: formData.needsHotel === "yes",
+          hotelNights: formData.hotelNights,
+          transportPreference: formData.transportPreference,
         }),
       });
 
@@ -658,6 +690,26 @@ function RSVPSection({
 
                   {/* Guests Field */}
                   <div className="space-y-2">
+                    <Label htmlFor="attendance" className="text-rose-900 dark:text-rose-100">
+                      是否出席
+                    </Label>
+                    <Select
+                      value={formData.attendance}
+                      onValueChange={(value) => handleChange("attendance", value)}
+                    >
+                      <SelectTrigger className="bg-rose-50/50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 focus:border-rose-400 focus:ring-rose-400">
+                        <SelectValue placeholder="请选择是否出席" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="attending">会来参加</SelectItem>
+                        <SelectItem value="not_attending">不能参加</SelectItem>
+                        <SelectItem value="pending">暂未确定</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Guests Field */}
+                  <div className="space-y-2">
                     <Label htmlFor="guests" className="text-rose-900 dark:text-rose-100 flex items-center gap-2">
                       <Users className="w-4 h-4" />
                       参加人数 <span className="text-rose-500">*</span>
@@ -704,6 +756,87 @@ function RSVPSection({
                       onChange={(e) => handleChange("phone", e.target.value)}
                       className="bg-rose-50/50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 focus:border-rose-400 focus:ring-rose-400"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="arrivalPlan" className="text-rose-900 dark:text-rose-100">
+                      行程安排
+                    </Label>
+                    <Select
+                      value={formData.arrivalPlan}
+                      onValueChange={(value) => handleChange("arrivalPlan", value)}
+                    >
+                      <SelectTrigger className="bg-rose-50/50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 focus:border-rose-400 focus:ring-rose-400">
+                        <SelectValue placeholder="请选择您的行程安排" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="same_day">婚礼当天到达</SelectItem>
+                        <SelectItem value="arrive_early">会提前来</SelectItem>
+                        <SelectItem value="leave_late">会晚些走</SelectItem>
+                        <SelectItem value="both">提前来并晚些走</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="needsHotel" className="text-rose-900 dark:text-rose-100">
+                      住宿安排
+                    </Label>
+                    <Select
+                      value={formData.needsHotel}
+                      onValueChange={(value) => handleChange("needsHotel", value)}
+                    >
+                      <SelectTrigger className="bg-rose-50/50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 focus:border-rose-400 focus:ring-rose-400">
+                        <SelectValue placeholder="是否需要酒店" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="no">不需要酒店</SelectItem>
+                        <SelectItem value="yes">需要酒店</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {formData.needsHotel === "yes" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="hotelNights" className="text-rose-900 dark:text-rose-100">
+                        住宿晚数
+                      </Label>
+                      <Select
+                        value={formData.hotelNights}
+                        onValueChange={(value) => handleChange("hotelNights", value)}
+                      >
+                        <SelectTrigger className="bg-rose-50/50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 focus:border-rose-400 focus:ring-rose-400">
+                          <SelectValue placeholder="请选择住前一晚/后一晚" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="before">前一晚</SelectItem>
+                          <SelectItem value="after">后一晚</SelectItem>
+                          <SelectItem value="both">前后两晚</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="transportPreference" className="text-rose-900 dark:text-rose-100">
+                      推荐出行方式
+                    </Label>
+                    <Select
+                      value={formData.transportPreference}
+                      onValueChange={(value) => handleChange("transportPreference", value)}
+                    >
+                      <SelectTrigger className="bg-rose-50/50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 focus:border-rose-400 focus:ring-rose-400">
+                        <SelectValue placeholder="请选择推荐出行方式" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="near_rideshare_hsr">
+                          近距离：顺风车 / 高铁
+                        </SelectItem>
+                        <SelectItem value="far_combo">
+                          远距离：高铁+顺风车，或飞机到上海后转顺风车/高铁
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Message Field */}
