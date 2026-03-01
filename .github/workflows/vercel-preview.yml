@@ -219,7 +219,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --yes --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" 2>&1)
+          DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --yes --public --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" 2>&1)
           echo "$DEPLOY_OUTPUT"
           DEPLOY_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/[^\s"\)]+\.vercel\.app[^\s"\)]*)/g) { $u=$1 } END { print $u if defined $u }')
           BUILD_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/vercel\.com\/[^\s\]]+)/g) { $u=$1 } END { print $u if defined $u }')
@@ -231,6 +231,31 @@ jobs:
 
           echo "preview_url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
           echo "build_url=$BUILD_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Probe deployed preview routes
+        if: steps.resolve.outputs.enabled == 'true' && steps.deploy_preview.outcome == 'success'
+        env:
+          PREVIEW_URL: ${{ steps.deploy_preview.outputs.preview_url }}
+        run: |
+          if [ -z "$PREVIEW_URL" ]; then
+            echo "Missing preview URL" >&2
+            exit 1
+          fi
+
+          probe() {
+            local path="$1"
+            local url="${PREVIEW_URL}${path}"
+            local code
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
+            echo "Probe ${url} => HTTP ${code}"
+            if [ "$code" -ge 400 ]; then
+              echo "Route ${url} is not reachable" >&2
+              exit 1
+            fi
+          }
+
+          probe "/"
+          probe "/admin/login"
 
       - name: Persist preview result
         run: |
