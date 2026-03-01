@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         name,
         memorySnippet,
         relationshipNote: relationshipNote || "E2E created guest",
-        relationshipCategory: "classmate",
+        relationshipCategory: "friend",
         relationshipSide: "groom",
         isSingle: true,
         hasChildren: false,
