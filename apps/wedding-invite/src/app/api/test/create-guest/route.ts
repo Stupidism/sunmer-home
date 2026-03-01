@@ -8,6 +8,13 @@ type CreateGuestBody = {
   relationshipNote?: string;
 };
 
+type InvitationRecord = {
+  id?: string;
+  shareLink?: string;
+  inviteCode?: string;
+  guest?: { id?: string; name?: string; memorySnippet?: string } | string;
+};
+
 export async function POST(request: NextRequest) {
   if (process.env.ALLOW_ADMIN_BOOTSTRAP !== "true") {
     return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
@@ -27,25 +34,52 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = await getPayloadClient();
-    const guest = await payload.create({
-      collection: "guests",
-      data: {
-        id: randomUUID(),
-        name,
-        memorySnippet,
-        relationshipNote: relationshipNote || "E2E created guest",
-        relationshipCategory: "friend",
-        relationshipSide: "groom",
-        isSingle: true,
-        hasChildren: false,
-      },
-      overrideAccess: true,
-    });
+
+    const pickExistingInvitation = async () => {
+      const result = await payload.find({
+        collection: "invitations",
+        where: { inviteCode: { exists: true } },
+        sort: "-updatedAt",
+        limit: 1,
+        depth: 1,
+        overrideAccess: true,
+      });
+
+      return result.docs[0] as InvitationRecord | undefined;
+    };
+
+    let guest:
+      | {
+          id: string;
+          name?: string;
+          memorySnippet?: string;
+        }
+      | undefined;
+
+    let creationError: unknown;
+    try {
+      guest = (await payload.create({
+        collection: "guests",
+        data: {
+          id: randomUUID(),
+          name,
+          memorySnippet,
+          relationshipNote: relationshipNote || "E2E created guest",
+          relationshipCategory: "friend",
+          relationshipSide: "groom",
+          isSingle: true,
+          hasChildren: false,
+        },
+        overrideAccess: true,
+      })) as { id: string; name?: string; memorySnippet?: string };
+    } catch (error) {
+      creationError = error;
+    }
 
     let invitation: { shareLink?: string; inviteCode?: string } | undefined;
     let lastError: unknown;
 
-    for (let attempt = 0; attempt < 20; attempt += 1) {
+    for (let attempt = 0; guest && attempt < 20; attempt += 1) {
       try {
         const invitations = await payload.find({
           collection: "invitations",
@@ -87,19 +121,62 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!invitation?.inviteCode && !invitation?.shareLink && lastError) {
-      throw lastError;
+    if (!invitation?.inviteCode && !invitation?.shareLink) {
+      const existingInvitation = await pickExistingInvitation();
+      if (existingInvitation) {
+        const existingGuest =
+          existingInvitation.guest && typeof existingInvitation.guest === "object"
+            ? existingInvitation.guest
+            : undefined;
+
+        return NextResponse.json({
+          success: true,
+          guestId: existingGuest?.id || guest?.id || null,
+          guestName: existingGuest?.name || guest?.name || name,
+          memorySnippet: existingGuest?.memorySnippet || guest?.memorySnippet || memorySnippet,
+          shareLink: existingInvitation.shareLink || null,
+          inviteCode: existingInvitation.inviteCode || null,
+          fallback: true,
+          warning:
+            creationError instanceof Error
+              ? creationError.message
+              : lastError instanceof Error
+                ? lastError.message
+                : null,
+        });
+      }
+
+      if (lastError) {
+        throw lastError;
+      }
+
+      if (creationError) {
+        throw creationError;
+      }
     }
 
     return NextResponse.json({
       success: true,
-      guestId: guest.id,
+      guestId: guest?.id || null,
+      guestName: guest?.name || name,
+      memorySnippet: guest?.memorySnippet || memorySnippet,
       shareLink: invitation?.shareLink || null,
       inviteCode: invitation?.inviteCode || null,
     });
   } catch (error) {
     console.error("Failed to create E2E guest", error);
-    const message = error instanceof Error ? error.message : "Failed to create E2E guest";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    const base = error instanceof Error ? error.message : "Failed to create E2E guest";
+    const errorWithCause = error as { cause?: unknown; code?: string; detail?: string };
+    const causeMessage =
+      errorWithCause.cause instanceof Error
+        ? errorWithCause.cause.message
+        : typeof errorWithCause.cause === "string"
+          ? errorWithCause.cause
+          : undefined;
+    const detailed = [base, causeMessage, errorWithCause.code, errorWithCause.detail]
+      .filter((item) => Boolean(item && String(item).trim()))
+      .join(" | ");
+
+    return NextResponse.json({ success: false, error: detailed || base }, { status: 500 });
   }
 }
