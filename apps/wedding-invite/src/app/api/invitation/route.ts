@@ -27,8 +27,32 @@ const relationshipSideLabel: Record<string, string> = {
 const E2E_CODE_PREFIX = "e2e-code:";
 
 function isMissingInvitationsRelation(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error || "");
-  return message.includes('relation "invitations" does not exist');
+  const parts: string[] = [];
+
+  if (error instanceof Error) {
+    parts.push(error.message);
+    const maybeCause = error.cause;
+    if (maybeCause instanceof Error) {
+      parts.push(maybeCause.message);
+    } else if (maybeCause) {
+      parts.push(String(maybeCause));
+    }
+  } else if (error && typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+    const detail = (error as { detail?: unknown }).detail;
+    const cause = (error as { cause?: unknown }).cause;
+    if (typeof message === "string") parts.push(message);
+    if (typeof detail === "string") parts.push(detail);
+    if (cause instanceof Error) {
+      parts.push(cause.message);
+    } else if (typeof cause === "string") {
+      parts.push(cause);
+    }
+  } else {
+    parts.push(String(error || ""));
+  }
+
+  return parts.join(" | ").includes('relation "invitations" does not exist');
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
