@@ -5,5 +5,5 @@
   "buildCommand": "pnpm db:push && next build",
   "outputDirectory": ".next",
   "regions": ["sin1"],
-  "installCommand": "npm install"
+  "installCommand": "corepack enable && pnpm install --frozen-lockfile"
 }
