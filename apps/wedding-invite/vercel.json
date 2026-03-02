@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "ignoreCommand": "npx -y turbo-ignore --fallback=origin/main",
   "framework": "nextjs",
-  "buildCommand": "next build",
+  "buildCommand": "pnpm db:migrate && next build",
   "outputDirectory": ".next",
   "regions": ["sin1"],
   "installCommand": "npm install"
