@@ -194,7 +194,8 @@ jobs:
           VERCEL_SCOPE: ${{ steps.resolve.outputs.scope }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: pnpm dlx vercel@latest pull --yes --environment=preview --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN"
+          VERCEL_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: pnpm dlx vercel@latest pull --yes --environment=preview --git-branch="$VERCEL_GIT_BRANCH" --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN"
 
       - name: Build preview artifacts
         id: build_preview_artifacts
@@ -218,8 +219,11 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
         run: |
-          DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --yes --public --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" 2>&1)
+          DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --yes --public --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubDeployment=1" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" --meta "githubCommitRef=$PR_HEAD_REF" --meta "githubOrg=$REPO_OWNER" --meta "githubRepo=$REPO_NAME" 2>&1)
           echo "$DEPLOY_OUTPUT"
           DEPLOY_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/[^\s"\)]+\.vercel\.app[^\s"\)]*)/g) { $u=$1 } END { print $u if defined $u }')
           BUILD_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/vercel\.com\/[^\s\]]+)/g) { $u=$1 } END { print $u if defined $u }')
