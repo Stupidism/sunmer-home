@@ -211,7 +211,7 @@ jobs:
           source .vercel/.env.preview.local
           set +a
 
-          pnpm --filter wedding-invite db:migrate
+          pnpm --filter wedding-invite db:push
 
       - name: Build preview artifacts
         id: build_preview_artifacts
