@@ -1,4 +1,3 @@
-import config from "../payload.config";
 import { getPayload } from "payload";
 
 const databaseURL =
@@ -19,6 +18,7 @@ process.env.PAYLOAD_DATABASE_URL = process.env.PAYLOAD_DATABASE_URL || databaseU
 async function main() {
   process.env.PAYLOAD_MIGRATING = "true";
 
+  const { default: config } = await import("../payload.config");
   const payload = await getPayload({ config });
   try {
     await payload.db.migrate({});

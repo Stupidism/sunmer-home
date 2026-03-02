@@ -1,4 +1,3 @@
-import config from "../payload.config";
 import { getPayload } from "payload";
 
 const databaseURL =
@@ -18,6 +17,7 @@ process.env.PAYLOAD_DATABASE_URL = process.env.PAYLOAD_DATABASE_URL || databaseU
 process.env.PAYLOAD_DB_PUSH = "true";
 
 async function main() {
+  const { default: config } = await import("../payload.config");
   const payload = await getPayload({ config });
   try {
     console.log("[db:push] payload schema push completed");
