@@ -58,10 +58,11 @@
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",
-    "@typescript-eslint/parser": "^8.46.2",
     "@types/node": "^20",
+    "@types/pg": "^8.18.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@typescript-eslint/parser": "^8.46.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.0-canary.10",
     "tailwindcss": "^4",
