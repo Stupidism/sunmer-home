@@ -197,6 +197,22 @@ jobs:
           VERCEL_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: pnpm dlx vercel@latest pull --yes --environment=preview --git-branch="$VERCEL_GIT_BRANCH" --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN"
 
+      - name: Run preview DB migrations for wedding-invite
+        id: migrate_wedding_preview_db
+        if: steps.resolve.outputs.enabled == 'true' && matrix.appId == 'wedding-invite'
+        continue-on-error: true
+        run: |
+          if [ ! -f .vercel/.env.preview.local ]; then
+            echo "Missing .vercel/.env.preview.local after vercel pull" >&2
+            exit 1
+          fi
+
+          set -a
+          source .vercel/.env.preview.local
+          set +a
+
+          pnpm --filter wedding-invite db:migrate
+
       - name: Build preview artifacts
         id: build_preview_artifacts
         if: steps.resolve.outputs.enabled == 'true'
@@ -317,6 +333,17 @@ jobs:
             "appName": "${{ matrix.appName }}",
             "status": "failed",
             "reason": "preview-build-failed",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
+          }
+          EOF
+          elif [ '${{ steps.migrate_wedding_preview_db.outcome }}' = 'failure' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "failed",
+            "reason": "preview-db-migrate-failed",
             "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
             "headSha": "${{ github.event.pull_request.head.sha }}"
           }
