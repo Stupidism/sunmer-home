@@ -215,7 +215,7 @@ jobs:
 
       - name: Build preview artifacts
         id: build_preview_artifacts
-        if: steps.resolve.outputs.enabled == 'true'
+        if: steps.resolve.outputs.enabled == 'true' && (matrix.appId != 'wedding-invite' || steps.migrate_wedding_preview_db.outcome == 'success')
         continue-on-error: true
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
@@ -226,7 +226,7 @@ jobs:
 
       - name: Deploy preview artifacts
         id: deploy_preview
-        if: steps.resolve.outputs.enabled == 'true'
+        if: steps.resolve.outputs.enabled == 'true' && steps.build_preview_artifacts.outcome == 'success'
         continue-on-error: true
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
