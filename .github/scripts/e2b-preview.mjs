@@ -182,6 +182,13 @@ async function createPreview() {
     ...loadPreviewEnvFromBase64(),
   }
 
+  if (appId === 'wedding-invite') {
+    appEnv.ALLOW_ADMIN_BOOTSTRAP = appEnv.ALLOW_ADMIN_BOOTSTRAP || 'true'
+    appEnv.E2E_ADMIN_EMAIL = appEnv.E2E_ADMIN_EMAIL || 'wedding-e2e-admin@example.com'
+    appEnv.E2E_ADMIN_PASSWORD = appEnv.E2E_ADMIN_PASSWORD || 'Passw0rd!123456'
+    appEnv.PAYLOAD_DB_PUSH = appEnv.PAYLOAD_DB_PUSH || 'true'
+  }
+
   writeLog(`Created sandbox: ${sandbox.sandboxId}`)
   await runCommandWithLogs(sandbox, 'corepack-enable', 'corepack enable')
   await runCommandWithLogs(sandbox, 'corepack-prepare', 'corepack prepare pnpm@10.2.0 --activate')
@@ -199,6 +206,21 @@ async function createPreview() {
       timeoutMs: 15 * 60 * 1000,
     }
   )
+
+  if (appId === 'wedding-invite') {
+    await runCommandWithLogs(sandbox, 'db-migrate', 'pnpm db:migrate', {
+      cwd: `/home/user/app/${appPath}`,
+      envs: appEnv,
+      timeoutMs: 10 * 60 * 1000,
+    })
+
+    await runCommandWithLogs(sandbox, 'seed-e2e-admin', 'pnpm seed:e2e-admin', {
+      cwd: `/home/user/app/${appPath}`,
+      envs: appEnv,
+      timeoutMs: 5 * 60 * 1000,
+    })
+  }
+
   await runCommandWithLogs(sandbox, 'pnpm-build', 'pnpm build', {
     cwd: `/home/user/app/${appPath}`,
     envs: appEnv,

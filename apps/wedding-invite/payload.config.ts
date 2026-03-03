@@ -3,6 +3,7 @@ import { buildConfig } from "payload";
 import { CMSAdmins } from "./src/payload/collections/CMSAdmins";
 import { Guests } from "./src/payload/collections/Guests";
 import { Invitations } from "./src/payload/collections/Invitations";
+import { MemoryPhotos } from "./src/payload/collections/MemoryPhotos";
 import { RSVPs } from "./src/payload/collections/RSVPs";
 
 const databaseURL =
@@ -31,5 +32,5 @@ export default buildConfig({
       autoGenerate: false,
     },
   },
-  collections: [CMSAdmins, Guests, Invitations, RSVPs],
+  collections: [CMSAdmins, Guests, Invitations, MemoryPhotos, RSVPs],
 });

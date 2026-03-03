@@ -99,6 +99,49 @@ export const RSVPs: CollectionConfig = {
       type: "textarea",
     },
     {
+      name: "arrivalPlan",
+      label: "行程安排",
+      type: "select",
+      defaultValue: "same_day",
+      options: [
+        { label: "婚礼当天到达", value: "same_day" },
+        { label: "会提前到达", value: "arrive_early" },
+        { label: "会晚点离开", value: "leave_late" },
+        { label: "提前到达且晚点离开", value: "both" },
+      ],
+    },
+    {
+      name: "needsHotel",
+      label: "是否需要酒店住宿",
+      type: "checkbox",
+      defaultValue: false,
+    },
+    {
+      name: "hotelNights",
+      label: "住宿晚数偏好",
+      type: "select",
+      defaultValue: "none",
+      options: [
+        { label: "不需要住宿", value: "none" },
+        { label: "前一晚", value: "before" },
+        { label: "后一晚", value: "after" },
+        { label: "前后两晚", value: "both" },
+      ],
+    },
+    {
+      name: "transportPreference",
+      label: "推荐出行方式偏好",
+      type: "select",
+      defaultValue: "near_rideshare_hsr",
+      options: [
+        { label: "近距离：顺风车 / 高铁", value: "near_rideshare_hsr" },
+        {
+          label: "远距离：高铁+顺风车 或 飞机到上海后转车",
+          value: "far_combo",
+        },
+      ],
+    },
+    {
       name: "respondedAt",
       label: "回复时间",
       type: "date",
