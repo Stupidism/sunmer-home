@@ -35,6 +35,28 @@ type GuestDraft = {
   relationshipNote: string;
 };
 
+function normalizeRelationID(value: unknown): string | number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    if (/^\d+$/.test(trimmed)) {
+      const parsed = Number(trimmed);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return trimmed;
+  }
+
+  return null;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -54,6 +76,18 @@ async function main() {
   const dataPath = path.resolve(__dirname, "../data/guest-draft-list.json");
   const raw = await readFile(dataPath, "utf8");
   const list = JSON.parse(raw) as GuestDraft[];
+  const invitationSnapshot = await payload.find({
+    collection: "invitations",
+    depth: 0,
+    limit: 1000,
+    overrideAccess: true,
+  });
+  const invitations = invitationSnapshot.docs as Array<{
+    id: number | string;
+    guest?: unknown;
+    title?: unknown;
+    inviteCode?: unknown;
+  }>;
 
   let guestCreated = 0;
   let guestUpdated = 0;
@@ -82,6 +116,7 @@ async function main() {
       relationshipSide: item.relationshipSide,
       relationshipNote: item.relationshipNote,
       memorySnippet,
+      invitationCopy: `亲爱的${item.name}，${memorySnippet}`,
     };
 
     const guest =
@@ -104,37 +139,46 @@ async function main() {
       guestCreated += 1;
     }
 
-    const existingInvitation = await payload.find({
-      collection: "invitations",
-      where: { guest: { equals: guest.id } },
-      limit: 1,
-      overrideAccess: true,
-    });
+    const guestID = normalizeRelationID(guest.id);
+    if (guestID === null) {
+      throw new Error(`[seed-initial-guests] invalid guest id for ${item.name}`);
+    }
+
+    const expectedTitle = `${item.name} 的邀请函`;
+    const existingInvitation =
+      invitations.find((doc) => normalizeRelationID(doc.guest) === guestID) ||
+      invitations.find((doc) => doc.title === expectedTitle);
 
     const invitationData = {
-      title: `${item.name} 的邀请函`,
-      guest: guest.id,
+      title: expectedTitle,
+      guest: guestID,
       inviteCode:
-        existingInvitation.docs[0]?.inviteCode || makeInviteCode(item.name),
+        (typeof existingInvitation?.inviteCode === "string" && existingInvitation.inviteCode) ||
+        makeInviteCode(item.name),
       maxGuestCount: Math.max(1, item.estimatedGuestCount),
       status: "sent" as const,
       customOpening: `亲爱的${item.name}，诚挚邀请您来参加我们的婚礼。`,
     };
 
-    if (existingInvitation.docs.length > 0) {
-      await payload.update({
+    if (existingInvitation) {
+      const updatedInvitation = await payload.update({
         collection: "invitations",
-        id: existingInvitation.docs[0].id,
+        id: existingInvitation.id,
         data: invitationData,
         overrideAccess: true,
       });
+      const idx = invitations.findIndex((doc) => doc.id === existingInvitation.id);
+      if (idx >= 0) {
+        invitations[idx] = updatedInvitation as typeof invitations[number];
+      }
       invitationUpdated += 1;
     } else {
-      await payload.create({
+      const createdInvitation = await payload.create({
         collection: "invitations",
         data: invitationData,
         overrideAccess: true,
       });
+      invitations.push(createdInvitation as typeof invitations[number]);
       invitationCreated += 1;
     }
   }

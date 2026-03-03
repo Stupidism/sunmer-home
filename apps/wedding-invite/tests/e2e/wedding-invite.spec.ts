@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 const adminEmail = process.env.E2E_ADMIN_EMAIL || "wedding-e2e-admin@example.com";
 const adminPassword = process.env.E2E_ADMIN_PASSWORD || "Passw0rd!123456";
 
-async function loginPayloadAdmin(page: Parameters<typeof test>[0]["page"]) {
+async function loginPayloadAdmin(page: Page) {
   await page.goto("/admin/login");
   await page.getByLabel("Email").fill(adminEmail);
   await page.getByLabel("Password").fill(adminPassword);
@@ -55,25 +56,31 @@ test("guest creation to personalized invite and RSVP flow", async ({ page }) => 
   const shareLink =
     (typeof createGuestBody.shareLink === "string" && createGuestBody.shareLink.trim()) ||
     (typeof createGuestBody.inviteCode === "string" && createGuestBody.inviteCode.trim()
-      ? `/?code=${encodeURIComponent(createGuestBody.inviteCode)}`
+      ? `/invite/${encodeURIComponent(createGuestBody.inviteCode)}`
       : "");
   expect(shareLink).toBeTruthy();
 
-  expect(shareLink).toContain("?code=");
+  expect(shareLink).toMatch(/\/(invite\/|\?code=)/);
 
   await page.goto(shareLink);
 
-  await expect(page.getByText(memorySnippet)).toBeVisible();
-  await expect(page.getByText("我们俩的照片墙")).toBeVisible();
-  await expect(page.getByText("宝宝照片墙")).toBeVisible();
-  await expect(page.getByText("婚礼当天宝宝约 6 个月")).toBeVisible();
-  await expect(page.getByText("酒店名称：XX Hotel（将发布最终定位）")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "我们的回忆" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "新郎新娘" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "宝宝" })).toBeVisible();
+  await expect(page.getByText("麋鹿保护区 · 丹顶鹤保护区")).toBeVisible();
+  await expect(page.getByText("黄海森林公园")).toBeVisible();
+  await expect(page.getByText("婚礼地点：港汇国际大酒店")).toBeVisible();
   await expect(page.locator("#details").getByText("近距离：顺风车 / 高铁")).toBeVisible();
   await expect(page.locator("#details").getByText(/远距离：高铁\+顺风车/)).toBeVisible();
 
   const inviteCodeFromLink = (() => {
     try {
       const parsed = new URL(shareLink, page.url());
+      const pathMatch = parsed.pathname.match(/\/invite\/([^/]+)$/);
+      if (pathMatch?.[1]) {
+        return decodeURIComponent(pathMatch[1]);
+      }
+
       return parsed.searchParams.get("code") || "";
     } catch {
       return "";

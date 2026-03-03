@@ -151,5 +151,30 @@ export const Guests: CollectionConfig = {
         description: "用于生成个性化邀请函文案",
       },
     },
+    {
+      type: "row",
+      fields: [
+        {
+          name: "invitationCopy",
+          label: "邀请词",
+          type: "textarea",
+          admin: {
+            width: "70%",
+            description: "发送给宾客的个性化邀请文案，可点击右侧 Polish 自动生成",
+          },
+        },
+        {
+          name: "invitationCopyPolishAction",
+          label: "邀请词操作",
+          type: "ui",
+          admin: {
+            width: "30%",
+            components: {
+              Field: "/src/payload/components/PolishInvitationButton#PolishInvitationButton",
+            },
+          },
+        },
+      ],
+    },
   ],
 };

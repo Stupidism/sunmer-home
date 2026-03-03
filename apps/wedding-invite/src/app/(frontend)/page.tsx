@@ -139,6 +139,18 @@ interface PersonalizedInviteData {
   maxGuestCount: number;
 }
 
+interface MemoryPhotoItem {
+  id: string | number;
+  title: string;
+  description: string;
+  url: string;
+}
+
+interface MemoryPhotoData {
+  couple: MemoryPhotoItem[];
+  baby: MemoryPhotoItem[];
+}
+
 function SectionTitle({ title, subtitle, className }: SectionTitleProps) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
@@ -250,7 +262,7 @@ function HeroSection({ inviteData }: { inviteData: PersonalizedInviteData | null
         >
           <Calendar className="w-6 h-6 text-rose-500" />
           <span className="text-xl md:text-2xl font-medium text-rose-800 dark:text-rose-200">
-            2025年5月5日
+            2026年5月5日
           </span>
         </motion.div>
 
@@ -331,23 +343,22 @@ function StorySection({ inviteData }: { inviteData: PersonalizedInviteData | nul
 
           {/* Story Text */}
           <motion.div variants={fadeInUp} className="space-y-6">
-            <div className="prose prose-rose dark:prose-invert max-w-none">
-              {inviteData?.memorySnippet ? (
-                <p className="text-lg leading-relaxed text-rose-900/90 dark:text-rose-100/90 font-medium">
-                  {inviteData.memorySnippet}
-                </p>
-              ) : null}
+            <div className="prose prose-rose dark:prose-invert max-w-none [&>p+p]:mt-8">
               <p className="text-lg leading-relaxed text-rose-800/80 dark:text-rose-200/80">
-                那是一个阳光明媚的春日，我们在朋友的聚会上第一次相遇。你的笑容如同春风般温暖，
-                瞬间融化了我的心。从那一刻起，我就知道，你就是我一直在等待的那个人。
+                疫情最后一年的八月底，开学前夕。
+                我在一个微信群里看到别人分享了你的相亲帖。
               </p>
               <p className="text-lg leading-relaxed text-rose-800/80 dark:text-rose-200/80">
-                我们一起走过了无数个春夏秋冬，分享了生活中的点点滴滴。每一次旅行，
-                每一次约会，每一个平凡的日子，因为有你在身边，都变得格外珍贵。
+                看完那篇帖子，我就有了一个很笃定的念头：你就是我要找的人。
+                没过多久，我联系上了你；一次次语音、视频和见面时你真诚的陪伴，慢慢打动了我。
               </p>
               <p className="text-lg leading-relaxed text-rose-800/80 dark:text-rose-200/80">
-                今天，我们决定携手共度余生。感谢你出现在我的生命里，
-                让我成为世界上最幸福的人。未来的路，让我们一起走下去。
+                这些年，我们一起走过很多平凡却珍贵的日子。
+                因为一些现实原因，我们没能在宝宝出生前办婚礼。
+              </p>
+              <p className="text-lg leading-relaxed text-rose-800/80 dark:text-rose-200/80">
+                现在，我们终于要带着宝宝一起，把这场迟到却更完整的婚礼办成。
+                谢谢你出现在我的生命里，未来的路，我们继续一起走下去。
               </p>
             </div>
 
@@ -362,7 +373,7 @@ function StorySection({ inviteData }: { inviteData: PersonalizedInviteData | nul
               </div>
               <div>
                 <p className="text-rose-900 dark:text-rose-100 font-medium">新郎 & 新娘</p>
-                <p className="text-rose-600/70 dark:text-rose-400/70 text-sm">2025年5月5日</p>
+                <p className="text-rose-600/70 dark:text-rose-400/70 text-sm">2026年5月5日</p>
               </div>
             </div>
           </motion.div>
@@ -382,22 +393,22 @@ function DetailsSection() {
     {
       icon: Calendar,
       title: "时间",
-      content: "2025年5月5日",
-      subContent: "11:30 签到 | 12:00 仪式 | 13:00 宴席",
+      content: "2026年5月5日",
+      subContent: "12:30 宴席开始",
       color: "from-rose-400 to-pink-400",
     },
     {
       icon: MapPin,
       title: "地点",
-      content: "上海 · XX酒店宴会厅",
-      subContent: "酒店名称：XX Hotel（将发布最终定位）",
+      content: "江苏省东台市港汇国际大酒店",
+      subContent: "婚礼地点：港汇国际大酒店",
       color: "from-pink-400 to-rose-400",
     },
     {
       icon: Clock,
-      title: "特别说明",
-      content: "婚礼当天宝宝约 6 个月",
-      subContent: "我们会准备更友好的亲子动线与安静区域",
+      title: "附近景点",
+      content: "麋鹿保护区 · 丹顶鹤保护区",
+      subContent: "黄海森林公园",
       color: "from-rose-400 to-pink-400",
     },
     {
@@ -467,14 +478,75 @@ function DetailsSection() {
   );
 }
 
-// ==================== Photo Gallery Section ====================
+function MemoryCarousel({
+  title,
+  photos,
+}: {
+  title: string;
+  photos: MemoryPhotoItem[];
+}) {
+  const [index, setIndex] = useState(0);
 
-function GallerySection() {
+  useEffect(() => {
+    setIndex(0);
+  }, [photos.length]);
+
+  const hasPhotos = photos.length > 0;
+  const current = hasPhotos ? photos[index % photos.length] : null;
+
+  const prev = () => {
+    if (!hasPhotos) return;
+    setIndex((prevIndex) => (prevIndex - 1 + photos.length) % photos.length);
+  };
+
+  const next = () => {
+    if (!hasPhotos) return;
+    setIndex((prevIndex) => (prevIndex + 1) % photos.length);
+  };
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-2xl font-serif text-rose-900 dark:text-rose-100">{title}</h3>
+      <div className="rounded-3xl border border-rose-100 bg-white/70 p-4 shadow-lg dark:border-rose-900/30 dark:bg-rose-950/30">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-gradient-to-br from-rose-100 to-pink-100 dark:from-rose-900/30 dark:to-pink-900/20">
+          {current ? (
+            <img src={current.url} alt={current.title} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full items-center justify-center text-rose-600/70 dark:text-rose-300/70">
+              请在 CMS 上传照片后展示
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={prev}
+            disabled={!hasPhotos}
+            className="rounded-full border border-rose-200 px-4 py-2 text-sm text-rose-700 disabled:opacity-40 dark:border-rose-700 dark:text-rose-200"
+          >
+            上一张
+          </button>
+          <div className="text-center text-sm text-rose-700/80 dark:text-rose-200/80">
+            <div>{current?.title || "未上传"}</div>
+            {current?.description ? <div className="mt-1 text-xs opacity-80">{current.description}</div> : null}
+          </div>
+          <button
+            type="button"
+            onClick={next}
+            disabled={!hasPhotos}
+            className="rounded-full border border-rose-200 px-4 py-2 text-sm text-rose-700 disabled:opacity-40 dark:border-rose-700 dark:text-rose-200"
+          >
+            下一张
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MemoriesSection({ photos }: { photos: MemoryPhotoData }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
-
-  const couplePhotos = [1, 2, 3, 4];
-  const babyPhotos = [1, 2, 3, 4];
 
   return (
     <section
@@ -482,7 +554,7 @@ function GallerySection() {
       className="py-20 md:py-32 bg-gradient-to-b from-white to-rose-50/30 dark:from-background dark:to-rose-950/10"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <SectionTitle title="照片墙" subtitle="我们的回忆与宝宝成长都在这里" />
+        <SectionTitle title="我们的回忆" subtitle="在后台上传照片后，这里会自动更新" />
 
         <motion.div
           ref={ref}
@@ -492,57 +564,10 @@ function GallerySection() {
           variants={staggerContainer}
         >
           <motion.div variants={fadeInUp}>
-            <h3 className="text-2xl font-serif text-rose-900 dark:text-rose-100 mb-4">我们俩的照片墙</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-              {couplePhotos.map((photo) => (
-                <motion.div
-                  key={`couple-${photo}`}
-                  variants={scaleIn}
-                  className="relative group overflow-hidden rounded-2xl aspect-square bg-gradient-to-br from-rose-100 to-pink-100 dark:from-rose-900/30 dark:to-pink-900/20 cursor-pointer"
-                >
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Heart className="w-12 h-12 text-rose-300/50 group-hover:scale-110 transition-transform duration-500" />
-                  </div>
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-t from-rose-900/80 via-rose-900/40 to-transparent flex items-end justify-center pb-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <div className="text-center">
-                      <Heart className="w-6 h-6 text-white mx-auto mb-2 fill-white" />
-                      <p className="text-white text-sm font-medium">我们俩 · 瞬间 {photo}</p>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              ))}
-            </div>
+            <MemoryCarousel title="新郎新娘" photos={photos.couple} />
           </motion.div>
-
           <motion.div variants={fadeInUp}>
-            <h3 className="text-2xl font-serif text-rose-900 dark:text-rose-100 mb-4">宝宝照片墙</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-              {babyPhotos.map((photo) => (
-                <motion.div
-                  key={`baby-${photo}`}
-                  variants={scaleIn}
-                  className="relative group overflow-hidden rounded-2xl aspect-square bg-gradient-to-br from-amber-100 to-rose-100 dark:from-amber-900/30 dark:to-rose-900/20 cursor-pointer"
-                >
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Heart className="w-12 h-12 text-amber-300/60 group-hover:scale-110 transition-transform duration-500" />
-                  </div>
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-t from-rose-900/80 via-rose-900/40 to-transparent flex items-end justify-center pb-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <div className="text-center">
-                      <Heart className="w-6 h-6 text-white mx-auto mb-2 fill-white" />
-                      <p className="text-white text-sm font-medium">宝宝 · 成长 {photo}</p>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              ))}
-            </div>
+            <MemoryCarousel title="宝宝" photos={photos.baby} />
           </motion.div>
         </motion.div>
       </div>
@@ -568,7 +593,6 @@ function RSVPSection({
     arrivalPlan: "same_day",
     needsHotel: "no",
     hotelNights: "none",
-    transportPreference: "near_rideshare_hsr",
     message: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -616,7 +640,6 @@ function RSVPSection({
           arrivalPlan: formData.arrivalPlan,
           needsHotel: formData.needsHotel === "yes",
           hotelNights: formData.hotelNights,
-          transportPreference: formData.transportPreference,
         }),
       });
 
@@ -762,6 +785,9 @@ function RSVPSection({
                     <Label htmlFor="arrivalPlan" className="text-rose-900 dark:text-rose-100">
                       行程安排
                     </Label>
+                    <p className="text-xs text-rose-600/80 dark:text-rose-300/80">
+                      对外地来宾提供酒店，可选前一晚或后一晚住宿
+                    </p>
                     <Select
                       value={formData.arrivalPlan}
                       onValueChange={(value) => handleChange("arrivalPlan", value)}
@@ -770,7 +796,7 @@ function RSVPSection({
                         <SelectValue placeholder="请选择您的行程安排" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="same_day">婚礼当天到达</SelectItem>
+                        <SelectItem value="same_day">婚礼当天到、当天走</SelectItem>
                         <SelectItem value="arrive_early">会提前来</SelectItem>
                         <SelectItem value="leave_late">会晚些走</SelectItem>
                         <SelectItem value="both">提前来并晚些走</SelectItem>
@@ -780,7 +806,7 @@ function RSVPSection({
 
                   <div className="space-y-2">
                     <Label htmlFor="needsHotel" className="text-rose-900 dark:text-rose-100">
-                      住宿安排
+                      住宿安排（仅外地来宾）
                     </Label>
                     <Select
                       value={formData.needsHotel}
@@ -799,7 +825,7 @@ function RSVPSection({
                   {formData.needsHotel === "yes" && (
                     <div className="space-y-2">
                       <Label htmlFor="hotelNights" className="text-rose-900 dark:text-rose-100">
-                        住宿晚数
+                        酒店安排
                       </Label>
                       <Select
                         value={formData.hotelNights}
@@ -816,28 +842,6 @@ function RSVPSection({
                       </Select>
                     </div>
                   )}
-
-                  <div className="space-y-2">
-                    <Label htmlFor="transportPreference" className="text-rose-900 dark:text-rose-100">
-                      推荐出行方式
-                    </Label>
-                    <Select
-                      value={formData.transportPreference}
-                      onValueChange={(value) => handleChange("transportPreference", value)}
-                    >
-                      <SelectTrigger className="bg-rose-50/50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 focus:border-rose-400 focus:ring-rose-400">
-                        <SelectValue placeholder="请选择推荐出行方式" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="near_rideshare_hsr">
-                          近距离：顺风车 / 高铁
-                        </SelectItem>
-                        <SelectItem value="far_combo">
-                          远距离：高铁+顺风车，或飞机到上海后转顺风车/高铁
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
 
                   {/* Message Field */}
                   <div className="space-y-2">
@@ -996,7 +1000,7 @@ function Footer() {
 
           {/* Date */}
           <p className="text-rose-600/80 dark:text-rose-300/80 mb-6">
-            2025年5月5日 · 我们结婚啦
+            2026年5月5日 · 我们结婚啦
           </p>
 
           {/* Divider */}
@@ -1036,7 +1040,7 @@ function Navbar() {
     { label: "首页", href: "#hero" },
     { label: "我们的故事", href: "#story" },
     { label: "婚礼详情", href: "#details" },
-    { label: "甜蜜瞬间", href: "#gallery" },
+    { label: "我们的回忆", href: "#gallery" },
     { label: "请回复", href: "#rsvp" },
   ];
 
@@ -1185,12 +1189,17 @@ function Navbar() {
 
 // ==================== Main Page Component ====================
 
-export default function WeddingInvitationPage() {
+export function WeddingInvitationPage({
+  initialInviteCode,
+}: {
+  initialInviteCode?: string;
+} = {}) {
   const [inviteData, setInviteData] = useState<PersonalizedInviteData | null>(null);
+  const [memoryPhotos, setMemoryPhotos] = useState<MemoryPhotoData>({ couple: [], baby: [] });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get("code") || "";
+    const code = initialInviteCode || params.get("code") || "";
 
     if (!code) {
       return;
@@ -1218,6 +1227,42 @@ export default function WeddingInvitationPage() {
 
     loadInvitation();
     return () => controller.abort();
+  }, [initialInviteCode]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadMemories = async () => {
+      try {
+        const response = await fetch("/api/memories", { signal: controller.signal });
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as {
+          success?: boolean;
+          data?: {
+            couple?: MemoryPhotoItem[];
+            baby?: MemoryPhotoItem[];
+          };
+        };
+
+        if (payload.success && payload.data) {
+          setMemoryPhotos({
+            couple: Array.isArray(payload.data.couple) ? payload.data.couple : [],
+            baby: Array.isArray(payload.data.baby) ? payload.data.baby : [],
+          });
+        }
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          console.error("Failed to load memories:", error);
+        }
+      }
+    };
+
+    void loadMemories();
+
+    return () => controller.abort();
   }, []);
 
   return (
@@ -1234,8 +1279,7 @@ export default function WeddingInvitationPage() {
       {/* Wedding Details Section */}
       <DetailsSection />
 
-      {/* Photo Gallery Section */}
-      <GallerySection />
+      <MemoriesSection photos={memoryPhotos} />
 
       {/* RSVP Form Section */}
       <RSVPSection inviteData={inviteData} />
@@ -1244,4 +1288,8 @@ export default function WeddingInvitationPage() {
       <Footer />
     </main>
   );
+}
+
+export default function WeddingInvitationHomePage() {
+  return <WeddingInvitationPage />;
 }
