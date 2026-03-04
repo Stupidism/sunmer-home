@@ -168,10 +168,12 @@ jobs:
       - name: Resolve app project id
         id: resolve
         env:
-          VERCEL_PROJECT_ID_BUBU_LOG: ${{ secrets.VERCEL_PROJECT_ID_BUBU_LOG }}
-          VERCEL_PROJECT_ID_NUNU_ISLAND: ${{ secrets.VERCEL_PROJECT_ID_NUNU_ISLAND }}
-          VERCEL_PROJECT_ID_NUNU_LOG: ${{ secrets.VERCEL_PROJECT_ID_NUNU_LOG }}
-          VERCEL_PROJECT_ID_WEDDING_INVITE: ${{ secrets.VERCEL_PROJECT_ID_WEDDING_INVITE }}
+          VERCEL_PROJECT_ID_BUBU_LOG: ${{ vars.VERCEL_PROJECT_ID_BUBU_LOG }}
+          VERCEL_PROJECT_ID_NUNU_ISLAND: ${{ vars.VERCEL_PROJECT_ID_NUNU_ISLAND }}
+          VERCEL_PROJECT_ID_NUNU_LOG: ${{ vars.VERCEL_PROJECT_ID_NUNU_LOG }}
+          VERCEL_PROJECT_ID_WEDDING_INVITE: ${{ vars.VERCEL_PROJECT_ID_WEDDING_INVITE }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           APP_ID='${{ matrix.appId }}'
           PROJECT_ID=''
@@ -193,6 +195,30 @@ jobs:
               ;;
           esac
 
+          if [ -z "$PROJECT_ID" ] && [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ]; then
+            RESOLVED_PROJECT_ID=$(APP_ID="$APP_ID" VERCEL_ORG_ID="$VERCEL_ORG_ID" VERCEL_TOKEN="$VERCEL_TOKEN" node -e "
+              const appId = process.env.APP_ID
+              const orgId = process.env.VERCEL_ORG_ID
+              const token = process.env.VERCEL_TOKEN
+
+              async function readProjectIdByName(name) {
+                const endpoint = `https://api.vercel.com/v9/projects/${encodeURIComponent(name)}?teamId=${encodeURIComponent(orgId)}`
+                const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } })
+                if (!res.ok) return ''
+                const data = await res.json()
+                return data.id || ''
+              }
+
+              readProjectIdByName(appId)
+                .then((id) => process.stdout.write(id))
+                .catch(() => process.stdout.write(''))
+            ")
+
+            if [ -n "$RESOLVED_PROJECT_ID" ]; then
+              PROJECT_ID="$RESOLVED_PROJECT_ID"
+            fi
+          fi
+
           if [ -z "$PROJECT_ID" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "reason=missing-project-id" >> "$GITHUB_OUTPUT"
@@ -207,7 +233,7 @@ jobs:
         if: steps.resolve.outputs.enabled == 'true'
         working-directory: ${{ matrix.appPath }}
         env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: pnpm dlx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
@@ -216,7 +242,7 @@ jobs:
         if: steps.resolve.outputs.enabled == 'true'
         working-directory: ${{ matrix.appPath }}
         env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: pnpm dlx vercel@latest build --prod --token="$VERCEL_TOKEN"
@@ -225,7 +251,7 @@ jobs:
         if: steps.resolve.outputs.enabled == 'true'
         working-directory: ${{ matrix.appPath }}
         env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: pnpm dlx vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
@@ -235,7 +261,7 @@ jobs:
           if [ '${{ steps.resolve.outputs.enabled }}' = 'true' ]; then
             echo "✅ Deployed ${{ matrix.appId }} to production" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "⚠️ Skipped ${{ matrix.appId }} because project id secret was missing" >> "$GITHUB_STEP_SUMMARY"
+            echo "⚠️ Skipped ${{ matrix.appId }} because project id could not be resolved from secret or Vercel API" >> "$GITHUB_STEP_SUMMARY"
           fi
 
   no-op:
