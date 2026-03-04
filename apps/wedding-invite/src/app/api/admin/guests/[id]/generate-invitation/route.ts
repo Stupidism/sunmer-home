@@ -1,22 +1,34 @@
 import { NextResponse } from "next/server";
-import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { getPayloadClient } from "@/lib/payload/client";
 
-function makeInviteCode(name: string): string {
-  const normalized = name
+function makeDeterministicInviteCode(guestRelationID: string | number): string {
+  return `guest-${String(guestRelationID)
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 24);
-
-  return `${normalized || "guest"}-${randomBytes(3).toString("hex")}`;
+    .replace(/^-+|-+$/g, "")}`;
 }
 
-function buildShareLink(inviteCode: string): string {
-  const site = process.env.WEDDING_INVITE_SITE_URL || "https://wedding.sunmer.xyz";
-  return `${site.replace(/\/$/, "")}/invite/${encodeURIComponent(inviteCode)}`;
+function resolvePublicSiteURL(request: Request): string {
+  const envSite = (process.env.WEDDING_INVITE_SITE_URL || "").trim();
+  const isLocalEnv = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(envSite);
+
+  if (envSite && !isLocalEnv) {
+    return envSite.replace(/\/$/, "");
+  }
+
+  const requestOrigin = new URL(request.url).origin;
+  const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
+  if (!isLocalOrigin) {
+    return requestOrigin;
+  }
+
+  return "https://wedding.sunmer.xyz";
+}
+
+function buildShareLink(inviteCode: string, siteURL: string): string {
+  return `${siteURL.replace(/\/$/, "")}/?code=${encodeURIComponent(inviteCode)}`;
 }
 
 function estimateMaxGuestCount(guest: Record<string, unknown>): number {
@@ -86,11 +98,12 @@ async function generateInvitationCopyWithDeepSeek(input: {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
+    const siteURL = resolvePublicSiteURL(request);
     const payload = await getPayloadClient();
 
     const authResult = await payload.auth({ headers: await headers() });
@@ -146,7 +159,7 @@ export async function POST(
 
     const inviteCode =
       (typeof existing.docs[0]?.inviteCode === "string" && existing.docs[0].inviteCode) ||
-      makeInviteCode(guestName);
+      makeDeterministicInviteCode(guestRelationID);
 
     const invitationData = {
       title: `${guestName} 的邀请函`,
@@ -155,7 +168,7 @@ export async function POST(
       maxGuestCount: estimateMaxGuestCount(guest),
       status: "sent" as const,
       customOpening: invitationCopy,
-      shareLink: buildShareLink(inviteCode),
+      shareLink: buildShareLink(inviteCode, siteURL),
     };
 
     const invitation = existing.docs[0]
@@ -176,10 +189,7 @@ export async function POST(
       aiUsed,
       guestName,
       inviteCode,
-      shareLink:
-        typeof invitation.shareLink === "string"
-          ? invitation.shareLink
-          : buildShareLink(inviteCode),
+      shareLink: buildShareLink(inviteCode, siteURL),
       invitationCopy,
     });
   } catch (error) {

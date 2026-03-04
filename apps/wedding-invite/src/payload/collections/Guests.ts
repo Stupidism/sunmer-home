@@ -97,7 +97,8 @@ export const Guests: CollectionConfig = {
       type: "number",
       min: 0,
       admin: {
-        condition: (_, siblingData) => Boolean(siblingData?.hasChildren),
+        condition: (_: unknown, siblingData: Record<string, unknown> | undefined) =>
+          Boolean(siblingData?.hasChildren),
       },
     },
     {
