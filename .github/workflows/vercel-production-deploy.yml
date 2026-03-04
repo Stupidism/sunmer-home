@@ -231,7 +231,6 @@ jobs:
 
       - name: Pull Vercel production env
         if: steps.resolve.outputs.enabled == 'true'
-        working-directory: ${{ matrix.appPath }}
         env:
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
@@ -240,7 +239,6 @@ jobs:
 
       - name: Build production artifacts
         if: steps.resolve.outputs.enabled == 'true'
-        working-directory: ${{ matrix.appPath }}
         env:
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
@@ -249,7 +247,6 @@ jobs:
 
       - name: Deploy production artifacts
         if: steps.resolve.outputs.enabled == 'true'
-        working-directory: ${{ matrix.appPath }}
         env:
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ steps.resolve.outputs.project_id }}
