@@ -15,7 +15,7 @@ function makeInviteCode(name: string): string {
 
 function buildShareLink(inviteCode: string): string {
   const site = process.env.WEDDING_INVITE_SITE_URL || "https://wedding.sunmer.xyz";
-  return `${site.replace(/\/$/, "")}/invite/${encodeURIComponent(inviteCode)}`;
+  return `${site.replace(/\/$/, "")}/?code=${encodeURIComponent(inviteCode)}`;
 }
 
 export const Invitations: CollectionConfig = {

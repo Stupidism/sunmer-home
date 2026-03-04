@@ -16,9 +16,25 @@ function normalizeRelationID(value: unknown): string | number {
 
 function buildShareLink(inviteCode: string): string {
   const site = process.env.WEDDING_INVITE_SITE_URL || "https://wedding.sunmer.xyz";
-  return `${site.replace(/\/$/, "")}/invite/${encodeURIComponent(inviteCode)}`;
+  return `${site.replace(/\/$/, "")}/?code=${encodeURIComponent(inviteCode)}`;
 }
 
+function estimateMaxGuestCount(guest: Record<string, unknown>): number {
+  const isSingle = Boolean(guest.isSingle);
+  const hasChildren = Boolean(guest.hasChildren);
+  const childrenCount = Number(guest.childrenCount || 0);
+  const spouseCount = isSingle ? 0 : 1;
+  const childCount = hasChildren ? Math.max(0, childrenCount) : 0;
+  return Math.max(1, 1 + spouseCount + childCount);
+}
+
+function makeDeterministicInviteCode(guestRelationID: string | number): string {
+  return `guest-${String(guestRelationID)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-+|-+$/g, "")}`;
+}
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -57,7 +73,34 @@ export async function GET(
       | undefined;
 
     if (!invitation) {
-      return NextResponse.json({ success: true, exists: false, shareLink: null, inviteCode: null });
+      const guestName = typeof guest.name === "string" && guest.name.trim() ? guest.name.trim() : "贵宾";
+      const inviteCode = makeDeterministicInviteCode(guestRelationID);
+      const shareLink = buildShareLink(inviteCode);
+
+      const createdInvitation = await payload.create({
+        collection: "invitations",
+        data: {
+          title: `${guestName} 的邀请函`,
+          guest: guestRelationID,
+          inviteCode,
+          maxGuestCount: estimateMaxGuestCount(guest),
+          status: "draft",
+          customOpening:
+            typeof guest.invitationCopy === "string" && guest.invitationCopy.trim()
+              ? guest.invitationCopy.trim()
+              : `亲爱的${guestName}，诚挚邀请您参加我们的婚礼。`,
+          shareLink,
+        },
+        overrideAccess: true,
+      });
+
+      return NextResponse.json({
+        success: true,
+        exists: true,
+        invitationID: createdInvitation.id ?? null,
+        inviteCode,
+        shareLink,
+      });
     }
 
     const inviteCode =

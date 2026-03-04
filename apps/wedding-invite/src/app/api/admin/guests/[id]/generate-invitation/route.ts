@@ -1,22 +1,18 @@
 import { NextResponse } from "next/server";
-import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { getPayloadClient } from "@/lib/payload/client";
 
-function makeInviteCode(name: string): string {
-  const normalized = name
+function makeDeterministicInviteCode(guestRelationID: string | number): string {
+  return `guest-${String(guestRelationID)
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 24);
-
-  return `${normalized || "guest"}-${randomBytes(3).toString("hex")}`;
+    .replace(/^-+|-+$/g, "")}`;
 }
 
 function buildShareLink(inviteCode: string): string {
   const site = process.env.WEDDING_INVITE_SITE_URL || "https://wedding.sunmer.xyz";
-  return `${site.replace(/\/$/, "")}/invite/${encodeURIComponent(inviteCode)}`;
+  return `${site.replace(/\/$/, "")}/?code=${encodeURIComponent(inviteCode)}`;
 }
 
 function estimateMaxGuestCount(guest: Record<string, unknown>): number {
@@ -146,7 +142,7 @@ export async function POST(
 
     const inviteCode =
       (typeof existing.docs[0]?.inviteCode === "string" && existing.docs[0].inviteCode) ||
-      makeInviteCode(guestName);
+      makeDeterministicInviteCode(guestRelationID);
 
     const invitationData = {
       title: `${guestName} 的邀请函`,
