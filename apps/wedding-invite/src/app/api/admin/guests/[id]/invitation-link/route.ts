@@ -14,9 +14,25 @@ function normalizeRelationID(value: unknown): string | number {
   return String(value);
 }
 
-function buildShareLink(inviteCode: string): string {
-  const site = process.env.WEDDING_INVITE_SITE_URL || "https://wedding.sunmer.xyz";
-  return `${site.replace(/\/$/, "")}/?code=${encodeURIComponent(inviteCode)}`;
+function resolvePublicSiteURL(request: Request): string {
+  const envSite = (process.env.WEDDING_INVITE_SITE_URL || "").trim();
+  const isLocalEnv = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(envSite);
+
+  if (envSite && !isLocalEnv) {
+    return envSite.replace(/\/$/, "");
+  }
+
+  const requestOrigin = new URL(request.url).origin;
+  const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
+  if (!isLocalOrigin) {
+    return requestOrigin;
+  }
+
+  return "https://wedding.sunmer.xyz";
+}
+
+function buildShareLink(inviteCode: string, siteURL: string): string {
+  return `${siteURL.replace(/\/$/, "")}/?code=${encodeURIComponent(inviteCode)}`;
 }
 
 function estimateMaxGuestCount(guest: Record<string, unknown>): number {
@@ -36,11 +52,12 @@ function makeDeterministicInviteCode(guestRelationID: string | number): string {
     .replace(/^-+|-+$/g, "")}`;
 }
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
+    const siteURL = resolvePublicSiteURL(request);
     const payload = await getPayloadClient();
 
     const authResult = await payload.auth({ headers: await headers() });
@@ -75,7 +92,7 @@ export async function GET(
     if (!invitation) {
       const guestName = typeof guest.name === "string" && guest.name.trim() ? guest.name.trim() : "贵宾";
       const inviteCode = makeDeterministicInviteCode(guestRelationID);
-      const shareLink = buildShareLink(inviteCode);
+      const shareLink = buildShareLink(inviteCode, siteURL);
 
       const createdInvitation = await payload.create({
         collection: "invitations",
@@ -107,12 +124,7 @@ export async function GET(
       typeof invitation.inviteCode === "string" && invitation.inviteCode.trim()
         ? invitation.inviteCode.trim()
         : null;
-    const shareLink =
-      typeof invitation.shareLink === "string" && invitation.shareLink.trim()
-        ? invitation.shareLink.trim()
-        : inviteCode
-          ? buildShareLink(inviteCode)
-          : null;
+    const shareLink = inviteCode ? buildShareLink(inviteCode, siteURL) : null;
 
     return NextResponse.json({
       success: true,
