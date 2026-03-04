@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useDocumentInfo } from "@payloadcms/ui";
 
 function normalizeGuestID(raw: string | null | undefined): string | null {
   if (!raw) {
@@ -59,7 +58,6 @@ function resolveGuestID(): string | null {
 }
 
 export function PolishInvitationButton() {
-  const docInfo = useDocumentInfo() as { id?: string | number | null };
   const [guestID, setGuestID] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingLink, setLoadingLink] = useState(false);
@@ -98,15 +96,6 @@ export function PolishInvitationButton() {
 
   useEffect(() => {
     const updateGuestID = () => {
-      const docID = docInfo?.id;
-      if (docID !== null && typeof docID !== "undefined") {
-        const normalized = normalizeGuestID(String(docID));
-        if (normalized) {
-          setGuestID(normalized);
-          return;
-        }
-      }
-
       setGuestID(resolveGuestID());
     };
 
@@ -119,7 +108,7 @@ export function PolishInvitationButton() {
       window.removeEventListener("popstate", updateGuestID);
       window.clearInterval(timer);
     };
-  }, [docInfo?.id]);
+  }, []);
 
   useEffect(() => {
     void loadLink();
