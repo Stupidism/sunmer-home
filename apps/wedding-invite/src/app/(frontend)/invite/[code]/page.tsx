@@ -6,6 +6,7 @@ import {
   buildInviteShareTitle,
   decodeInviteCode,
   getInviteShareMeta,
+  getInviteShareImageURL,
 } from "./share-meta";
 
 export const revalidate = 300;
@@ -44,7 +45,7 @@ export async function generateMetadata({
   const title = buildInviteShareTitle(guestName, hostRole);
   const description = buildInviteShareDescription();
   const pageURL = `${siteURL}/invite/${encodeURIComponent(decodedCode)}`;
-  const imageURL = `${siteURL}/icon.svg`;
+  const imageURL = await getInviteShareImageURL(siteURL);
 
   return {
     title,
@@ -68,8 +69,6 @@ export async function generateMetadata({
       images: [
         {
           url: imageURL,
-          width: 1200,
-          height: 630,
           alt: title,
         },
       ],

@@ -372,7 +372,7 @@ function StorySection({ inviteData }: { inviteData: PersonalizedInviteData | nul
                 </div>
               </div>
               <div>
-                <p className="text-rose-900 dark:text-rose-100 font-medium">新郎 & 新娘</p>
+                <p className="text-rose-900 dark:text-rose-100 font-medium">孙逢 & 洪丽暖</p>
                 <p className="text-rose-600/70 dark:text-rose-400/70 text-sm">2026年5月5日</p>
               </div>
             </div>
@@ -564,7 +564,7 @@ function MemoriesSection({ photos }: { photos: MemoryPhotoData }) {
           variants={staggerContainer}
         >
           <motion.div variants={fadeInUp}>
-            <MemoryCarousel title="新郎新娘" photos={photos.couple} />
+            <MemoryCarousel title="孙逢和洪丽暖" photos={photos.couple} />
           </motion.div>
           <motion.div variants={fadeInUp}>
             <MemoryCarousel title="宝宝" photos={photos.baby} />
@@ -995,7 +995,7 @@ function Footer() {
             className="text-2xl md:text-3xl font-serif text-rose-900 dark:text-rose-100 mb-4"
             style={{ fontFamily: "'Playfair Display', serif" }}
           >
-            新郎 & 新娘
+            孙逢 & 洪丽暖
           </h3>
 
           {/* Date */}
