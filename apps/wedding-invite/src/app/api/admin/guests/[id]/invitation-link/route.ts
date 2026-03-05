@@ -32,7 +32,7 @@ function resolvePublicSiteURL(request: Request): string {
 }
 
 function buildShareLink(inviteCode: string, siteURL: string): string {
-  return `${siteURL.replace(/\/$/, "")}/?code=${encodeURIComponent(inviteCode)}`;
+  return `${siteURL.replace(/\/$/, "")}/invite/${encodeURIComponent(inviteCode)}`;
 }
 
 function estimateMaxGuestCount(guest: Record<string, unknown>): number {

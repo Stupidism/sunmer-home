@@ -60,7 +60,7 @@ test("guest creation to personalized invite and RSVP flow", async ({ page }) => 
       : "");
   expect(shareLink).toBeTruthy();
 
-  expect(shareLink).toMatch(/\/(invite\/|\?code=)/);
+  expect(shareLink).toMatch(/\/invite\//);
 
   await page.goto(shareLink);
 
@@ -81,7 +81,7 @@ test("guest creation to personalized invite and RSVP flow", async ({ page }) => 
         return decodeURIComponent(pathMatch[1]);
       }
 
-      return parsed.searchParams.get("code") || "";
+      return "";
     } catch {
       return "";
     }

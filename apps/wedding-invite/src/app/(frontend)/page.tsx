@@ -1198,8 +1198,7 @@ export function WeddingInvitationPage({
   const [memoryPhotos, setMemoryPhotos] = useState<MemoryPhotoData>({ couple: [], baby: [] });
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = initialInviteCode || params.get("code") || "";
+    const code = initialInviteCode || "";
 
     if (!code) {
       return;
