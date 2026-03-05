@@ -44,7 +44,7 @@ export async function generateMetadata({
   const title = buildInviteShareTitle(guestName, hostRole);
   const description = buildInviteShareDescription();
   const pageURL = `${siteURL}/invite/${encodeURIComponent(decodedCode)}`;
-  const imageURL = `${siteURL}/invite/${encodeURIComponent(decodedCode)}/opengraph-image`;
+  const imageURL = `${siteURL}/icon.svg`;
 
   return {
     title,
@@ -75,7 +75,7 @@ export async function generateMetadata({
       ],
     },
     twitter: {
-      card: "summary_large_image",
+      card: "summary",
       title,
       description,
       images: [imageURL],
