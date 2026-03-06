@@ -1,16 +1,16 @@
 import { getPayloadClient } from "@/lib/payload/client";
 
 const roleLabelByRelationshipSide: Record<string, string> = {
-  bride: "新娘",
-  groom: "新郎",
-  groom_father: "新郎",
-  groom_mother: "新郎",
-  bride_father: "新娘",
-  bride_mother: "新娘",
-  groom_family: "新郎",
-  bride_family: "新娘",
-  both: "新郎新娘",
-  other: "新郎新娘",
+  bride: "洪丽暖",
+  groom: "孙逢",
+  groom_father: "孙逢",
+  groom_mother: "孙逢",
+  bride_father: "洪丽暖",
+  bride_mother: "洪丽暖",
+  groom_family: "孙逢",
+  bride_family: "洪丽暖",
+  both: "孙逢和洪丽暖",
+  other: "孙逢和洪丽暖",
 };
 
 export function decodeInviteCode(code: string): string {
@@ -40,7 +40,7 @@ export async function getInviteShareMeta(code: string): Promise<{ guestName: str
   const decodedCode = decodeInviteCode(code);
   const fallback = {
     guestName: guessGuestNameFromCode(decodedCode) || "贵宾",
-    hostRole: "新郎新娘",
+    hostRole: "孙逢和洪丽暖",
   };
 
   try {
@@ -90,5 +90,32 @@ export function buildInviteShareTitle(guestName: string, hostRole: string): stri
 }
 
 export function buildInviteShareDescription(): string {
-  return "诚邀您见证我们的幸福时刻，查看婚礼时间、地点与回执安排。";
+  return "孙逢与洪丽暖诚邀您见证我们的幸福时刻，查看婚礼时间、地点与回执安排。";
+}
+
+export async function getInviteShareImageURL(siteURL: string): Promise<string> {
+  const fallbackURL = `${siteURL.replace(/\/$/, "")}/api/share-image`;
+
+  try {
+    const payload = await getPayloadClient();
+    const result = await payload.find({
+      collection: "memory-photos",
+      where: {
+        and: [{ category: { equals: "couple" } }, { url: { exists: true } }],
+      },
+      sort: "-updatedAt",
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    });
+
+    const photo = result.docs[0] as { url?: unknown } | undefined;
+    if (photo && typeof photo.url === "string" && /^https?:\/\//.test(photo.url)) {
+      return photo.url;
+    }
+  } catch (error) {
+    console.warn("[invite/[code]] share image lookup failed:", error);
+  }
+
+  return fallbackURL;
 }
