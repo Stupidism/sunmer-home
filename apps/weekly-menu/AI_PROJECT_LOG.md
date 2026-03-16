@@ -629,6 +629,21 @@ Note: entries include both active and reverted changes to preserve context.
   - `corepack pnpm -C apps/weekly-menu lint` (pass with 1 existing warning in `src/app/(frontend)/layout.tsx`)
   - `corepack pnpm -C apps/weekly-menu build` (pass)
 
+### 2026-03-16 - Entry 40 - Auto-upgrade legacy plain-text login passwords
+- Type: fix
+- Status: active
+- Files:
+  - `src/lib/auth/index.ts`
+- What changed:
+  - Added a password verification helper that detects bcrypt hashes and uses bcrypt compare for normal login.
+  - Added legacy fallback: if a stored password is plain text and matches user input, login succeeds and the row is immediately upgraded to bcrypt in `planner_users`.
+- Why:
+  - User reported existing dashboard credentials could not log in; one likely cause is legacy/non-bcrypt password rows in deployment DB.
+  - Auto-upgrade removes manual DB migration pressure while preserving secure hashing for subsequent logins.
+- Verification:
+  - `corepack pnpm -C apps/weekly-menu lint` (pass with 1 existing warning in `src/app/(frontend)/layout.tsx`)
+  - `corepack pnpm -C apps/weekly-menu build` (pass)
+
 ## 4) Current Known State / Open Items
 
 - Frontend features and REST API are working and build successfully.

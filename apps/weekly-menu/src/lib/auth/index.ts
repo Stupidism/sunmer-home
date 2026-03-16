@@ -11,6 +11,39 @@ type PlannerUserDoc = {
   name?: string | null
 }
 
+const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$/
+
+function isBcryptHash(value: string): boolean {
+  return BCRYPT_HASH_REGEX.test(value)
+}
+
+async function verifyAndUpgradePassword(
+  user: PlannerUserDoc,
+  rawPasswordInput: string,
+  storedPassword: string
+): Promise<boolean> {
+  if (isBcryptHash(storedPassword)) {
+    return bcrypt.compare(rawPasswordInput, storedPassword)
+  }
+
+  if (rawPasswordInput !== storedPassword) {
+    return false
+  }
+
+  const nextPasswordHash = await bcrypt.hash(rawPasswordInput, 12)
+  const pool = getPayloadPool()
+  await pool.query(
+    `
+    UPDATE planner_users
+    SET password = $1, updated_at = now()
+    WHERE id::text = $2
+    `,
+    [nextPasswordHash, user.id]
+  )
+
+  return true
+}
+
 async function findUserByLogin(login: string): Promise<PlannerUserDoc | null> {
   const pool = getPayloadPool()
   const keyword = login.trim()
@@ -63,7 +96,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null
         }
 
-        const isValid = await bcrypt.compare(String(credentials.password), user.password)
+        const isValid = await verifyAndUpgradePassword(
+          user,
+          String(credentials.password),
+          String(user.password)
+        )
         if (!isValid) {
           return null
         }
