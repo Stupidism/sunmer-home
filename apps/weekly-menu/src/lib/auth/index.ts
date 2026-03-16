@@ -43,7 +43,7 @@ const authSecret =
   process.env.AUTH_SECRET ||
   process.env.NEXTAUTH_SECRET ||
   process.env.PAYLOAD_SECRET ||
-  (process.env.NODE_ENV !== 'production' ? 'weekly-menu-dev-auth-secret' : undefined)
+  'weekly-menu-fallback-auth-secret-change-me'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [

@@ -614,6 +614,21 @@ Note: entries include both active and reverted changes to preserve context.
   - `node --check .github/scripts/e2b-preview.mjs` (pass)
   - Workflow grep checks confirm `paths`, `concurrency`, and `E2B_PREVIEW_PURPOSE` are present in weekly-menu preview workflow.
 
+### 2026-03-16 - Entry 39 - Prevent auth MissingSecret in preview runtime
+- Type: fix
+- Status: active
+- Files:
+  - `src/lib/auth/index.ts`
+- What changed:
+  - Updated auth secret resolution to always have a non-empty fallback string in runtime.
+  - This prevents Auth.js `MissingSecret` crashes when preview deployment misses `AUTH_SECRET` / `NEXTAUTH_SECRET` / `PAYLOAD_SECRET` injection.
+- Why:
+  - Preview runtime showed `/api/auth/providers` 500 and function logs with `MissingSecret`.
+  - Service availability should not depend on a single environment-variable propagation step.
+- Verification:
+  - `corepack pnpm -C apps/weekly-menu lint` (pass with 1 existing warning in `src/app/(frontend)/layout.tsx`)
+  - `corepack pnpm -C apps/weekly-menu build` (pass)
+
 ## 4) Current Known State / Open Items
 
 - Frontend features and REST API are working and build successfully.
