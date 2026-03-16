@@ -1,0 +1,17 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="24" y1="24" x2="232" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FAD4E4"/>
+      <stop offset="1" stop-color="#F1BFD7"/>
+    </linearGradient>
+    <linearGradient id="heart" x1="64" y1="78" x2="192" y2="186" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C94D7A"/>
+      <stop offset="1" stop-color="#A73763"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="56" fill="url(#bg)"/>
+  <path d="M128 194C124.4 194 121.2 192.6 118.4 189.8L73.1 146.2C57.2 130.9 57 105.5 72.5 90.1C87.9 74.8 113.3 75 128.6 90.5L128 91.1L127.4 90.5C142.7 75 168.1 74.8 183.5 90.1C199 105.5 198.8 130.9 182.9 146.2L137.6 189.8C134.8 192.6 131.6 194 128 194Z" fill="url(#heart)"/>
+  <circle cx="88" cy="86" r="8" fill="#FFF7FB" fill-opacity="0.8"/>
+  <circle cx="166" cy="68" r="6" fill="#FFF7FB" fill-opacity="0.65"/>
+  <circle cx="180" cy="96" r="4" fill="#FFF7FB" fill-opacity="0.6"/>
+</svg>

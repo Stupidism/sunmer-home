@@ -1,7 +1,11 @@
 import { motion } from 'framer-motion';
-import { emotionIntensities } from '@/data/emotions';
+import { emotionIntensities, type EmotionIntensity } from '@/data/emotions';
 
-export function EmotionIntensityAxis() {
+interface EmotionIntensityAxisProps {
+  intensities?: EmotionIntensity[]
+}
+
+export function EmotionIntensityAxis({ intensities = emotionIntensities }: EmotionIntensityAxisProps) {
   return (
     <div className="bg-white rounded-3xl shadow-soft-lg p-6">
       {/* Header */}
@@ -12,7 +16,7 @@ export function EmotionIntensityAxis() {
 
       {/* Axis */}
       <div className="space-y-6">
-        {emotionIntensities.map((item, index) => (
+        {intensities.map((item, index) => (
           <motion.div
             key={item.emotion}
             initial={{ opacity: 0, x: -20 }}

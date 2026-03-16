@@ -2,6 +2,16 @@ import { postgresAdapter } from '@payloadcms/db-postgres'
 import { buildConfig } from 'payload'
 import { CMSAdmins } from './src/payload/collections/CMSAdmins.ts'
 import { Articles } from './src/payload/collections/Articles.ts'
+import { Beliefs } from './src/payload/collections/Beliefs.ts'
+import { Templates } from './src/payload/collections/Templates.ts'
+import { EmotionCategories } from './src/payload/collections/EmotionCategories.ts'
+import { EmotionIntensities } from './src/payload/collections/EmotionIntensities.ts'
+import { EmotionBranches } from './src/payload/collections/EmotionBranches.ts'
+import { EmotionTools } from './src/payload/collections/EmotionTools.ts'
+import { MindfulnessScenarios } from './src/payload/collections/MindfulnessScenarios.ts'
+import { MindfulnessHabits } from './src/payload/collections/MindfulnessHabits.ts'
+import { LifeEvents } from './src/payload/collections/LifeEvents.ts'
+import { BeliefMethodMedia } from './src/payload/collections/BeliefMethodMedia.ts'
 
 const normalizePGSSLMode = (url: string) => {
   if (!url) return url
@@ -40,7 +50,20 @@ const config = buildConfig({
       autoGenerate: false,
     },
   },
-  collections: [CMSAdmins, Articles],
+  collections: [
+    CMSAdmins,
+    Articles,
+    Beliefs,
+    Templates,
+    EmotionCategories,
+    EmotionIntensities,
+    EmotionBranches,
+    EmotionTools,
+    MindfulnessScenarios,
+    MindfulnessHabits,
+    LifeEvents,
+    BeliefMethodMedia,
+  ],
 })
 
 export default config

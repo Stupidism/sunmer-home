@@ -125,6 +125,54 @@ import { Drawer, DrawerContent } from '@bubu-log/ui'
 
 ## 部署到 Vercel
 
+### GitHub Actions 仅触发 Production 部署（按受影响 App）
+
+仓库已新增 workflow：`.github/workflows/vercel-production-deploy.yml`
+
+- 触发方式：
+  - `push` 到 `main`（默认按变更文件自动计算受影响 App）
+  - `workflow_dispatch`（可手动指定 `deploy_all=true` 或 `apps=bubu-log,nunu-log`）
+- 部署范围：仅部署受影响 App，不会全量部署全部应用
+- 部署方式：按 Vercel 官方 CLI 流程执行
+  - `vercel pull --environment=production`
+  - `vercel build --prod`
+  - `vercel deploy --prebuilt --prod`
+
+必需配置：
+
+- GitHub Secret：`VERCEL_TOKEN`
+- GitHub Variables：
+  - `VERCEL_ORG_ID`（可填 team slug 或 team id）
+  - `VERCEL_TEAM_ID`（可选；若填写则优先用于 CLI 的 `VERCEL_ORG_ID`）
+  - `VERCEL_PROJECT_ID_BUBU_LOG`
+  - `VERCEL_PROJECT_ID_NUNU_ISLAND`
+  - `VERCEL_PROJECT_ID_NUNU_LOG`
+  - `VERCEL_PROJECT_ID_WEDDING_INVITE`
+
+如果希望只保留 GitHub Actions 触发的 Preview，建议在 Vercel 项目设置中关闭 Git 自动 Preview Deployments，避免重复部署。
+
+### GitHub Actions 触发 PR Preview（按受影响 App）
+
+仓库已新增 workflow：`.github/workflows/vercel-preview.yml`
+
+- 触发方式：PR `opened/reopened/synchronize/ready_for_review`
+- 清理提示：PR `closed` 时会在同一条预览评论追加关闭说明（部署资源由 Vercel 管理回收）
+- 部署范围：仅部署受影响 App，不会全量部署全部应用
+- 部署方式：按 Vercel 官方 CLI 流程执行
+  - `vercel pull --environment=preview`
+  - `vercel build`
+  - `vercel deploy --prebuilt`
+- 结果呈现：在 PR 评论中汇总每个 App 的状态（Ready/Failed/Skipped）和 Preview 链接
+
+必需 GitHub Secrets：
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID_BUBU_LOG`
+- `VERCEL_PROJECT_ID_NUNU_ISLAND`
+- `VERCEL_PROJECT_ID_NUNU_LOG`
+- `VERCEL_PROJECT_ID_WEDDING_INVITE`
+
 ### 定时任务（每日统计自动计算）
 
 - 已配置 Vercel Cron：每天 `03:00`（Asia/Shanghai）执行一次
@@ -157,7 +205,7 @@ rm .env.production
 
 **注意**: 确保已安装并登录 Vercel CLI: `pnpm add -g vercel && vercel login`
 
-## 使用 E2B 做 PR 分支预览（替代 Vercel Preview）
+## 使用 E2B 做 PR 分支预览（可与 Vercel Preview 并行）
 
 仓库已新增 workflow：`.github/workflows/e2b-preview.yml`
 
@@ -190,6 +238,13 @@ base64 < apps/bubu-log/.env.preview.local | tr -d '\n'
 - `E2B_TIMEOUT_MS`：sandbox 生命周期（毫秒，默认 `3600000`）
 - `E2B_APP_PORT`：应用端口（默认 `1030`）
 - `E2B_APP_PATH`：应用目录（默认 `apps/bubu-log`）
+- `E2B_PNPM_FILTERS`：`pnpm install` 过滤包（逗号分隔，默认按 `E2B_APP_PATH` 自动选择）
+
+如果要给 `apps/nunu-island` 开启 E2B Preview，建议设置：
+
+- `E2B_APP_PATH=apps/nunu-island`
+- `E2B_APP_PORT=1040`
+- `E2B_PNPM_FILTERS=nunu-island,@bubu-log/ui,@bubu-log/typescript-config`
 
 ### 构建更大规格 E2B Template（解决 `signal: killed`）
 

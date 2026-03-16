@@ -6,7 +6,9 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "dev:web": "turbo run dev --filter=bubu-log",
-    "dev:wedding": "turbo run dev --filter=wedding-invite"
+    "dev:wedding": "turbo run dev --filter=wedding-invite",
+    "verify:affected": "turbo run lint --continue",
+    "trigger:preview": "node -e \"console.log('trigger preview workflows')\""
   },
   "devDependencies": {
     "turbo": "^2.5.4"

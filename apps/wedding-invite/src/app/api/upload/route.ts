@@ -3,6 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
+    const uploadToken = process.env.UPLOAD_API_TOKEN;
+    if (!uploadToken) {
+      return NextResponse.json(
+        { success: false, error: "Upload API token not configured" },
+        { status: 500 }
+      );
+    }
+
+    const tokenFromHeader = request.headers.get("x-upload-token") || "";
+    if (tokenFromHeader !== uploadToken) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File;
 

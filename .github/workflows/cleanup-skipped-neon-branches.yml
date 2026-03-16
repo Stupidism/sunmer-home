@@ -22,6 +22,7 @@ jobs:
       bubu_log_skipped: ${{ steps.detect.outputs.bubu_log_skipped }}
       nunu_island_skipped: ${{ steps.detect.outputs.nunu_island_skipped }}
       nunu_log_skipped: ${{ steps.detect.outputs.nunu_log_skipped }}
+      wedding_invite_skipped: ${{ steps.detect.outputs.wedding_invite_skipped }}
     steps:
       - name: Detect skipped Vercel previews
         id: detect
@@ -72,7 +73,8 @@ jobs:
             const bubuLogSkipped = isSkipped('bubu-log')
             const nunuIslandSkipped = isSkipped('nunu-island')
             const nunuLogSkipped = isSkipped('nunu-log')
-            const shouldCleanup = bubuLogSkipped || nunuIslandSkipped || nunuLogSkipped
+            const weddingInviteSkipped = isSkipped('wedding-invite')
+            const shouldCleanup = bubuLogSkipped || nunuIslandSkipped || nunuLogSkipped || weddingInviteSkipped
 
             core.info(`PR head ref: ${pr.head.ref}`)
             core.info(`Detected statuses: ${vercelStatuses.map((s) => s.context).join(', ')}`)
@@ -84,6 +86,7 @@ jobs:
             core.setOutput('bubu_log_skipped', String(bubuLogSkipped))
             core.setOutput('nunu_island_skipped', String(nunuIslandSkipped))
             core.setOutput('nunu_log_skipped', String(nunuLogSkipped))
+            core.setOutput('wedding_invite_skipped', String(weddingInviteSkipped))
             core.setOutput('should_cleanup', String(shouldCleanup))
 
   cleanup-bubu-log:
@@ -94,8 +97,8 @@ jobs:
       - name: Delete Neon branch for bubu-log
         uses: neondatabase/delete-branch-action@v3
         with:
-          project_id: ${{ vars.BUBU_LOG_NEON_PROJECT_ID }}
-          api_key: ${{ secrets.BUBU_LOG_NEON_API_KEY }}
+          project_id: morning-mouse-25532220
+          api_key: ${{ secrets.NEON_API_KEY }}
           branch: preview/${{ needs.detect-skipped.outputs.branch }}
 
   cleanup-nunu-island:
@@ -106,19 +109,19 @@ jobs:
       - name: Check nunu-island Neon credentials
         id: creds
         run: |
-          if [ -n "${{ vars.NUNU_ISLAND_NEON_PROJECT_ID }}" ] && [ -n "${{ secrets.NUNU_ISLAND_NEON_API_KEY }}" ]; then
+          if [ -n "${{ secrets.NEON_API_KEY }}" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Missing NUNU_ISLAND_NEON_PROJECT_ID or NUNU_ISLAND_NEON_API_KEY, skip delete."
+            echo "Missing NEON_API_KEY, skip delete."
           fi
 
       - name: Delete Neon branch for nunu-island
         if: steps.creds.outputs.enabled == 'true'
         uses: neondatabase/delete-branch-action@v3
         with:
-          project_id: ${{ vars.NUNU_ISLAND_NEON_PROJECT_ID }}
-          api_key: ${{ secrets.NUNU_ISLAND_NEON_API_KEY }}
+          project_id: shy-feather-65398796
+          api_key: ${{ secrets.NEON_API_KEY }}
           branch: preview/${{ needs.detect-skipped.outputs.branch }}
 
   cleanup-nunu-log:
@@ -129,17 +132,40 @@ jobs:
       - name: Check nunu-log Neon credentials
         id: creds
         run: |
-          if [ -n "${{ vars.NUNU_LOG_NEON_PROJECT_ID }}" ] && [ -n "${{ secrets.NUNU_LOG_NEON_API_KEY }}" ]; then
+          if [ -n "${{ secrets.NEON_API_KEY }}" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Missing NUNU_LOG_NEON_PROJECT_ID or NUNU_LOG_NEON_API_KEY, skip delete."
+            echo "Missing NEON_API_KEY, skip delete."
           fi
 
       - name: Delete Neon branch for nunu-log
         if: steps.creds.outputs.enabled == 'true'
         uses: neondatabase/delete-branch-action@v3
         with:
-          project_id: ${{ vars.NUNU_LOG_NEON_PROJECT_ID }}
-          api_key: ${{ secrets.NUNU_LOG_NEON_API_KEY }}
+          project_id: shiny-dream-05784525
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: preview/${{ needs.detect-skipped.outputs.branch }}
+
+  cleanup-wedding-invite:
+    needs: detect-skipped
+    if: needs.detect-skipped.outputs.wedding_invite_skipped == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check wedding-invite Neon credentials
+        id: creds
+        run: |
+          if [ -n "${{ secrets.NEON_API_KEY }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Missing NEON_API_KEY, skip delete."
+          fi
+
+      - name: Delete Neon branch for wedding-invite
+        if: steps.creds.outputs.enabled == 'true'
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: small-wind-49890586
+          api_key: ${{ secrets.NEON_API_KEY }}
           branch: preview/${{ needs.detect-skipped.outputs.branch }}

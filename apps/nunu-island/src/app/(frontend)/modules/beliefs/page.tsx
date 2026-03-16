@@ -1,9 +1,31 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { beliefs } from '@/data/beliefs'
+import { defaultBeliefs } from '@/data/beliefs'
+import { fetchBeliefs } from '@/lib/content/fetch'
+import type { Belief } from '@/types'
 
 export default function BeliefsModulePage() {
+  const [beliefs, setBeliefs] = useState<Belief[]>(defaultBeliefs)
+
+  useEffect(() => {
+    let active = true
+
+    const load = async () => {
+      const nextBeliefs = await fetchBeliefs()
+      if (active) {
+        setBeliefs(nextBeliefs)
+      }
+    }
+
+    void load()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
   return (
     <main className="min-h-screen gradient-warm px-6 py-8">
       <section className="mx-auto max-w-4xl space-y-4">

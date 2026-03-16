@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ChevronDown, Lightbulb } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { babyRelationshipTemplate, otherTemplates } from '@/data/babyRelationshipTemplate'
+import { fetchTemplates } from '@/lib/content/fetch'
+import type { Template } from '@/types'
 
 const scenarioGuides = [
   {
@@ -42,10 +44,28 @@ const orderedTemplates = [
   ...otherTemplates.filter((t) => t.id === 'ifs'),
 ]
 
-const getTemplateById = (id: string) => orderedTemplates.find((item) => item.id === id)
-
 export default function ScenarioGuideModulePage() {
   const [expandedScenario, setExpandedScenario] = useState<string | null>(null)
+  const [templates, setTemplates] = useState<Template[]>(orderedTemplates)
+
+  useEffect(() => {
+    let active = true
+
+    const load = async () => {
+      const nextTemplates = await fetchTemplates()
+      if (active) {
+        setTemplates(nextTemplates)
+      }
+    }
+
+    void load()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const templateById = useMemo(() => new Map(templates.map((item) => [item.id, item])), [templates])
 
   return (
     <main className="min-h-screen gradient-warm px-6 py-8">
@@ -83,7 +103,7 @@ export default function ScenarioGuideModulePage() {
                       <p className="text-sm text-gray-400 mb-2">推荐模板：</p>
                       <div className="flex flex-wrap gap-2">
                         {scenario.templates.map((templateId) => {
-                          const template = getTemplateById(templateId)
+                          const template = templateById.get(templateId)
                           if (!template) return null
 
                           return (

@@ -69,6 +69,16 @@ export interface Config {
   collections: {
     'cms-admins': CmsAdmin;
     articles: Article;
+    beliefs: Belief;
+    templates: Template;
+    'emotion-categories': EmotionCategory;
+    'emotion-intensities': EmotionIntensity;
+    'emotion-branches': EmotionBranch;
+    'emotion-tools': EmotionTool;
+    'mindfulness-scenarios': MindfulnessScenario;
+    'mindfulness-habits': MindfulnessHabit;
+    'life-events': LifeEvent;
+    'belief-method-media': BeliefMethodMedia;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -78,6 +88,16 @@ export interface Config {
   collectionsSelect: {
     'cms-admins': CmsAdminsSelect<false> | CmsAdminsSelect<true>;
     articles: ArticlesSelect<false> | ArticlesSelect<true>;
+    beliefs: BeliefsSelect<false> | BeliefsSelect<true>;
+    templates: TemplatesSelect<false> | TemplatesSelect<true>;
+    'emotion-categories': EmotionCategoriesSelect<false> | EmotionCategoriesSelect<true>;
+    'emotion-intensities': EmotionIntensitiesSelect<false> | EmotionIntensitiesSelect<true>;
+    'emotion-branches': EmotionBranchesSelect<false> | EmotionBranchesSelect<true>;
+    'emotion-tools': EmotionToolsSelect<false> | EmotionToolsSelect<true>;
+    'mindfulness-scenarios': MindfulnessScenariosSelect<false> | MindfulnessScenariosSelect<true>;
+    'mindfulness-habits': MindfulnessHabitsSelect<false> | MindfulnessHabitsSelect<true>;
+    'life-events': LifeEventsSelect<false> | LifeEventsSelect<true>;
+    'belief-method-media': BeliefMethodMediaSelect<false> | BeliefMethodMediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -163,6 +183,243 @@ export interface Article {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "beliefs".
+ */
+export interface Belief {
+  id: number;
+  legacyId: string;
+  order: number;
+  oldBelief: string;
+  newBelief: string;
+  color: string;
+  bgColor: string;
+  theory: {
+    item: string;
+    id?: string | null;
+  }[];
+  methods:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  dailyApplication: {
+    item: string;
+    id?: string | null;
+  }[];
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "templates".
+ */
+export interface Template {
+  id: number;
+  legacyId: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  bgColor: string;
+  questionCount: number;
+  scenarios?:
+    | {
+        item: string;
+        id?: string | null;
+      }[]
+    | null;
+  layers?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emotion-categories".
+ */
+export interface EmotionCategory {
+  id: number;
+  legacyId: string;
+  name: string;
+  icon: string;
+  color: string;
+  bgColor: string;
+  emotions:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emotion-intensities".
+ */
+export interface EmotionIntensity {
+  id: number;
+  legacyId: string;
+  emotion: string;
+  mild: string;
+  moderate: string;
+  severe: string;
+  color: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emotion-branches".
+ */
+export interface EmotionBranch {
+  id: number;
+  legacyId: string;
+  name: string;
+  icon: string;
+  color: string;
+  bgColor: string;
+  description: string;
+  leaves:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  recommendedTools: {
+    item: string;
+    id?: string | null;
+  }[];
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emotion-tools".
+ */
+export interface EmotionTool {
+  id: number;
+  legacyId: string;
+  name: string;
+  icon: string;
+  duration: string;
+  description: string;
+  forEmotions: {
+    item: string;
+    id?: string | null;
+  }[];
+  color: string;
+  type: 'breathing' | 'meditation' | 'worksheet' | 'dialogue' | 'exercise';
+  steps?:
+    | {
+        item: string;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mindfulness-scenarios".
+ */
+export interface MindfulnessScenario {
+  id: number;
+  legacyId: string;
+  title: string;
+  icon: string;
+  color: string;
+  situation: string;
+  cycle: string;
+  steps:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  questions?:
+    | {
+        item: string;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mindfulness-habits".
+ */
+export interface MindfulnessHabit {
+  id: number;
+  legacyId: string;
+  title: string;
+  description: string;
+  examples?:
+    | {
+        item: string;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "life-events".
+ */
+export interface LifeEvent {
+  id: number;
+  legacyId: string;
+  date: string;
+  title: string;
+  description: string;
+  type: 'positive' | 'negative';
+  images?:
+    | {
+        url: string;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "belief-method-media".
+ */
+export interface BeliefMethodMedia {
+  id: number;
+  methodId: string;
+  type: 'image' | 'video' | 'audio';
+  url: string;
+  caption?: string | null;
+  sortOrder: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -192,6 +449,46 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'articles';
         value: number | Article;
+      } | null)
+    | ({
+        relationTo: 'beliefs';
+        value: number | Belief;
+      } | null)
+    | ({
+        relationTo: 'templates';
+        value: number | Template;
+      } | null)
+    | ({
+        relationTo: 'emotion-categories';
+        value: number | EmotionCategory;
+      } | null)
+    | ({
+        relationTo: 'emotion-intensities';
+        value: number | EmotionIntensity;
+      } | null)
+    | ({
+        relationTo: 'emotion-branches';
+        value: number | EmotionBranch;
+      } | null)
+    | ({
+        relationTo: 'emotion-tools';
+        value: number | EmotionTool;
+      } | null)
+    | ({
+        relationTo: 'mindfulness-scenarios';
+        value: number | MindfulnessScenario;
+      } | null)
+    | ({
+        relationTo: 'mindfulness-habits';
+        value: number | MindfulnessHabit;
+      } | null)
+    | ({
+        relationTo: 'life-events';
+        value: number | LifeEvent;
+      } | null)
+    | ({
+        relationTo: 'belief-method-media';
+        value: number | BeliefMethodMedia;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -275,6 +572,201 @@ export interface ArticlesSelect<T extends boolean = true> {
         id?: T;
       };
   contentText?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "beliefs_select".
+ */
+export interface BeliefsSelect<T extends boolean = true> {
+  legacyId?: T;
+  order?: T;
+  oldBelief?: T;
+  newBelief?: T;
+  color?: T;
+  bgColor?: T;
+  theory?:
+    | T
+    | {
+        item?: T;
+        id?: T;
+      };
+  methods?: T;
+  dailyApplication?:
+    | T
+    | {
+        item?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "templates_select".
+ */
+export interface TemplatesSelect<T extends boolean = true> {
+  legacyId?: T;
+  title?: T;
+  description?: T;
+  icon?: T;
+  color?: T;
+  bgColor?: T;
+  questionCount?: T;
+  scenarios?:
+    | T
+    | {
+        item?: T;
+        id?: T;
+      };
+  layers?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emotion-categories_select".
+ */
+export interface EmotionCategoriesSelect<T extends boolean = true> {
+  legacyId?: T;
+  name?: T;
+  icon?: T;
+  color?: T;
+  bgColor?: T;
+  emotions?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emotion-intensities_select".
+ */
+export interface EmotionIntensitiesSelect<T extends boolean = true> {
+  legacyId?: T;
+  emotion?: T;
+  mild?: T;
+  moderate?: T;
+  severe?: T;
+  color?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emotion-branches_select".
+ */
+export interface EmotionBranchesSelect<T extends boolean = true> {
+  legacyId?: T;
+  name?: T;
+  icon?: T;
+  color?: T;
+  bgColor?: T;
+  description?: T;
+  leaves?: T;
+  recommendedTools?:
+    | T
+    | {
+        item?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emotion-tools_select".
+ */
+export interface EmotionToolsSelect<T extends boolean = true> {
+  legacyId?: T;
+  name?: T;
+  icon?: T;
+  duration?: T;
+  description?: T;
+  forEmotions?:
+    | T
+    | {
+        item?: T;
+        id?: T;
+      };
+  color?: T;
+  type?: T;
+  steps?:
+    | T
+    | {
+        item?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mindfulness-scenarios_select".
+ */
+export interface MindfulnessScenariosSelect<T extends boolean = true> {
+  legacyId?: T;
+  title?: T;
+  icon?: T;
+  color?: T;
+  situation?: T;
+  cycle?: T;
+  steps?: T;
+  questions?:
+    | T
+    | {
+        item?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mindfulness-habits_select".
+ */
+export interface MindfulnessHabitsSelect<T extends boolean = true> {
+  legacyId?: T;
+  title?: T;
+  description?: T;
+  examples?:
+    | T
+    | {
+        item?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "life-events_select".
+ */
+export interface LifeEventsSelect<T extends boolean = true> {
+  legacyId?: T;
+  date?: T;
+  title?: T;
+  description?: T;
+  type?: T;
+  images?:
+    | T
+    | {
+        url?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "belief-method-media_select".
+ */
+export interface BeliefMethodMediaSelect<T extends boolean = true> {
+  methodId?: T;
+  type?: T;
+  url?: T;
+  caption?: T;
+  sortOrder?: T;
   updatedAt?: T;
   createdAt?: T;
 }
