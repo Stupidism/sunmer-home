@@ -184,6 +184,30 @@ jobs:
             fi
           fi
 
+          if [ -z "$PROJECT_ID" ] && [ -n "$VERCEL_TOKEN" ] && [ -n "$ORG_ID" ]; then
+            RESOLVED_PROJECT_ID=$(APP_ID="$APP_ID" ORG_ID="$ORG_ID" VERCEL_TOKEN="$VERCEL_TOKEN" node -e "
+              const appId = process.env.APP_ID
+              const orgId = process.env.ORG_ID
+              const token = process.env.VERCEL_TOKEN
+
+              async function readProjectIdByName(name) {
+                const endpoint = `https://api.vercel.com/v9/projects/${encodeURIComponent(name)}?teamId=${encodeURIComponent(orgId)}`
+                const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } })
+                if (!res.ok) return ''
+                const data = await res.json()
+                return data.id || ''
+              }
+
+              readProjectIdByName(appId)
+                .then((id) => process.stdout.write(id))
+                .catch(() => process.stdout.write(''))
+            ")
+
+            if [ -n "$RESOLVED_PROJECT_ID" ]; then
+              PROJECT_ID="$RESOLVED_PROJECT_ID"
+            fi
+          fi
+
           if [ -z "$PROJECT_ID" ] || [ -z "$VERCEL_TOKEN" ] || [ -z "$ORG_ID" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "reason=missing-vercel-credentials" >> "$GITHUB_OUTPUT"
