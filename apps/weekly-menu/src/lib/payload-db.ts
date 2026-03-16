@@ -41,6 +41,16 @@ export function getPayloadDatabaseSource():
   return 'MISSING'
 }
 
+export function getRuntimeEnv(): string {
+  if (process.env.VERCEL_ENV === 'preview') {
+    return 'preview'
+  }
+  if (process.env.VERCEL_ENV === 'production') {
+    return 'production'
+  }
+  return process.env.NODE_ENV || 'unknown'
+}
+
 function getErrorDetails(error: unknown): { code?: string; message?: string } {
   if (!error || typeof error !== 'object') {
     return {}
@@ -106,7 +116,9 @@ export async function ensurePlannerUsersTable(): Promise<void> {
   } catch (error) {
     const details = getErrorDetails(error)
     console.error('[weekly-menu][auth-diagnostic] ensure_planner_users_table_failed', {
-      env: process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown',
+      event: 'ensure_planner_users_table_failed',
+      env: getRuntimeEnv(),
+      table: 'planner_users',
       dbSource: getPayloadDatabaseSource(),
       errorCode: details.code,
       errorMessage: details.message,

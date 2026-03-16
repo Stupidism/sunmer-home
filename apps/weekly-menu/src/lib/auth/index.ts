@@ -1,7 +1,12 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { ensurePlannerUsersTable, getPayloadDatabaseSource, getPayloadPool } from '@/lib/payload-db'
+import {
+  ensurePlannerUsersTable,
+  getPayloadDatabaseSource,
+  getPayloadPool,
+  getRuntimeEnv,
+} from '@/lib/payload-db'
 
 type PlannerUserDoc = {
   id: string
@@ -37,8 +42,15 @@ function getErrorDetails(error: unknown): { code?: string; message?: string } {
   }
 }
 
-function getRuntimeEnv(): string {
-  return process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown'
+function logInvalidCredentials(loginHint: string, reason: 'user_not_found' | 'password_mismatch', userId?: string): void {
+  console.warn('[weekly-menu][auth-diagnostic] authorize_invalid_credentials', {
+    event: 'authorize_invalid_credentials',
+    env: getRuntimeEnv(),
+    provider: 'credentials',
+    loginHint,
+    reason,
+    userId,
+  })
 }
 
 function isBcryptHash(value: string): boolean {
@@ -72,6 +84,7 @@ async function verifyAndUpgradePassword(
   } catch (error) {
     const details = getErrorDetails(error)
     console.error('[weekly-menu][auth-diagnostic] legacy_password_upgrade_failed', {
+      event: 'legacy_password_upgrade_failed',
       env: getRuntimeEnv(),
       userId: user.id,
       errorCode: details.code,
@@ -129,14 +142,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const loginHint = normalizeLoginHint(String(credentials?.username || ''))
 
         if (!credentials?.username || !credentials?.password) {
-          console.warn('[weekly-menu][auth-diagnostic] authorize_invalid_credentials', {
-            env: getRuntimeEnv(),
-            provider: 'credentials',
-            loginHint,
-            reason: 'missing_fields',
-            hasUsername: Boolean(credentials?.username),
-            hasPassword: Boolean(credentials?.password),
-          })
           return null
         }
 
@@ -146,6 +151,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         } catch (error) {
           const details = getErrorDetails(error)
           console.error('[weekly-menu][auth-diagnostic] authorize_lookup_failed', {
+            event: 'authorize_lookup_failed',
             env: getRuntimeEnv(),
             provider: 'credentials',
             loginHint,
@@ -157,12 +163,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         if (!user?.password) {
-          console.warn('[weekly-menu][auth-diagnostic] authorize_invalid_credentials', {
-            env: getRuntimeEnv(),
-            provider: 'credentials',
-            loginHint,
-            reason: 'user_not_found',
-          })
+          logInvalidCredentials(loginHint, 'user_not_found')
           return null
         }
 
@@ -176,6 +177,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         } catch (error) {
           const details = getErrorDetails(error)
           console.error('[weekly-menu][auth-diagnostic] authorize_password_check_failed', {
+            event: 'authorize_password_check_failed',
             env: getRuntimeEnv(),
             provider: 'credentials',
             userId: user.id,
@@ -187,13 +189,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         if (!isValid) {
-          console.warn('[weekly-menu][auth-diagnostic] authorize_invalid_credentials', {
-            env: getRuntimeEnv(),
-            provider: 'credentials',
-            userId: user.id,
-            loginHint,
-            reason: 'password_mismatch',
-          })
+          logInvalidCredentials(loginHint, 'password_mismatch', user.id)
           return null
         }
 
