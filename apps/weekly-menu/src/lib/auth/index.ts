@@ -42,6 +42,7 @@ async function findUserByLogin(login: string): Promise<PlannerUserDoc | null> {
 const authSecret =
   process.env.AUTH_SECRET ||
   process.env.NEXTAUTH_SECRET ||
+  process.env.PAYLOAD_SECRET ||
   (process.env.NODE_ENV !== 'production' ? 'weekly-menu-dev-auth-secret' : undefined)
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
