@@ -24,7 +24,11 @@ function getPayloadDatabaseURL(): string {
   )
 }
 
-function getPayloadDatabaseSource(): 'PAYLOAD_DATABASE_URL' | 'DATABASE_URL' | 'DATABASE_URL_UNPOOLED' | 'MISSING' {
+export function getPayloadDatabaseSource():
+  | 'PAYLOAD_DATABASE_URL'
+  | 'DATABASE_URL'
+  | 'DATABASE_URL_UNPOOLED'
+  | 'MISSING' {
   if (process.env.PAYLOAD_DATABASE_URL) {
     return 'PAYLOAD_DATABASE_URL'
   }
@@ -102,6 +106,7 @@ export async function ensurePlannerUsersTable(): Promise<void> {
   } catch (error) {
     const details = getErrorDetails(error)
     console.error('[weekly-menu][auth-diagnostic] ensure_planner_users_table_failed', {
+      env: process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown',
       dbSource: getPayloadDatabaseSource(),
       errorCode: details.code,
       errorMessage: details.message,

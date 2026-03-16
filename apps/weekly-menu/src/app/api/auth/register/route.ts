@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
-import { ensurePlannerUsersTable, getPayloadPool } from '@/lib/payload-db'
+import { ensurePlannerUsersTable, getPayloadDatabaseSource, getPayloadPool } from '@/lib/payload-db'
 
 type RegisterBody = {
   username?: unknown
@@ -97,6 +97,9 @@ export async function POST(request: Request) {
       const dbError = error as { code?: string; constraint?: string }
 
       console.error('[weekly-menu][auth-diagnostic] register_db_error', {
+        env: process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown',
+        dbSource: getPayloadDatabaseSource(),
+        loginHint: usernameHint,
         errorCode: dbError.code,
         constraint: dbError.constraint,
       })
@@ -114,6 +117,8 @@ export async function POST(request: Request) {
     const genericError = error as { message?: unknown; code?: unknown }
 
     console.error('[weekly-menu][auth-diagnostic] register_unknown_error', {
+      env: process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown',
+      dbSource: getPayloadDatabaseSource(),
       loginHint: usernameHint,
       errorCode: typeof genericError.code === 'string' ? genericError.code : undefined,
       errorMessage: typeof genericError.message === 'string' ? genericError.message : undefined,

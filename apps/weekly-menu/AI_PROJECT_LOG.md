@@ -680,6 +680,24 @@ Note: entries include both active and reverted changes to preserve context.
   - `corepack pnpm -C apps/weekly-menu lint` (pass with 1 existing warning in `src/app/(frontend)/layout.tsx`)
   - `corepack pnpm -C apps/weekly-menu build` (pass)
 
+### 2026-03-16 - Entry 43 - Refine diagnostics payload to minimal safe fields
+- Type: fix
+- Status: active
+- Files:
+  - `src/lib/auth/index.ts`
+  - `src/lib/payload-db.ts`
+  - `src/app/api/auth/register/route.ts`
+- What changed:
+  - Refined auth diagnostics to emphasize failure-only events and collapse invalid credential cases into `authorize_invalid_credentials` with reason tags.
+  - Added normalized context fields (`env`, `provider`, `dbSource`, masked `loginHint`) for lookup and registration failure logs.
+  - Exported DB source helper for consistent diagnostics payloads across auth and register paths.
+- Why:
+  - Keep logs minimal while still quickly distinguishing schema/env wiring failures (for example `42P01`) from user credential mismatches.
+  - Avoid sensitive data exposure while improving field consistency for Vercel runtime troubleshooting.
+- Verification:
+  - `corepack pnpm -C apps/weekly-menu lint` (pass with 1 existing warning in `src/app/(frontend)/layout.tsx`)
+  - `corepack pnpm -C apps/weekly-menu build` (pass)
+
 ## 4) Current Known State / Open Items
 
 - Frontend features and REST API are working and build successfully.
