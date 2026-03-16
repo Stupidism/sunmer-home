@@ -48,7 +48,6 @@ jobs:
               'pnpm-workspace.yaml',
               'package.json',
               'turbo.json',
-              '.github/workflows/vercel-preview.yml',
             ]
 
             const projects = [
@@ -79,6 +78,13 @@ jobs:
                 appPath: 'apps/wedding-invite',
                 projectIdSecret: 'VERCEL_PROJECT_ID_WEDDING_INVITE',
                 triggers: ['apps/wedding-invite/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'weekly-menu',
+                appName: 'weekly-menu',
+                appPath: 'apps/weekly-menu',
+                projectIdSecret: 'VERCEL_PROJECT_ID_WEEKLY_MENU',
+                triggers: ['apps/weekly-menu/'],
               },
             ]
 
@@ -127,11 +133,13 @@ jobs:
 
       - name: Resolve Vercel project and org id
         id: resolve
+        continue-on-error: true
         env:
           VERCEL_PROJECT_ID_BUBU_LOG: ${{ vars.VERCEL_PROJECT_ID_BUBU_LOG }}
           VERCEL_PROJECT_ID_NUNU_ISLAND: ${{ vars.VERCEL_PROJECT_ID_NUNU_ISLAND }}
           VERCEL_PROJECT_ID_NUNU_LOG: ${{ vars.VERCEL_PROJECT_ID_NUNU_LOG }}
           VERCEL_PROJECT_ID_WEDDING_INVITE: ${{ vars.VERCEL_PROJECT_ID_WEDDING_INVITE }}
+          VERCEL_PROJECT_ID_WEEKLY_MENU: ${{ vars.VERCEL_PROJECT_ID_WEEKLY_MENU }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_SCOPE: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
@@ -153,6 +161,9 @@ jobs:
             wedding-invite)
               PROJECT_ID="$VERCEL_PROJECT_ID_WEDDING_INVITE"
               ;;
+            weekly-menu)
+              PROJECT_ID="$VERCEL_PROJECT_ID_WEEKLY_MENU"
+              ;;
             *)
               ;;
           esac
@@ -170,6 +181,30 @@ jobs:
               ORG_ID=$(curl -fsSL -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v2/teams?slug=$VERCEL_SCOPE" \
                 | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);if(Array.isArray(j.teams)&&j.teams[0]&&j.teams[0].id)process.stdout.write(j.teams[0].id)}catch{}})" \
                 || true)
+            fi
+          fi
+
+          if [ -z "$PROJECT_ID" ] && [ -n "$VERCEL_TOKEN" ] && [ -n "$ORG_ID" ]; then
+            RESOLVED_PROJECT_ID=$(APP_ID="$APP_ID" ORG_ID="$ORG_ID" VERCEL_TOKEN="$VERCEL_TOKEN" node -e "
+              const appId = process.env.APP_ID
+              const orgId = process.env.ORG_ID
+              const token = process.env.VERCEL_TOKEN
+
+              async function readProjectIdByName(name) {
+                const endpoint = `https://api.vercel.com/v9/projects/${encodeURIComponent(name)}?teamId=${encodeURIComponent(orgId)}`
+                const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } })
+                if (!res.ok) return ''
+                const data = await res.json()
+                return data.id || ''
+              }
+
+              readProjectIdByName(appId)
+                .then((id) => process.stdout.write(id))
+                .catch(() => process.stdout.write(''))
+            ")
+
+            if [ -n "$RESOLVED_PROJECT_ID" ]; then
+              PROJECT_ID="$RESOLVED_PROJECT_ID"
             fi
           fi
 
@@ -289,11 +324,23 @@ jobs:
           probe "/admin/login"
 
       - name: Persist preview result
+        if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/vercel-preview-result"
           RESULT_FILE="$RUNNER_TEMP/vercel-preview-result/${{ matrix.appId }}.json"
 
-          if [ '${{ steps.resolve.outputs.enabled }}' != 'true' ]; then
+          if [ '${{ steps.resolve.outcome }}' = 'failure' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "failed",
+            "reason": "resolve-vercel-config-failed",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
+          }
+          EOF
+          elif [ '${{ steps.resolve.outputs.enabled }}' != 'true' ]; then
             cat > "$RESULT_FILE" <<EOF
           {
             "appId": "${{ matrix.appId }}",
@@ -367,7 +414,7 @@ jobs:
         with:
           name: vercel-preview-result-${{ matrix.appId }}
           path: ${{ runner.temp }}/vercel-preview-result/${{ matrix.appId }}.json
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Upsert preview comment
         if: always()

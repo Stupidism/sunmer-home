@@ -155,11 +155,14 @@ async function createPreview() {
   const port = parseOptionalInt(process.env.E2B_APP_PORT, 1030)
   const timeoutMs = parseOptionalInt(process.env.E2B_TIMEOUT_MS, 60 * 60 * 1000)
   const template = process.env.E2B_TEMPLATE
+  const previewPurpose = process.env.E2B_PREVIEW_PURPOSE || 'pr-preview'
   const pnpmInstallCommand = resolveInstallCommand(appPath)
+  const buildCommand = process.env.E2B_BUILD_COMMAND || 'pnpm build'
+  const startCommand = process.env.E2B_START_COMMAND || 'pnpm start'
 
   const metadata = {
     owner: 'github-actions',
-    purpose: 'pr-preview',
+    purpose: previewPurpose,
     repo,
     pr: prNumber,
     app: appId,
@@ -199,13 +202,13 @@ async function createPreview() {
   )
   await runCommandWithLogs(
     sandbox,
-    'pnpm-install',
-    pnpmInstallCommand,
-    {
-      cwd: '/home/user/app',
-      timeoutMs: 15 * 60 * 1000,
-    }
+    'git-checkout-sha',
+    `bash -lc 'git -C /home/user/app/app fetch --depth 1 origin '\''${escapeShell(headSha)}'\'' && git -C /home/user/app/app checkout --detach '\''${escapeShell(headSha)}'\'''`
   )
+  await runCommandWithLogs(sandbox, 'pnpm-install', pnpmInstallCommand, {
+    cwd: '/home/user/app',
+    timeoutMs: 15 * 60 * 1000,
+  })
 
   if (appId === 'wedding-invite') {
     await runCommandWithLogs(sandbox, 'db-migrate', 'pnpm db:migrate', {
@@ -221,12 +224,12 @@ async function createPreview() {
     })
   }
 
-  await runCommandWithLogs(sandbox, 'pnpm-build', 'pnpm build', {
+  await runCommandWithLogs(sandbox, 'pnpm-build', buildCommand, {
     cwd: `/home/user/app/${appPath}`,
     envs: appEnv,
     timeoutMs: 20 * 60 * 1000,
   })
-  await runCommandWithLogs(sandbox, 'pnpm-start', 'pnpm start', {
+  await runCommandWithLogs(sandbox, 'pnpm-start', startCommand, {
     cwd: `/home/user/app/${appPath}`,
     envs: appEnv,
     background: true,
@@ -265,7 +268,7 @@ async function cleanupPreview() {
   const appId = process.env.E2B_APP_ID
   const metadata = {
     owner: 'github-actions',
-    purpose: 'pr-preview',
+    purpose: process.env.E2B_PREVIEW_PURPOSE || 'pr-preview',
     repo,
     pr: prNumber,
   }
@@ -290,7 +293,7 @@ async function cleanupPreview() {
 
 const mode = process.argv[2]
 if (!mode || !['create', 'cleanup'].includes(mode)) {
-  throw new Error("Usage: node .github/scripts/e2b-preview.mjs <create|cleanup>")
+  throw new Error('Usage: node .github/scripts/e2b-preview.mjs <create|cleanup>')
 }
 
 if (mode === 'create') {
