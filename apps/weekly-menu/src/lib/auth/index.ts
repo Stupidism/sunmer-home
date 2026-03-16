@@ -13,6 +13,30 @@ type PlannerUserDoc = {
 
 const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$/
 
+function normalizeLoginHint(rawLogin: string): string {
+  const input = rawLogin.trim()
+  if (!input) {
+    return 'empty'
+  }
+  if (input.length <= 2) {
+    return `${input[0]}*`
+  }
+  return `${input.slice(0, 2)}***(${input.length})`
+}
+
+function getErrorDetails(error: unknown): { code?: string; message?: string } {
+  if (!error || typeof error !== 'object') {
+    return {}
+  }
+
+  const withCode = error as { code?: unknown; message?: unknown }
+
+  return {
+    code: typeof withCode.code === 'string' ? withCode.code : undefined,
+    message: typeof withCode.message === 'string' ? withCode.message : undefined,
+  }
+}
+
 function isBcryptHash(value: string): boolean {
   return BCRYPT_HASH_REGEX.test(value)
 }
@@ -32,14 +56,23 @@ async function verifyAndUpgradePassword(
 
   const nextPasswordHash = await bcrypt.hash(rawPasswordInput, 12)
   const pool = getPayloadPool()
-  await pool.query(
-    `
-    UPDATE planner_users
-    SET password = $1, updated_at = now()
-    WHERE id::text = $2
-    `,
-    [nextPasswordHash, user.id]
-  )
+  try {
+    await pool.query(
+      `
+      UPDATE planner_users
+      SET password = $1, updated_at = now()
+      WHERE id::text = $2
+      `,
+      [nextPasswordHash, user.id]
+    )
+  } catch (error) {
+    const details = getErrorDetails(error)
+    console.error('[weekly-menu][auth-diagnostic] legacy_password_upgrade_failed', {
+      userId: user.id,
+      errorCode: details.code,
+      errorMessage: details.message,
+    })
+  }
 
   return true
 }
@@ -88,21 +121,59 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: '密码', type: 'password' },
       },
       async authorize(credentials) {
+        const loginHint = normalizeLoginHint(String(credentials?.username || ''))
+
         if (!credentials?.username || !credentials?.password) {
+          console.error('[weekly-menu][auth-diagnostic] authorize_missing_credentials', {
+            hasUsername: Boolean(credentials?.username),
+            hasPassword: Boolean(credentials?.password),
+          })
           return null
         }
 
-        const user = await findUserByLogin(String(credentials.username))
+        let user: PlannerUserDoc | null = null
+        try {
+          user = await findUserByLogin(String(credentials.username))
+        } catch (error) {
+          const details = getErrorDetails(error)
+          console.error('[weekly-menu][auth-diagnostic] authorize_lookup_failed', {
+            loginHint,
+            errorCode: details.code,
+            errorMessage: details.message,
+          })
+          throw error
+        }
+
         if (!user?.password) {
+          console.error('[weekly-menu][auth-diagnostic] authorize_user_not_found', {
+            loginHint,
+          })
           return null
         }
 
-        const isValid = await verifyAndUpgradePassword(
-          user,
-          String(credentials.password),
-          String(user.password)
-        )
+        let isValid = false
+        try {
+          isValid = await verifyAndUpgradePassword(
+            user,
+            String(credentials.password),
+            String(user.password)
+          )
+        } catch (error) {
+          const details = getErrorDetails(error)
+          console.error('[weekly-menu][auth-diagnostic] authorize_password_check_failed', {
+            userId: user.id,
+            loginHint,
+            errorCode: details.code,
+            errorMessage: details.message,
+          })
+          throw error
+        }
+
         if (!isValid) {
+          console.error('[weekly-menu][auth-diagnostic] authorize_password_mismatch', {
+            userId: user.id,
+            loginHint,
+          })
           return null
         }
 

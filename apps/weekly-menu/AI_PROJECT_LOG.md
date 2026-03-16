@@ -662,6 +662,24 @@ Note: entries include both active and reverted changes to preserve context.
   - `corepack pnpm -C apps/weekly-menu lint` (pass with 1 existing warning in `src/app/(frontend)/layout.tsx`)
   - `corepack pnpm -C apps/weekly-menu build` (pass)
 
+### 2026-03-16 - Entry 42 - Add minimal auth diagnostics for preview debugging
+- Type: fix
+- Status: active
+- Files:
+  - `src/lib/auth/index.ts`
+  - `src/lib/payload-db.ts`
+  - `src/app/api/auth/register/route.ts`
+- What changed:
+  - Added minimal server-side auth diagnostics for credential login failures (missing credentials, lookup failure, user not found, password mismatch, password-check failure).
+  - Added diagnostics in planner-users bootstrap path to log ensure-table failures with db source and pg error code/message only.
+  - Added registration diagnostics for DB constraint/unknown failures without logging plaintext passwords or hashes.
+- Why:
+  - User requested immediate minimal diagnostics to distinguish DB schema/environment issues from credential mismatches in Vercel preview.
+  - Existing runtime errors (`relation "planner_users" does not exist`) needed clearer stage-level visibility.
+- Verification:
+  - `corepack pnpm -C apps/weekly-menu lint` (pass with 1 existing warning in `src/app/(frontend)/layout.tsx`)
+  - `corepack pnpm -C apps/weekly-menu build` (pass)
+
 ## 4) Current Known State / Open Items
 
 - Frontend features and REST API are working and build successfully.

@@ -28,7 +28,20 @@ function normalizeText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function normalizeLoginHint(rawLogin: string): string {
+  const input = rawLogin.trim()
+  if (!input) {
+    return 'empty'
+  }
+  if (input.length <= 2) {
+    return `${input[0]}*`
+  }
+  return `${input.slice(0, 2)}***(${input.length})`
+}
+
 export async function POST(request: Request) {
+  let usernameHint = 'empty'
+
   try {
     const body = (await request.json()) as RegisterBody
 
@@ -36,6 +49,7 @@ export async function POST(request: Request) {
     const password = normalizeText(body.password)
     const name = normalizeText(body.name)
     const userId = normalizeText(body.userId)
+    usernameHint = normalizeLoginHint(username)
 
     if (!username || username.length < 3 || username.length > 32 || !USERNAME_REGEX.test(username)) {
       return errorResponse(422, 'INVALID_USERNAME', '用户名长度需为 3-32，且仅支持字母数字._-')
@@ -82,6 +96,11 @@ export async function POST(request: Request) {
     if (error && typeof error === 'object' && 'code' in error) {
       const dbError = error as { code?: string; constraint?: string }
 
+      console.error('[weekly-menu][auth-diagnostic] register_db_error', {
+        errorCode: dbError.code,
+        constraint: dbError.constraint,
+      })
+
       if (dbError.code === '23505') {
         if (dbError.constraint?.includes('username')) {
           return errorResponse(409, 'USERNAME_EXISTS', '用户名已存在')
@@ -91,6 +110,14 @@ export async function POST(request: Request) {
         }
       }
     }
+
+    const genericError = error as { message?: unknown; code?: unknown }
+
+    console.error('[weekly-menu][auth-diagnostic] register_unknown_error', {
+      loginHint: usernameHint,
+      errorCode: typeof genericError.code === 'string' ? genericError.code : undefined,
+      errorMessage: typeof genericError.message === 'string' ? genericError.message : undefined,
+    })
 
     return errorResponse(500, 'INTERNAL_ERROR', '注册失败，请稍后重试')
   }
