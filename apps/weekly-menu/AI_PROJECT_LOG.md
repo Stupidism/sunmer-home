@@ -736,3 +736,21 @@ Required entry format:
   - `apps/weekly-menu/src/app/api/weekly-menus/route.ts`
   - `apps/weekly-menu/src/app/api/weekly-menus/[id]/route.ts`
   - `apps/weekly-menu/payload.config.ts`
+
+### 2026-03-16 - Entry 43 - Tighten minimal auth diagnostics
+- Type: fix
+- Status: active
+- Files:
+  - `src/lib/payload-db.ts`
+  - `src/lib/auth/index.ts`
+  - `src/app/api/auth/register/route.ts`
+- What changed:
+  - Added explicit `event` and normalized `env` fields to the minimal auth diagnostic logs.
+  - Reduced credential-login noise by logging only lookup errors, invalid credentials, password-check failures, and legacy password upgrade failures.
+  - Kept registration diagnostics failure-only, with masked login hints plus DB source/code metadata and no secrets.
+- Why:
+  - User wanted a concise, production-safe diagnostic set focused on the preview `planner_users` missing-table issue.
+  - Consistent event names and safe fields make Vercel preview logs easier to scan while avoiding credential leakage.
+- Verification:
+  - `corepack pnpm -C apps/weekly-menu lint` (pass with 1 existing warning in `src/app/(frontend)/layout.tsx`)
+  - `corepack pnpm -C apps/weekly-menu build` (pass)
