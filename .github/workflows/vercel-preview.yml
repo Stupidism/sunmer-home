@@ -48,7 +48,6 @@ jobs:
               'pnpm-workspace.yaml',
               'package.json',
               'turbo.json',
-              '.github/workflows/vercel-preview.yml',
             ]
 
             const projects = [

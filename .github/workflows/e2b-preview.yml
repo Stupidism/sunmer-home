@@ -48,8 +48,6 @@ jobs:
               'pnpm-workspace.yaml',
               'package.json',
               'turbo.json',
-              '.github/scripts/e2b-preview.mjs',
-              '.github/workflows/e2b-preview.yml',
             ]
 
             const projects = [
