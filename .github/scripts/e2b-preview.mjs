@@ -74,6 +74,10 @@ function escapeShell(value) {
   return value.replace(/'/g, "'\"'\"'")
 }
 
+function normalizeSpaces(value) {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
 const logFile = process.env.E2B_LOG_FILE
 
 function writeLog(line) {
@@ -120,10 +124,21 @@ async function createPreview() {
   const port = parseOptionalInt(process.env.E2B_APP_PORT, 1030)
   const timeoutMs = parseOptionalInt(process.env.E2B_TIMEOUT_MS, 60 * 60 * 1000)
   const template = process.env.E2B_TEMPLATE
+  const previewPurpose = process.env.E2B_PREVIEW_PURPOSE || 'pr-preview'
+  const workspaceFilters = normalizeSpaces(
+    process.env.E2B_PNPM_FILTERS ||
+      '--filter bubu-log --filter @bubu-log/ui --filter @bubu-log/log-ui --filter @bubu-log/typescript-config'
+  )
+
+  const installCommand =
+    process.env.E2B_INSTALL_COMMAND ||
+    `pnpm install --frozen-lockfile ${workspaceFilters} --child-concurrency=1 --network-concurrency=2`
+  const buildCommand = process.env.E2B_BUILD_COMMAND || 'pnpm build'
+  const startCommand = process.env.E2B_START_COMMAND || 'pnpm start'
 
   const metadata = {
     owner: 'github-actions',
-    purpose: 'pr-preview',
+    purpose: previewPurpose,
     repo,
     pr: prNumber,
   }
@@ -155,19 +170,24 @@ async function createPreview() {
   )
   await runCommandWithLogs(
     sandbox,
+    'git-checkout-sha',
+    `bash -lc 'git -C /home/user/app/app fetch --depth 1 origin '\''${escapeShell(headSha)}'\'' && git -C /home/user/app/app checkout --detach '\''${escapeShell(headSha)}'\'''`
+  )
+  await runCommandWithLogs(
+    sandbox,
     'pnpm-install',
-    'pnpm install --frozen-lockfile --filter bubu-log --filter @bubu-log/ui --filter @bubu-log/log-ui --filter @bubu-log/typescript-config --child-concurrency=1 --network-concurrency=2',
+    installCommand,
     {
       cwd: '/home/user/app',
       timeoutMs: 15 * 60 * 1000,
     }
   )
-  await runCommandWithLogs(sandbox, 'pnpm-build', 'pnpm build', {
+  await runCommandWithLogs(sandbox, 'pnpm-build', buildCommand, {
     cwd: `/home/user/app/${appPath}`,
     envs: appEnv,
     timeoutMs: 20 * 60 * 1000,
   })
-  await runCommandWithLogs(sandbox, 'pnpm-start', 'pnpm start', {
+  await runCommandWithLogs(sandbox, 'pnpm-start', startCommand, {
     cwd: `/home/user/app/${appPath}`,
     envs: appEnv,
     background: true,
@@ -199,7 +219,7 @@ async function cleanupPreview() {
   const prNumber = requireEnv('PR_NUMBER')
   const metadata = {
     owner: 'github-actions',
-    purpose: 'pr-preview',
+    purpose: process.env.E2B_PREVIEW_PURPOSE || 'pr-preview',
     repo,
     pr: prNumber,
   }

@@ -1,0 +1,147 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --radius: 0.75rem;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --muted: #e2e8f0;
+  --muted-foreground: #475569;
+  --border: #e2e8f0;
+  --primary: #0f766e;
+  --primary-foreground: #f8fafc;
+}
+
+@theme inline {
+  --font-sans: 'Noto Sans SC', system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --radius-md: var(--radius);
+}
+
+body {
+  background: radial-gradient(circle at 10% 10%, #dbeafe 0, transparent 30%),
+    radial-gradient(circle at 90% 20%, #dcfce7 0, transparent 30%),
+    linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.phone-container {
+  --phone-max-width: 28rem;
+}
+
+@media (min-width: 448px) {
+  body {
+    padding: 2rem 1rem;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+    padding: 0;
+    font-size: 12px;
+  }
+
+  .print-compact-root {
+    max-width: none;
+    padding: 0;
+  }
+
+  .print-header {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #fff;
+    padding: 0 0 8px 0;
+    margin-bottom: 8px;
+  }
+
+  .print-header h1 {
+    font-size: 22px;
+    margin: 0;
+  }
+
+  .print-actions {
+    display: none;
+  }
+
+  .print-day-list {
+    margin-top: 0;
+    padding-bottom: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .print-day-card {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    box-shadow: none;
+    padding: 8px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-day-title {
+    font-size: 16px;
+    line-height: 1.2;
+  }
+
+  .print-meal-list {
+    margin-top: 6px;
+    gap: 6px;
+  }
+
+  .print-meal-card {
+    padding: 6px;
+    border-radius: 6px;
+    background: #f8fafc;
+  }
+
+  .print-meal-label {
+    font-size: 12px;
+    line-height: 1.35;
+    padding-top: 2px;
+  }
+
+  .print-meal-row {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    align-items: start;
+    gap: 4px;
+  }
+
+  .print-dish-grid {
+    margin-top: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px;
+    font-size: 11px;
+  }
+
+  .print-dish-grid > div {
+    padding: 2px 4px;
+    min-height: 22px;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .print-dish-grid button {
+    display: none;
+  }
+}

@@ -1,4 +1,4 @@
-name: E2B PR Preview
+name: Weekly Menu E2B PR Preview
 
 on:
   pull_request:
@@ -8,6 +8,10 @@ on:
       - synchronize
       - ready_for_review
       - closed
+    paths:
+      - 'apps/weekly-menu/**'
+      - '.github/workflows/weekly-menu-e2b-preview.yml'
+      - '.github/scripts/e2b-preview.mjs'
 
 permissions:
   contents: read
@@ -20,6 +24,9 @@ jobs:
       github.event.action != 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    concurrency:
+      group: weekly-menu-e2b-preview-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,7 +42,7 @@ jobs:
       - name: Validate E2B secrets
         id: validate
         env:
-          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
+          E2B_API_KEY: ${{ secrets.WEEKLY_MENU_E2B_API_KEY }}
         run: |
           if [ -z "${E2B_API_KEY}" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -49,26 +56,27 @@ jobs:
         continue-on-error: true
         run: node .github/scripts/e2b-preview.mjs create
         env:
-          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
-          E2B_TEMPLATE: ${{ vars.E2B_TEMPLATE }}
-          E2B_TIMEOUT_MS: ${{ vars.E2B_TIMEOUT_MS }}
-          E2B_APP_PORT: ${{ vars.E2B_APP_PORT }}
-          E2B_APP_PATH: ${{ vars.E2B_APP_PATH }}
-          E2B_PREVIEW_PURPOSE: pr-preview-bubu-log
-          E2B_PREVIEW_ENV_B64: ${{ secrets.E2B_PREVIEW_ENV_B64 }}
+          E2B_API_KEY: ${{ secrets.WEEKLY_MENU_E2B_API_KEY }}
+          E2B_TEMPLATE: ${{ vars.WEEKLY_MENU_E2B_TEMPLATE }}
+          E2B_TIMEOUT_MS: ${{ vars.WEEKLY_MENU_E2B_TIMEOUT_MS }}
+          E2B_APP_PORT: 1040
+          E2B_APP_PATH: apps/weekly-menu
+          E2B_PNPM_FILTERS: --filter weekly-menu
+          E2B_PREVIEW_PURPOSE: pr-preview-weekly-menu
+          E2B_PREVIEW_ENV_B64: ${{ secrets.WEEKLY_MENU_E2B_PREVIEW_ENV_B64 }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          E2B_LOG_FILE: ${{ runner.temp }}/e2b-preview.log
+          E2B_LOG_FILE: ${{ runner.temp }}/weekly-menu-e2b-preview.log
 
       - name: Upload E2B preview logs
         if: always() && steps.validate.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: e2b-preview-log-pr-${{ github.event.pull_request.number }}
-          path: ${{ runner.temp }}/e2b-preview.log
+          name: weekly-menu-e2b-preview-log-pr-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/weekly-menu-e2b-preview.log
           if-no-files-found: warn
 
       - name: Upsert PR comment
@@ -83,13 +91,13 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
-            const marker = '<!-- e2b-pr-preview -->'
+            const marker = '<!-- e2b-pr-preview-weekly-menu -->'
             const body = process.env.PREVIEW_ENABLED === 'true'
               ? (
                   process.env.PREVIEW_OUTCOME === 'success'
                     ? [
                         marker,
-                        '### E2B Preview',
+                        '### Weekly Menu E2B Preview',
                         '',
                         `- URL: ${process.env.PREVIEW_URL}`,
                         `- Sandbox: \`${process.env.SANDBOX_ID}\``,
@@ -100,18 +108,18 @@ jobs:
                       ].join('\n')
                     : [
                         marker,
-                        '### E2B Preview',
+                        '### Weekly Menu E2B Preview',
                         '',
                         '- Preview creation failed in this run (likely sandbox resource limit).',
                         `- Logs: ${process.env.RUN_URL}`,
-                        '- Action: set `E2B_TEMPLATE` to a larger template, then rerun this workflow.',
+                        '- Action: set `WEEKLY_MENU_E2B_TEMPLATE` to a larger template, then rerun this workflow.',
                       ].join('\n')
                 )
               : [
                   marker,
-                  '### E2B Preview',
+                  '### Weekly Menu E2B Preview',
                   '',
-                  '- Skipped: missing `BUBU_LOG_E2B_API_KEY` secret for this workflow context.',
+                  '- Skipped: missing `WEEKLY_MENU_E2B_API_KEY` secret for this workflow context.',
                 ].join('\n')
 
             const issue_number = context.issue.number
@@ -143,6 +151,9 @@ jobs:
       github.event.action == 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    concurrency:
+      group: weekly-menu-e2b-preview-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -158,7 +169,7 @@ jobs:
       - name: Validate E2B secrets
         id: validate_cleanup
         env:
-          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
+          E2B_API_KEY: ${{ secrets.WEEKLY_MENU_E2B_API_KEY }}
         run: |
           if [ -z "${E2B_API_KEY}" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -171,18 +182,18 @@ jobs:
         if: steps.validate_cleanup.outputs.enabled == 'true'
         run: node .github/scripts/e2b-preview.mjs cleanup
         env:
-          E2B_API_KEY: ${{ secrets.BUBU_LOG_E2B_API_KEY }}
+          E2B_API_KEY: ${{ secrets.WEEKLY_MENU_E2B_API_KEY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          E2B_PREVIEW_PURPOSE: pr-preview-bubu-log
-          E2B_LOG_FILE: ${{ runner.temp }}/e2b-preview-cleanup.log
+          E2B_PREVIEW_PURPOSE: pr-preview-weekly-menu
+          E2B_LOG_FILE: ${{ runner.temp }}/weekly-menu-e2b-preview-cleanup.log
 
       - name: Upload E2B cleanup logs
         if: always() && steps.validate_cleanup.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: e2b-preview-cleanup-log-pr-${{ github.event.pull_request.number }}
-          path: ${{ runner.temp }}/e2b-preview-cleanup.log
+          name: weekly-menu-e2b-preview-cleanup-log-pr-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/weekly-menu-e2b-preview-cleanup.log
           if-no-files-found: warn
 
       - name: Add cleanup comment
@@ -191,7 +202,7 @@ jobs:
           KILLED_COUNT: ${{ steps.cleanup_preview.outputs.killed_count }}
         with:
           script: |
-            const marker = '<!-- e2b-pr-preview -->'
+            const marker = '<!-- e2b-pr-preview-weekly-menu -->'
             const issue_number = context.issue.number
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
@@ -204,7 +215,7 @@ jobs:
 
             const body = [
               marker,
-              '### E2B Preview',
+              '### Weekly Menu E2B Preview',
               '',
               `PR closed. Cleaned up sandbox count: ${process.env.KILLED_COUNT || '0'}.`,
             ].join('\n')
