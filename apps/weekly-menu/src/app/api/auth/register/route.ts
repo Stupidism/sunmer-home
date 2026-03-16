@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
-import { getPayloadPool } from '@/lib/payload-db'
+import { ensurePlannerUsersTable, getPayloadPool } from '@/lib/payload-db'
 
 type RegisterBody = {
   username?: unknown
@@ -50,6 +50,7 @@ export async function POST(request: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12)
+    await ensurePlannerUsersTable()
     const pool = getPayloadPool()
 
     const insertResult = await pool.query<{

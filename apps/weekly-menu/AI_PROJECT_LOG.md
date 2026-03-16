@@ -644,6 +644,24 @@ Note: entries include both active and reverted changes to preserve context.
   - `corepack pnpm -C apps/weekly-menu lint` (pass with 1 existing warning in `src/app/(frontend)/layout.tsx`)
   - `corepack pnpm -C apps/weekly-menu build` (pass)
 
+### 2026-03-16 - Entry 41 - Auto-create planner_users table for auth path
+- Type: fix
+- Status: active
+- Files:
+  - `src/lib/payload-db.ts`
+  - `src/lib/auth/index.ts`
+  - `src/app/api/auth/register/route.ts`
+- What changed:
+  - Added `ensurePlannerUsersTable()` in payload DB helper to create/patch `planner_users` and required indexes when missing.
+  - Called this guard before credential login lookup and before registration insert.
+  - Normalized payload DB connection string `sslmode=require` -> `sslmode=verify-full` to align with newer pg behavior warnings.
+- Why:
+  - Vercel runtime logs showed `CallbackRouteError` with root cause `relation "planner_users" does not exist`, meaning DB connected but auth table missing.
+  - Auth/register should remain available on preview environments even before full Payload admin initialization.
+- Verification:
+  - `corepack pnpm -C apps/weekly-menu lint` (pass with 1 existing warning in `src/app/(frontend)/layout.tsx`)
+  - `corepack pnpm -C apps/weekly-menu build` (pass)
+
 ## 4) Current Known State / Open Items
 
 - Frontend features and REST API are working and build successfully.

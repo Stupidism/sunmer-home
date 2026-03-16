@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { getPayloadPool } from '@/lib/payload-db'
+import { ensurePlannerUsersTable, getPayloadPool } from '@/lib/payload-db'
 
 type PlannerUserDoc = {
   id: string
@@ -45,6 +45,7 @@ async function verifyAndUpgradePassword(
 }
 
 async function findUserByLogin(login: string): Promise<PlannerUserDoc | null> {
+  await ensurePlannerUsersTable()
   const pool = getPayloadPool()
   const keyword = login.trim()
 
