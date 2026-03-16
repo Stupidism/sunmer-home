@@ -67,6 +67,12 @@ jobs:
                 projectIdSecret: 'VERCEL_PROJECT_ID_WEDDING_INVITE',
                 triggers: ['apps/wedding-invite/', 'packages/ui/', 'packages/typescript-config/'],
               },
+              {
+                appId: 'weekly-menu',
+                appPath: 'apps/weekly-menu',
+                projectIdSecret: 'VERCEL_PROJECT_ID_WEEKLY_MENU',
+                triggers: ['apps/weekly-menu/'],
+              },
             ]
 
             const alwaysAffectAll = [
@@ -172,6 +178,7 @@ jobs:
           VERCEL_PROJECT_ID_NUNU_ISLAND: ${{ vars.VERCEL_PROJECT_ID_NUNU_ISLAND }}
           VERCEL_PROJECT_ID_NUNU_LOG: ${{ vars.VERCEL_PROJECT_ID_NUNU_LOG }}
           VERCEL_PROJECT_ID_WEDDING_INVITE: ${{ vars.VERCEL_PROJECT_ID_WEDDING_INVITE }}
+          VERCEL_PROJECT_ID_WEEKLY_MENU: ${{ vars.VERCEL_PROJECT_ID_WEEKLY_MENU }}
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -190,6 +197,9 @@ jobs:
               ;;
             wedding-invite)
               PROJECT_ID="$VERCEL_PROJECT_ID_WEDDING_INVITE"
+              ;;
+            weekly-menu)
+              PROJECT_ID="$VERCEL_PROJECT_ID_WEEKLY_MENU"
               ;;
             *)
               ;;
