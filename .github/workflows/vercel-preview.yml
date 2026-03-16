@@ -134,6 +134,7 @@ jobs:
 
       - name: Resolve Vercel project and org id
         id: resolve
+        continue-on-error: true
         env:
           VERCEL_PROJECT_ID_BUBU_LOG: ${{ vars.VERCEL_PROJECT_ID_BUBU_LOG }}
           VERCEL_PROJECT_ID_NUNU_ISLAND: ${{ vars.VERCEL_PROJECT_ID_NUNU_ISLAND }}
@@ -324,11 +325,23 @@ jobs:
           probe "/admin/login"
 
       - name: Persist preview result
+        if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/vercel-preview-result"
           RESULT_FILE="$RUNNER_TEMP/vercel-preview-result/${{ matrix.appId }}.json"
 
-          if [ '${{ steps.resolve.outputs.enabled }}' != 'true' ]; then
+          if [ '${{ steps.resolve.outcome }}' = 'failure' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "failed",
+            "reason": "resolve-vercel-config-failed",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
+          }
+          EOF
+          elif [ '${{ steps.resolve.outputs.enabled }}' != 'true' ]; then
             cat > "$RESULT_FILE" <<EOF
           {
             "appId": "${{ matrix.appId }}",
@@ -402,7 +415,7 @@ jobs:
         with:
           name: vercel-preview-result-${{ matrix.appId }}
           path: ${{ runner.temp }}/vercel-preview-result/${{ matrix.appId }}.json
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Upsert preview comment
         if: always()
