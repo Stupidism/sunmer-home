@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback } from 'react'
-import { Edit2, Trash2, Loader2 } from 'lucide-react'
+import { useCallback, useRef } from 'react'
+import { Edit2, Trash2, Loader2, CalendarDays } from 'lucide-react'
 import { BottomSheet } from '@/components/BottomSheet'
 import { ActivityIcon } from '@/components/ActivityIcon'
 import { useModalParams } from '@/hooks/useModalParams'
@@ -44,6 +44,48 @@ export function ActivityDetailModal() {
     setEditing(true)
   }, [setEditing])
   
+  // 改日期（保留时间）
+  const dateInputRef = useRef<HTMLInputElement>(null)
+
+  const handleChangeDateClick = useCallback(() => {
+    dateInputRef.current?.showPicker()
+  }, [])
+
+  const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!activityId || !activity || !e.target.value || updateActivity.isPending) return
+
+    const [year, month, day] = e.target.value.split('-').map(Number)
+
+    const origStart = new Date(activity.startTime)
+    const newStart = new Date(origStart)
+    newStart.setFullYear(year, month - 1, day)
+
+    const body: Record<string, string> = {
+      startTime: newStart.toISOString(),
+    }
+
+    if (activity.endTime) {
+      const origEnd = new Date(activity.endTime)
+      const newEnd = new Date(origEnd)
+      // Preserve the day offset between start and end (for cross-day activities like sleep)
+      const dayOffset = Math.round((origEnd.getTime() - origStart.getTime()) / (1000 * 60 * 60 * 24))
+      newEnd.setFullYear(year, month - 1, day + dayOffset)
+      body.endTime = newEnd.toISOString()
+    }
+
+    updateActivity.mutate(
+      {
+        params: { path: { id: activityId } },
+        body,
+      },
+      {
+        onSuccess: () => {
+          handleClose()
+        },
+      }
+    )
+  }, [activityId, activity, updateActivity, handleClose])
+
   // 打开删除确认
   const handleDeleteClick = useCallback(() => {
     if (activityId) {
@@ -378,24 +420,39 @@ export function ActivityDetailModal() {
             </div>
 
             {/* 操作按钮 */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               <button
                 onClick={handleEdit}
-                className="p-4 rounded-2xl bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-semibold text-lg flex items-center justify-center gap-2"
+                className="p-4 rounded-2xl bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-semibold text-base flex flex-col items-center justify-center gap-1"
               >
-                <Edit2 size={22} />
+                <Edit2 size={20} />
                 编辑
               </button>
               <button
-                onClick={handleDeleteClick}
-                className="p-4 rounded-2xl bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-semibold text-lg flex items-center justify-center gap-2"
+                onClick={handleChangeDateClick}
+                disabled={updateActivity.isPending}
+                className="p-4 rounded-2xl bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-semibold text-base flex flex-col items-center justify-center gap-1 disabled:opacity-50"
               >
-                <Trash2 size={22} />
+                <CalendarDays size={20} />
+                改日期
+              </button>
+              <input
+                ref={dateInputRef}
+                type="date"
+                className="sr-only"
+                defaultValue={activity ? dayjs(activity.startTime).format('YYYY-MM-DD') : ''}
+                onChange={handleDateChange}
+              />
+              <button
+                onClick={handleDeleteClick}
+                className="p-4 rounded-2xl bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-semibold text-base flex flex-col items-center justify-center gap-1"
+              >
+                <Trash2 size={20} />
                 删除
               </button>
               <button
                 onClick={handleClose}
-                className="p-4 rounded-2xl bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold text-lg"
+                className="p-4 rounded-2xl bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold text-base"
               >
                 关闭
               </button>
