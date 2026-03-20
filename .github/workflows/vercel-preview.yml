@@ -239,36 +239,13 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
-          MAX_ATTEMPTS=3
-          DEPLOY_URL=""
-          BUILD_URL=""
-
-          for attempt in $(seq 1 $MAX_ATTEMPTS); do
-            echo "::group::Deploy attempt $attempt/$MAX_ATTEMPTS"
-            DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --prebuilt --yes --public --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubDeployment=1" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" --meta "githubCommitRef=$PR_HEAD_REF" --meta "githubOrg=$REPO_OWNER" --meta "githubRepo=$REPO_NAME" 2>&1) || true
-            echo "$DEPLOY_OUTPUT"
-            echo "::endgroup::"
-
-            DEPLOY_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/[^\s"\)]+\.vercel\.app[^\s"\)]*)/g) { $u=$1 } END { print $u if defined $u }')
-            BUILD_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/vercel\.com\/[^\s\]]+)/g) { $u=$1 } END { print $u if defined $u }')
-
-            if [ -n "$DEPLOY_URL" ]; then
-              echo "Deploy succeeded on attempt $attempt"
-              break
-            fi
-
-            echo "::warning::Deploy attempt $attempt failed. Vercel output:"
-            echo "$DEPLOY_OUTPUT"
-
-            if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
-              WAIT=$((30 * attempt))
-              echo "Retrying in ${WAIT}s..."
-              sleep "$WAIT"
-            fi
-          done
+          DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --prebuilt --yes --public --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubDeployment=1" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" --meta "githubCommitRef=$PR_HEAD_REF" --meta "githubOrg=$REPO_OWNER" --meta "githubRepo=$REPO_NAME" 2>&1) || true
+          echo "$DEPLOY_OUTPUT"
+          DEPLOY_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/[^\s"\)]+\.vercel\.app[^\s"\)]*)/g) { $u=$1 } END { print $u if defined $u }')
+          BUILD_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/vercel\.com\/[^\s\]]+)/g) { $u=$1 } END { print $u if defined $u }')
 
           if [ -z "$DEPLOY_URL" ]; then
-            echo "::error::Failed to deploy after $MAX_ATTEMPTS attempts. Last output: $DEPLOY_OUTPUT"
+            echo "Failed to parse deploy URL from Vercel output" >&2
             exit 1
           fi
 
@@ -545,6 +522,19 @@ jobs:
                 body,
               })
             }
+
+      - name: Fail job if deploy did not succeed
+        if: always()
+        run: |
+          if [ '${{ steps.resolve.outputs.enabled }}' != 'true' ]; then
+            echo "Skipped: Vercel credentials not configured"
+            exit 0
+          fi
+
+          if [ '${{ steps.deploy_preview.outcome }}' != 'success' ]; then
+            echo "::error::Deploy failed for ${{ matrix.appId }} (outcome: ${{ steps.deploy_preview.outcome }})"
+            exit 1
+          fi
 
   close-note:
     if: >
