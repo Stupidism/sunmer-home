@@ -241,7 +241,7 @@ jobs:
         run: |
           DEPLOY_OUTPUT=$(pnpm dlx vercel@latest deploy --prebuilt --yes --public --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN" --meta "githubDeployment=1" --meta "githubPr=$PR_NUMBER" --meta "githubCommitSha=$PR_HEAD_SHA" --meta "githubCommitRef=$PR_HEAD_REF" --meta "githubOrg=$REPO_OWNER" --meta "githubRepo=$REPO_NAME" 2>&1) || true
           echo "$DEPLOY_OUTPUT"
-          DEPLOY_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/[^\s"\)]+\.vercel\.app[^\s"\)]*)/g) { $u=$1 } END { print $u if defined $u }')
+          DEPLOY_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/[\w.-]+\.vercel\.app(?:\/[^\s"\)]*)?)/g) { $u=$1 } END { print $u if defined $u }')
           BUILD_URL=$(printf '%s' "$DEPLOY_OUTPUT" | perl -ne 'while (/(https:\/\/vercel\.com\/[^\s\]]+)/g) { $u=$1 } END { print $u if defined $u }')
 
           if [ -z "$DEPLOY_URL" ]; then
@@ -289,6 +289,7 @@ jobs:
           probe "/admin/login"
 
       - name: Persist preview result
+        if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/vercel-preview-result"
           RESULT_FILE="$RUNNER_TEMP/vercel-preview-result/${{ matrix.appId }}.json"
