@@ -54,22 +54,18 @@ export function ActivityDetailModal() {
   const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (!activityId || !activity || !e.target.value || updateActivity.isPending) return
 
-    const [year, month, day] = e.target.value.split('-').map(Number)
-
-    const origStart = new Date(activity.startTime)
-    const newStart = new Date(origStart)
-    newStart.setFullYear(year, month - 1, day)
+    const newDate = dayjs(e.target.value)
+    const origStart = dayjs(activity.startTime)
+    const newStart = origStart.year(newDate.year()).month(newDate.month()).date(newDate.date())
 
     const body: Record<string, string> = {
       startTime: newStart.toISOString(),
     }
 
     if (activity.endTime) {
-      const origEnd = new Date(activity.endTime)
-      const newEnd = new Date(origEnd)
-      // Preserve the day offset between start and end (for cross-day activities like sleep)
-      const dayOffset = Math.round((origEnd.getTime() - origStart.getTime()) / (1000 * 60 * 60 * 24))
-      newEnd.setFullYear(year, month - 1, day + dayOffset)
+      const origEnd = dayjs(activity.endTime)
+      const dayOffset = origEnd.diff(origStart, 'day')
+      const newEnd = origEnd.year(newDate.year()).month(newDate.month()).date(newDate.date() + dayOffset)
       body.endTime = newEnd.toISOString()
     }
 
