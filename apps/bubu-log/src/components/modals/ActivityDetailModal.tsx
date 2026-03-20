@@ -125,36 +125,43 @@ export function ActivityDetailModal() {
     return `${dayjs(startTime).format('HH:mm')} - ${dayjs(endTime).format('HH:mm')}`
   }
   
-  // 渲染活动详情
+  // 渲染通用时间信息
+  const renderTimeInfo = () => {
+    if (!activity) return null
+    const duration = activity.endTime
+      ? calculateDurationMinutes(activity.startTime, activity.endTime)
+      : null
+
+    // 正在进行的睡觉
+    if (activity.type === 'SLEEP' && !activity.endTime) {
+      return <p className="text-lg text-sky-600 dark:text-sky-400">正在睡觉...</p>
+    }
+
+    return (
+      <p className="text-lg text-gray-700 dark:text-gray-300">
+        {dayjs(activity.startTime).format('HH:mm')}
+        {activity.endTime && ` - ${dayjs(activity.endTime).format('HH:mm')}`}
+        {duration ? ` · ${formatDuration(duration)}` : ''}
+      </p>
+    )
+  }
+
+  // 渲染活动详情（类型特有信息）
   const renderDetails = () => {
     if (!activity) return null
-    
-    // 计算时长
-    const duration = activity.endTime 
-      ? calculateDurationMinutes(activity.startTime, activity.endTime) 
-      : null
-    
+
     switch (activity.type) {
       case 'SLEEP':
-        return activity.endTime ? (
-          <p className="text-lg text-gray-700 dark:text-gray-300">
-            {formatTimeRange(activity.startTime, activity.endTime)} · {formatDuration(duration!)}
-          </p>
-        ) : (
-          <p className="text-lg text-sky-600 dark:text-sky-400">正在睡觉...</p>
-        )
-      
+        return null // 时间信息已由 renderTimeInfo 显示
+
       case 'BREASTFEED':
         return (
           <div className="space-y-1">
-            <p className="text-lg text-gray-700 dark:text-gray-300">
-              {duration ? formatDuration(duration) : '未记录时长'}
-              {activity.burpSuccess !== null && (
-                <span className={activity.burpSuccess ? 'text-green-600' : 'text-red-600'}>
-                  {' · '}{activity.burpSuccess ? '拍嗝成功' : '拍嗝未成功'}
-                </span>
-              )}
-            </p>
+            {activity.burpSuccess !== null && (
+              <p className={activity.burpSuccess ? 'text-green-600' : 'text-red-600'}>
+                {activity.burpSuccess ? '拍嗝成功' : '拍嗝未成功'}
+              </p>
+            )}
             {activity.breastFirmness && (
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 乳房硬度：{BreastFirmnessLabels[activity.breastFirmness as BreastFirmness]}
@@ -162,14 +169,13 @@ export function ActivityDetailModal() {
             )}
           </div>
         )
-      
+
       case 'BOTTLE':
         return (
           <div className="space-y-1">
             <p className="text-lg text-gray-700 dark:text-gray-300">
               {activity.milkAmount ? `${activity.milkAmount}ml` : '未记录奶量'}
               {activity.milkSource && ` · ${MilkSourceLabels[activity.milkSource as MilkSource]}`}
-              {duration ? ` · ${formatDuration(duration)}` : ''}
             </p>
             {activity.burpSuccess !== null && (
               <p className={activity.burpSuccess ? 'text-green-600' : 'text-red-600'}>
@@ -178,17 +184,14 @@ export function ActivityDetailModal() {
             )}
           </div>
         )
-      
+
       case 'PUMP':
         return (
-          <div className="space-y-1">
-            <p className="text-lg text-gray-700 dark:text-gray-300">
-              {activity.milkAmount ? `${activity.milkAmount}ml` : '未记录奶量'}
-              {duration ? ` · ${formatDuration(duration)}` : ''}
-            </p>
-          </div>
+          <p className="text-lg text-gray-700 dark:text-gray-300">
+            {activity.milkAmount ? `${activity.milkAmount}ml` : '未记录奶量'}
+          </p>
         )
-      
+
       case 'DIAPER':
         return (
           <div className="space-y-2">
@@ -197,7 +200,7 @@ export function ActivityDetailModal() {
                 <span className="text-lg">大便</span>
                 {activity.poopColor && (
                   <span className="flex items-center gap-2">
-                    <span 
+                    <span
                       className={`w-4 h-4 rounded-full ${PoopColorStyles[activity.poopColor as PoopColor] || ''}`}
                     />
                     <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -217,21 +220,21 @@ export function ActivityDetailModal() {
             )}
           </div>
         )
-      
+
       case 'SUPPLEMENT':
         return (
           <p className="text-lg text-gray-700 dark:text-gray-300">
             {activity.supplementType ? SupplementTypeLabels[activity.supplementType as SupplementType] : '未记录类型'}
           </p>
         )
-      
+
       case 'SPIT_UP':
         return (
           <p className="text-lg text-gray-700 dark:text-gray-300">
             {activity.spitUpType ? SpitUpTypeLabels[activity.spitUpType as SpitUpType] : '未记录类型'}
           </p>
         )
-      
+
       case 'ROLL_OVER':
       case 'PULL_TO_SIT':
         return (
@@ -239,13 +242,9 @@ export function ActivityDetailModal() {
             {activity.count ? `${activity.count} 次` : '未记录次数'}
           </p>
         )
-      
+
       default:
-        return activity.endTime ? (
-          <p className="text-lg text-gray-700 dark:text-gray-300">
-            {formatTimeRange(activity.startTime, activity.endTime)} · {formatDuration(duration!)}
-          </p>
-        ) : null
+        return null
     }
   }
   
@@ -406,7 +405,8 @@ export function ActivityDetailModal() {
             </div>
 
             {/* 详细信息 */}
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-4">
+            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-4 space-y-2">
+              {renderTimeInfo()}
               {renderDetails()}
               {activity.notes && (
                 <p className="mt-2 text-base text-gray-600 dark:text-gray-400">
