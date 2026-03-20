@@ -350,7 +350,7 @@ function WeeklyView({
             return (
               <div
                 key={date}
-                className={`relative h-[300px] rounded-lg ${isFuture
+                className={`relative h-[300px] md:h-[500px] rounded-lg ${isFuture
                   ? 'bg-gray-50 dark:bg-gray-900'
                   : 'bg-gray-100 dark:bg-gray-700'
                   } ${isToday ? 'ring-2 ring-primary' : ''}`}
