@@ -151,7 +151,6 @@ jobs:
 
       - name: Delete Neon Branch
         if: steps.creds.outputs.enabled == 'true'
-        continue-on-error: true
         uses: neondatabase/delete-branch-action@v3
         with:
           project_id: ${{ steps.creds.outputs.project_id }}
