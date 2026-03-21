@@ -22,17 +22,13 @@ test.describe('Activity Change Date', () => {
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible({ timeout: 10000 })
 
-    // 读取当前显示的日期文本
-    const dateText = dialog.locator('p.text-xl').first()
-    const originalDateText = await dateText.textContent()
-
-    // 计算目标日期（昨天）
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
+    // 计算目标日期：用 7 天前确保与活动当前日期不同（避免 UTC 日期边界导致 fill 同值不触发 change）
+    const targetDate = new Date()
+    targetDate.setDate(targetDate.getDate() - 7)
     const targetDateValue = [
-      yesterday.getFullYear(),
-      String(yesterday.getMonth() + 1).padStart(2, '0'),
-      String(yesterday.getDate()).padStart(2, '0'),
+      targetDate.getFullYear(),
+      String(targetDate.getMonth() + 1).padStart(2, '0'),
+      String(targetDate.getDate()).padStart(2, '0'),
     ].join('-')
 
     // 拦截 PATCH 请求，验证请求体
@@ -48,12 +44,12 @@ test.describe('Activity Change Date', () => {
     const patchRequest = await patchPromise
     const body = patchRequest.postDataJSON()
 
-    // 验证请求体包含正确的 startTime（日期部分应为昨天）
+    // 验证请求体包含正确的 startTime（日期部分应为目标日期）
     expect(body.startTime).toBeDefined()
     const sentDate = new Date(body.startTime)
-    expect(sentDate.getFullYear()).toBe(yesterday.getFullYear())
-    expect(sentDate.getMonth()).toBe(yesterday.getMonth())
-    expect(sentDate.getDate()).toBe(yesterday.getDate())
+    expect(sentDate.getFullYear()).toBe(targetDate.getFullYear())
+    expect(sentDate.getMonth()).toBe(targetDate.getMonth())
+    expect(sentDate.getDate()).toBe(targetDate.getDate())
 
     // 验证弹窗关闭（成功回调会关闭弹窗）
     await expect(dialog).not.toBeVisible({ timeout: 10000 })
