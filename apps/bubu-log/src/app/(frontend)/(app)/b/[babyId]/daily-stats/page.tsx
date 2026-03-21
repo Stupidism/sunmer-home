@@ -107,6 +107,16 @@ const activityColors: Record<string, string> = {
 const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 const weekdaysShort = ['一', '二', '三', '四', '五', '六', '日']
 
+// 周历视图的活动分类筛选
+type WeeklyFilterCategory = 'sleep' | 'feeding' | 'diaper' | 'exercise'
+
+const weeklyFilterCategories: Array<{ key: WeeklyFilterCategory; label: string; types: string[]; color: string; bgColor: string }> = [
+  { key: 'sleep', label: '睡眠', types: ['SLEEP'], color: 'bg-sky-400', bgColor: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' },
+  { key: 'feeding', label: '喂奶', types: ['BREASTFEED', 'BOTTLE', 'PUMP'], color: 'bg-pink-400', bgColor: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300' },
+  { key: 'diaper', label: '换尿布', types: ['DIAPER'], color: 'bg-yellow-400', bgColor: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300' },
+  { key: 'exercise', label: '运动', types: ['HEAD_LIFT', 'PASSIVE_EXERCISE', 'GAS_EXERCISE', 'BATH', 'OUTDOOR', 'EARLY_EDUCATION'], color: 'bg-amber-400', bgColor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+]
+
 // ==================== 折线图视图 ====================
 function ChartView({
   chartData,
@@ -218,6 +228,35 @@ function WeeklyView({
   onNavigate: (direction: number) => void
   canGoForward: boolean
 }) {
+  // 活动分类筛选（默认全选）
+  const [selectedFilters, setSelectedFilters] = useState<Set<WeeklyFilterCategory>>(
+    () => new Set(['sleep', 'feeding', 'diaper', 'exercise'])
+  )
+
+  const toggleFilter = useCallback((category: WeeklyFilterCategory) => {
+    setSelectedFilters(prev => {
+      const next = new Set(prev)
+      if (next.has(category)) {
+        // 至少保留一个选中
+        if (next.size > 1) next.delete(category)
+      } else {
+        next.add(category)
+      }
+      return next
+    })
+  }, [])
+
+  // 根据选中分类得到允许的活动类型集合
+  const allowedTypes = useMemo(() => {
+    const types = new Set<string>()
+    for (const cat of weeklyFilterCategories) {
+      if (selectedFilters.has(cat.key)) {
+        cat.types.forEach(t => types.add(t))
+      }
+    }
+    return types
+  }, [selectedFilters])
+
   // 获取一周的日期范围
   const weekDates = useMemo(() => {
     const dates: string[] = []
@@ -251,7 +290,7 @@ function WeeklyView({
     const map = new Map<string, ActivityBlock[]>()
     weekDates.forEach(date => map.set(date, []))
 
-    activitiesData.forEach((activity: Activity) => {
+    activitiesData.filter((a: Activity) => allowedTypes.has(a.type)).forEach((activity: Activity) => {
       const activityStart = dayjs(activity.startTime)
       const activityEnd = activity.endTime ? dayjs(activity.endTime) : activityStart
       const startDate = activityStart.format('YYYY-MM-DD')
@@ -278,11 +317,14 @@ function WeeklyView({
           const startPercent = (adjustedStartMinutes / (24 * 60)) * 100
           const endPercent = (adjustedEndMinutes / (24 * 60)) * 100
 
-          if (endPercent > startPercent) {
+          // 对于瞬时事件（如换尿布），endPercent == startPercent，给一个最小高度
+          const minBlockPercent = 0.5 // 约7分钟的高度
+          const adjustedEndPercent = endPercent <= startPercent ? startPercent + minBlockPercent : endPercent
+          if (adjustedEndPercent > startPercent) {
             map.get(date)!.push({
               activity,
               startPercent,
-              endPercent,
+              endPercent: adjustedEndPercent,
             })
           }
         }
@@ -295,7 +337,7 @@ function WeeklyView({
     })
 
     return map
-  }, [activitiesData, weekDates])
+  }, [activitiesData, weekDates, allowedTypes])
 
   if (isLoading) {
     return <div className="text-center py-8 text-gray-500">加载中...</div>
@@ -391,24 +433,25 @@ function WeeklyView({
           })}
         </div>
 
-        {/* 图例 */}
+        {/* 可交互的分类筛选 */}
         <div className="flex flex-wrap gap-2 mt-4 justify-center">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-sky-400"></div>
-            <span className="text-xs text-gray-500">睡眠</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-pink-400"></div>
-            <span className="text-xs text-gray-500">喂奶</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-yellow-400"></div>
-            <span className="text-xs text-gray-500">换尿布</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-amber-400"></div>
-            <span className="text-xs text-gray-500">运动</span>
-          </div>
+          {weeklyFilterCategories.map(cat => {
+            const isSelected = selectedFilters.has(cat.key)
+            return (
+              <button
+                key={cat.key}
+                onClick={() => toggleFilter(cat.key)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                  isSelected
+                    ? cat.bgColor + ' ring-1 ring-current'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+                }`}
+              >
+                <div className={`w-2.5 h-2.5 rounded-sm ${isSelected ? cat.color : 'bg-gray-300 dark:bg-gray-600'}`} />
+                {cat.label}
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>
