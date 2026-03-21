@@ -18,7 +18,7 @@ interface BottomSheetProps {
 export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetProps) {
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent className="max-w-md mx-auto" data-testid="bottom-sheet">
+      <DrawerContent className="max-w-lg mx-auto" data-testid="bottom-sheet">
         {title && (
           <DrawerHeader className="border-b border-gray-100 dark:border-gray-800">
             <DrawerTitle className="text-xl font-bold text-center">

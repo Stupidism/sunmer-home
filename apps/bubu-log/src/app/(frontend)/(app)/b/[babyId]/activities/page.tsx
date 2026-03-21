@@ -744,7 +744,7 @@ function ActivitiesPageContent() {
       {/* 多选模式底部操作栏 */}
       {isSelectMode && selectedIds.size > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4 safe-area-bottom">
-          <div className="max-w-md mx-auto space-y-3">
+          <div className="max-w-lg mx-auto space-y-3">
             <button
               onClick={() => setShowBatchDateChange(true)}
               className="w-full p-4 rounded-2xl bg-primary text-white font-semibold text-lg flex items-center justify-center gap-2"
