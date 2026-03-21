@@ -16,6 +16,16 @@ test.describe('Multi Baby URL Scope', () => {
   })
 
   test('switching baby should update URL and timeline data', async ({ page }) => {
+    // 重置活动日期到今天（可能被前面的 change-date 测试修改）
+    const now = new Date()
+    const resetStart = new Date(now)
+    resetStart.setHours(now.getHours() - 2, 0, 0, 0)
+    const resetEnd = new Date(resetStart)
+    resetEnd.setMinutes(resetStart.getMinutes() + 17)
+    await page.request.patch(`/api/app/activities/${TEST_ACTIVITY_ID}`, {
+      data: { startTime: resetStart.toISOString(), endTime: resetEnd.toISOString() },
+    })
+
     await page.goto(`/b/${TEST_BABY_ID}`)
     await expect(page.getByTestId(`timeline-activity-${TEST_ACTIVITY_ID}`)).toBeVisible()
 

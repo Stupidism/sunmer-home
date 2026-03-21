@@ -6,6 +6,16 @@ test.describe('Activity Modal', () => {
   })
 
   test('clicking an activity opens the modal URL', async ({ page }) => {
+    // 重置活动日期到今天（可能被前面的 change-date 测试修改）
+    const now = new Date()
+    const startTime = new Date(now)
+    startTime.setHours(now.getHours() - 2, 0, 0, 0)
+    const endTime = new Date(startTime)
+    endTime.setMinutes(startTime.getMinutes() + 17)
+    await page.request.patch(`/api/app/activities/${TEST_ACTIVITY_ID}`, {
+      data: { startTime: startTime.toISOString(), endTime: endTime.toISOString() },
+    })
+
     await page.goto('/')
 
     const activity = page.getByTestId(`timeline-activity-${TEST_ACTIVITY_ID}`)

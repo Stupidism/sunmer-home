@@ -4,7 +4,7 @@ import { useMemo, useRef, useImperativeHandle, forwardRef, useEffect, useState }
 import { ActivityType, ActivityTypeLabels } from '@/types/activity'
 import { ActivityIcon } from './ActivityIcon'
 import type { Activity } from '@/lib/api/hooks'
-import { dayjs, calculateDurationMinutes, formatTime } from '@/lib/dayjs'
+import { dayjs, calculateDurationMinutes, formatTime, formatDuration } from '@/lib/dayjs'
 import { TimelineGrid } from '@bubu-log/log-ui'
 
 interface DayTimelineProps {
@@ -153,6 +153,61 @@ export const DayTimeline = forwardRef<DayTimelineRef, DayTimelineProps>(
       return result
     }, [positionedActivities])
 
+    // 计算每个睡觉/喂奶活动距上次同类活动的间隔
+    const gapSinceLastMap = useMemo(() => {
+      const map = new Map<string, number>() // activity id -> gap in minutes
+
+      // 按开始时间排序的睡觉活动
+      const sleepActivities = activities
+        .filter(a => a.type === 'SLEEP')
+        .sort((a, b) => dayjs(a.startTime).valueOf() - dayjs(b.startTime).valueOf())
+      for (let i = 1; i < sleepActivities.length; i++) {
+        const prev = sleepActivities[i - 1]
+        const curr = sleepActivities[i]
+        const prevEnd = prev.endTime || prev.startTime
+        const gap = dayjs(curr.startTime).diff(dayjs(prevEnd), 'minute')
+        if (gap > 0) map.set(curr.id, gap)
+      }
+
+      // 按开始时间排序的喂奶活动（亲喂+瓶喂）
+      const feedActivities = activities
+        .filter(a => a.type === 'BREASTFEED' || a.type === 'BOTTLE')
+        .sort((a, b) => dayjs(a.startTime).valueOf() - dayjs(b.startTime).valueOf())
+      for (let i = 1; i < feedActivities.length; i++) {
+        const prev = feedActivities[i - 1]
+        const curr = feedActivities[i]
+        const prevEnd = prev.endTime || prev.startTime
+        const gap = dayjs(curr.startTime).diff(dayjs(prevEnd), 'minute')
+        if (gap > 0) map.set(curr.id, gap)
+      }
+
+      return map
+    }, [activities])
+
+    // 计算距离上次睡觉/吃奶的时间（用于当前时间标记）
+    const timeSinceLastSleepAndFeed = useMemo(() => {
+      if (!showCurrentTime) return null
+      const now = dayjs()
+      let lastSleepEnd: ReturnType<typeof dayjs> | null = null
+      let lastFeedEnd: ReturnType<typeof dayjs> | null = null
+
+      for (const a of activities) {
+        const end = a.endTime ? dayjs(a.endTime) : dayjs(a.startTime)
+        if (end.isAfter(now)) continue
+        if (a.type === 'SLEEP') {
+          if (!lastSleepEnd || end.isAfter(lastSleepEnd)) lastSleepEnd = end
+        }
+        if (a.type === 'BREASTFEED' || a.type === 'BOTTLE') {
+          if (!lastFeedEnd || end.isAfter(lastFeedEnd)) lastFeedEnd = end
+        }
+      }
+
+      return {
+        sleep: lastSleepEnd ? now.diff(lastSleepEnd, 'minute') : null,
+        feed: lastFeedEnd ? now.diff(lastFeedEnd, 'minute') : null,
+      }
+    }, [activities, showCurrentTime, currentMinutes]) // eslint-disable-line react-hooks/exhaustive-deps
+
     const getActivityLabel = (activity: typeof positionedActivities[0]) => {
       const type = activity.type as ActivityType
       let label = ActivityTypeLabels[type] || activity.type
@@ -205,6 +260,21 @@ export const DayTimeline = forwardRef<DayTimelineRef, DayTimelineProps>(
               className="absolute left-0 right-0 z-20 pointer-events-none"
               style={{ top: currentTimeTop }}
             >
+              {/* 距上次睡觉/吃奶的时间 - 红线上方 */}
+              {timeSinceLastSleepAndFeed && (
+                <div className="absolute left-14 right-2 flex gap-3 -top-5">
+                  {timeSinceLastSleepAndFeed.sleep != null && (
+                    <span className="text-[10px] text-sky-500 whitespace-nowrap">
+                      距上次睡觉 {formatDuration(timeSinceLastSleepAndFeed.sleep)}
+                    </span>
+                  )}
+                  {timeSinceLastSleepAndFeed.feed != null && (
+                    <span className="text-[10px] text-pink-500 whitespace-nowrap">
+                      距上次吃奶 {formatDuration(timeSinceLastSleepAndFeed.feed)}
+                    </span>
+                  )}
+                </div>
+              )}
               {/* 红色圆点 */}
               <div className="absolute left-1 -top-1.5 w-3 h-3 rounded-full bg-red-500 shadow-sm" />
               {/* 红色线条 */}
@@ -271,42 +341,58 @@ export const DayTimeline = forwardRef<DayTimelineRef, DayTimelineProps>(
               // 块类型（睡眠、喂奶等）：严格按时长显示高度
               // 户外活动：虚线边框、半透明、悬浮在其他色块之上但在换尿布线下面
               const isOutdoor = activity.type === 'OUTDOOR'
+              const showGap = activity.type === 'SLEEP' || activity.type === 'BREASTFEED' || activity.type === 'BOTTLE'
+              const gapMinutes = showGap ? gapSinceLastMap.get(activity.id) : undefined
               return (
-                <button
+                <div
                   key={activity.id}
-                  onClick={() => onActivityClick?.(originalActivity)}
-                  className={`absolute rounded-lg px-2 py-1 overflow-hidden transition-all hover:shadow-md ${colors.bg} ${isOutdoor
-                      ? `border-2 border-dashed ${colors.border} z-[5] hover:z-[6]`
-                      : `border-l-4 ${colors.border} hover:z-10`
-                    }`}
+                  className="absolute"
                   style={{
                     top: activity.top,
                     height: activity.height,
                     left: `${activity.left}%`,
                     width: `${activity.width}%`,
-                    ...(isOutdoor ? { opacity: 0.7 } : {}),
                   }}
-                  data-testid={`timeline-activity-${activity.id}`}
                 >
-                  <div className="flex items-center gap-1 h-full">
-                    <ActivityIcon
-                      type={activity.type as ActivityType}
-                      size={activity.height > 40 ? 18 : 14}
-                      className={colors.text}
-                    />
-                    <div className="flex-1 min-w-0 text-left">
-                      <p className={`text-xs font-medium truncate ${colors.text}`}>
-                        {getActivityLabel(activity)}
-                      </p>
-                      {activity.height > 40 && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatTime(activity.startTimeDate)}
-                          {activity.duration > 0 ? ` - ${formatTime(activity.endTimeDate)}` : ''}
-                        </p>
-                      )}
+                  {/* 距上次间隔标签 - 卡片外部右上角 */}
+                  {gapMinutes != null && (
+                    <div className="absolute -top-4 right-0 z-30 pointer-events-none">
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                        距上次{formatDuration(gapMinutes)}
+                      </span>
                     </div>
-                  </div>
-                </button>
+                  )}
+                  <button
+                    onClick={() => onActivityClick?.(originalActivity)}
+                    className={`w-full h-full rounded-lg px-2 py-1 overflow-hidden transition-all hover:shadow-md ${colors.bg} ${isOutdoor
+                        ? `border-2 border-dashed ${colors.border} z-[5] hover:z-[6]`
+                        : `border-l-4 ${colors.border} hover:z-10`
+                      }`}
+                    style={{
+                      ...(isOutdoor ? { opacity: 0.7 } : {}),
+                    }}
+                    data-testid={`timeline-activity-${activity.id}`}
+                  >
+                    <div className="flex items-center gap-1 h-full">
+                      <ActivityIcon
+                        type={activity.type as ActivityType}
+                        size={activity.height > 40 ? 18 : 14}
+                        className={colors.text}
+                      />
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className={`text-xs font-medium truncate ${colors.text}`}>
+                          {getActivityLabel(activity)}
+                        </p>
+                        {activity.height > 40 && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatTime(activity.startTimeDate)}
+                            {activity.duration > 0 ? ` - ${formatTime(activity.endTimeDate)}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                </div>
               )
             })}
           </div>
