@@ -317,11 +317,14 @@ function WeeklyView({
           const startPercent = (adjustedStartMinutes / (24 * 60)) * 100
           const endPercent = (adjustedEndMinutes / (24 * 60)) * 100
 
-          if (endPercent > startPercent) {
+          // 对于瞬时事件（如换尿布），endPercent == startPercent，给一个最小高度
+          const minBlockPercent = 0.5 // 约7分钟的高度
+          const adjustedEndPercent = endPercent <= startPercent ? startPercent + minBlockPercent : endPercent
+          if (adjustedEndPercent > startPercent) {
             map.get(date)!.push({
               activity,
               startPercent,
-              endPercent,
+              endPercent: adjustedEndPercent,
             })
           }
         }
