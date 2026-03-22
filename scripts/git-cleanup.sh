@@ -19,12 +19,22 @@ MAIN_BRANCH="main"
 # 确保 remote 信息是最新的
 git fetch --prune origin
 
-echo "=== 清理已合并的 worktree ==="
+echo "=== 收集活跃 worktree 使用的分支 ==="
 
 # 先清理已经无效的 worktree（目录已删除等情况）
 if [[ "$DRY_RUN" == false ]]; then
   git worktree prune
 fi
+
+# 收集所有 worktree 正在使用的分支名，用于后续保护
+declare -A worktree_branches
+while IFS= read -r line; do
+  wt_branch=$(echo "$line" | sed -n 's/.*\[\(.*\)\]/\1/p')
+  [[ -n "$wt_branch" ]] && worktree_branches["$wt_branch"]=1
+done < <(git worktree list)
+
+echo
+echo "=== 清理已合并的 worktree ==="
 
 # 遍历所有 worktree，跳过主 worktree
 while IFS= read -r line; do
@@ -41,6 +51,7 @@ while IFS= read -r line; do
     if [[ "$DRY_RUN" == false ]]; then
       git worktree remove "$wt_path" --force
       echo "    ✅ 已移除 worktree"
+      unset 'worktree_branches[$wt_branch]'
     fi
   fi
 done < <(git worktree list)
@@ -57,6 +68,11 @@ else
   while IFS= read -r branch; do
     branch=$(echo "$branch" | xargs)  # trim whitespace
     [[ -z "$branch" ]] && continue
+    # 跳过仍有 worktree 在使用的分支
+    if [[ -n "${worktree_branches[$branch]:-}" ]]; then
+      echo "  分支: $branch — 已合并但 worktree 仍在使用，跳过"
+      continue
+    fi
     echo "  分支: $branch — 已合并"
     if [[ "$DRY_RUN" == false ]]; then
       git branch -d "$branch"
@@ -76,6 +92,11 @@ if [[ -z "$gone_branches" ]]; then
 else
   while IFS= read -r branch; do
     [[ -z "$branch" ]] && continue
+    # 跳过仍有 worktree 在使用的分支
+    if [[ -n "${worktree_branches[$branch]:-}" ]]; then
+      echo "  分支: $branch — 远程已删除但 worktree 仍在使用，跳过"
+      continue
+    fi
     echo "  分支: $branch — 远程已删除"
     if [[ "$DRY_RUN" == false ]]; then
       git branch -D "$branch"
