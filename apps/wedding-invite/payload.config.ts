@@ -1,4 +1,5 @@
 import { postgresAdapter } from "@payloadcms/db-postgres";
+import { vercelBlobStorage } from "@payloadcms/storage-vercel-blob";
 import { buildConfig } from "payload";
 import { CMSAdmins } from "./src/payload/collections/CMSAdmins";
 import { Guests } from "./src/payload/collections/Guests";
@@ -33,4 +34,16 @@ export default buildConfig({
     },
   },
   collections: [CMSAdmins, Guests, Invitations, MemoryPhotos, RSVPs],
+  plugins: [
+    ...(process.env.BLOB_READ_WRITE_TOKEN
+      ? [
+          vercelBlobStorage({
+            collections: {
+              "memory-photos": true,
+            },
+            token: process.env.BLOB_READ_WRITE_TOKEN,
+          }),
+        ]
+      : []),
+  ],
 });
