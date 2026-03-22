@@ -8,9 +8,11 @@
     "dev:web": "turbo run dev --filter=bubu-log",
     "dev:wedding": "turbo run dev --filter=wedding-invite",
     "verify:affected": "turbo run lint --continue",
-    "trigger:preview": "node -e \"console.log('trigger preview workflows')\""
+    "trigger:preview": "node -e \"console.log('trigger preview workflows')\"",
+    "sandbox:logs": "node scripts/e2b-tail-log.mjs"
   },
   "devDependencies": {
+    "e2b": "2.13.0",
     "turbo": "^2.5.4"
   },
   "packageManager": "pnpm@10.2.0"

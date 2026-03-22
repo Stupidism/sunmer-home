@@ -57,6 +57,8 @@ export default function TemplateQuestionnairePage() {
   const [showLayerIntro, setShowLayerIntro] = useState(true)
   const [direction, setDirection] = useState(1)
   const [submitted, setSubmitted] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -104,26 +106,42 @@ export default function TemplateQuestionnairePage() {
     [currentQuestion]
   )
 
-  const saveRecord = useCallback(() => {
+  const saveRecord = useCallback(async () => {
     if (!template) return
+
+    setIsSaving(true)
+    setSaveError(null)
 
     const finalAnswers: Answer[] = Object.entries(answers).map(([questionId, value]) => ({
       questionId,
       value,
     }))
 
-    const record = {
-      id: crypto.randomUUID(),
-      templateId: template.id,
-      templateTitle: template.title,
-      answers: finalAnswers,
-      createdAt: new Date().toISOString(),
-    }
+    try {
+      const response = await fetch('/api/content/template-records', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          templateId: template.id,
+          templateTitle: template.title,
+          answers: finalAnswers,
+        }),
+      })
 
-    const existingRaw = localStorage.getItem('template-records')
-    const existing = existingRaw ? (JSON.parse(existingRaw) as typeof record[]) : []
-    localStorage.setItem('template-records', JSON.stringify([record, ...existing]))
-    setSubmitted(true)
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null
+        throw new Error(payload?.error || '保存失败，请稍后重试')
+      }
+
+      setSubmitted(true)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '保存失败，请稍后重试'
+      setSaveError(message)
+    } finally {
+      setIsSaving(false)
+    }
   }, [answers, template])
 
   const handleNext = useCallback(() => {
@@ -133,7 +151,7 @@ export default function TemplateQuestionnairePage() {
     }
 
     if (isLastQuestion && isLastLayer) {
-      saveRecord()
+      void saveRecord()
       return
     }
 
@@ -198,7 +216,7 @@ export default function TemplateQuestionnairePage() {
     )
   }
 
-  const canProceed = showLayerIntro || isAnswered(currentQuestion, answers[currentQuestion.id])
+  const canProceed = (showLayerIntro || isAnswered(currentQuestion, answers[currentQuestion.id])) && !isSaving
 
   return (
     <main className="min-h-screen gradient-warm">
@@ -262,7 +280,7 @@ export default function TemplateQuestionnairePage() {
         ) : (
           <article className="flex flex-1 flex-col items-center justify-center rounded-2xl bg-white p-8 text-center shadow-soft">
             <h2 className="text-2xl font-bold text-gray-900">记录完成</h2>
-            <p className="mt-2 text-gray-600">你的回答已保存到本地记录。</p>
+            <p className="mt-2 text-gray-600">你的回答已保存到数据库记录。</p>
             <div className="mt-6 flex items-center gap-3">
               <button
                 type="button"
@@ -276,6 +294,7 @@ export default function TemplateQuestionnairePage() {
                 className="rounded-xl bg-gray-900 px-4 py-2 text-sm text-white"
                 onClick={() => {
                   setSubmitted(false)
+                  setSaveError(null)
                   setAnswers({})
                   setCurrentLayerIndex(0)
                   setCurrentQuestionIndex(0)
@@ -298,6 +317,7 @@ export default function TemplateQuestionnairePage() {
             >
               {showLayerIntro ? '上一层' : '上一题'}
             </button>
+            {saveError ? <p className="text-sm text-rose-600">{saveError}</p> : null}
             <button
               type="button"
               onClick={handleNext}
@@ -307,6 +327,8 @@ export default function TemplateQuestionnairePage() {
               <span>
                 {showLayerIntro
                   ? '开始'
+                  : isSaving
+                    ? '保存中...'
                   : isLastQuestion && isLastLayer
                     ? '完成'
                     : isLastQuestion

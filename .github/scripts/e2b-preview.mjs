@@ -17,6 +17,22 @@ function parseOptionalInt(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+const e2bRequestTimeoutMs = parseOptionalInt(process.env.E2B_REQUEST_TIMEOUT_MS, 60_000)
+
+async function withRequestTimeout(task, label) {
+  let timeoutId
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`[e2b][request-timeout] ${label} exceeded ${e2bRequestTimeoutMs}ms`))
+    }, e2bRequestTimeoutMs)
+  })
+
+  try {
+    return await Promise.race([task, timeoutPromise])
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
 function setGithubOutput(key, value) {
   const output = process.env.GITHUB_OUTPUT
   if (!output) return
@@ -67,7 +83,7 @@ async function listSandboxesByMetadata(metadata) {
   const all = []
 
   while (paginator.hasNext) {
-    const page = await paginator.nextItems()
+    const page = await withRequestTimeout(paginator.nextItems(), 'Sandbox.list.nextItems')
     all.push(...page)
   }
 
@@ -77,7 +93,7 @@ async function listSandboxesByMetadata(metadata) {
 async function killSandboxes(metadata) {
   const sandboxes = await listSandboxesByMetadata(metadata)
   for (const sandbox of sandboxes) {
-    await Sandbox.kill(sandbox.sandboxId)
+    await withRequestTimeout(Sandbox.kill(sandbox.sandboxId), `Sandbox.kill(${sandbox.sandboxId})`)
   }
   return sandboxes.length
 }
@@ -105,6 +121,18 @@ function resolveInstallCommand(appPath) {
   }
 
   return 'pnpm install --frozen-lockfile --filter bubu-log --filter @bubu-log/ui --filter @bubu-log/log-ui --filter @bubu-log/typescript-config --child-concurrency=1 --network-concurrency=2'
+}
+
+function resolveMigrationCommand(appPath) {
+  if (appPath === 'apps/nunu-island') {
+    return "NODE_OPTIONS='--import tsx -r ./scripts/shims/next-env-default.cjs' pnpm payload migrate"
+  }
+
+  if (appPath === 'apps/wedding-invite') {
+    return 'pnpm db:migrate'
+  }
+
+  return null
 }
 
 const logFile = process.env.E2B_LOG_FILE
@@ -142,6 +170,41 @@ async function runCommandWithLogs(sandbox, label, cmd, opts = {}) {
   }
 }
 
+async function runBestEffortCommandWithLogs(sandbox, label, cmd, opts = {}) {
+  try {
+    await runCommandWithLogs(sandbox, label, cmd, opts)
+  } catch (error) {
+    writeLog(`[e2b][warn] ${label} failed during diagnostics: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+async function collectAppDiagnostics(sandbox, appLogPath, appPidPath, port) {
+  const escapedAppLogPath = escapeShell(appLogPath)
+  const escapedAppPidPath = escapeShell(appPidPath)
+
+  writeLog('[e2b][diagnostics] collecting app process, port, and log snapshots')
+  await runBestEffortCommandWithLogs(
+    sandbox,
+    'diagnostics-app-pid',
+    `bash -lc 'if [ -f '\''${escapedAppPidPath}'\'' ]; then APP_PID=$(cat '\''${escapedAppPidPath}'\'' 2>/dev/null || true); echo "[e2b][diagnostics] app-pid=\${APP_PID}"; if [ -n "\${APP_PID}" ]; then ps -p "\${APP_PID}" -o pid=,ppid=,stat=,etime=,comm=; fi; else echo "[e2b][diagnostics] app pid file missing"; fi'`
+  )
+  await runBestEffortCommandWithLogs(
+    sandbox,
+    'diagnostics-process-list',
+    "bash -lc 'ps -eo pid,ppid,stat,etime,command | head -n 200'"
+  )
+  await runBestEffortCommandWithLogs(
+    sandbox,
+    'diagnostics-port-listeners',
+    `bash -lc '(ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null || true) | grep ":${port}\\b" || true'`
+  )
+  await runBestEffortCommandWithLogs(
+    sandbox,
+    'diagnostics-app-log-tail',
+    `bash -lc 'if [ -f '\''${escapedAppLogPath}'\'' ]; then echo "[e2b][diagnostics] app log tail"; tail -n 200 '\''${escapedAppLogPath}'\''; else echo "[e2b][diagnostics] app log file not found: ${appLogPath}"; fi'`
+  )
+}
+
 async function createPreview() {
   const repo = requireEnv('GITHUB_REPOSITORY')
   const prNumber = requireEnv('PR_NUMBER')
@@ -156,6 +219,7 @@ async function createPreview() {
   const timeoutMs = parseOptionalInt(process.env.E2B_TIMEOUT_MS, 60 * 60 * 1000)
   const template = process.env.E2B_TEMPLATE
   const pnpmInstallCommand = resolveInstallCommand(appPath)
+  const migrationCommand = resolveMigrationCommand(appPath)
 
   const metadata = {
     owner: 'github-actions',
@@ -169,8 +233,8 @@ async function createPreview() {
   writeLog(`Killed existing sandboxes: ${killed}`)
 
   const sandbox = template
-    ? await Sandbox.create(template, { timeoutMs, metadata })
-    : await Sandbox.create({ timeoutMs, metadata })
+    ? await withRequestTimeout(Sandbox.create(template, { timeoutMs, metadata }), 'Sandbox.create(template)')
+    : await withRequestTimeout(Sandbox.create({ timeoutMs, metadata }), 'Sandbox.create(default)')
 
   const previewUrl = `https://${sandbox.getHost(port)}`
   const appEnv = {
@@ -181,6 +245,16 @@ async function createPreview() {
     AUTH_TRUST_HOST: 'true',
     ...loadPreviewEnvFromBase64(),
   }
+
+  if (appPath === 'apps/nunu-island') {
+    appEnv.PAYLOAD_DB_PUSH = 'true'
+    appEnv.PAYLOAD_ALLOW_DESTRUCTIVE_PUSH = 'true'
+  }
+  const appLogPath = '/tmp/e2b-app.log'
+  const appPidPath = '/tmp/e2b-app.pid'
+  const escapedAppLogPath = escapeShell(appLogPath)
+  const escapedAppPidPath = escapeShell(appPidPath)
+  writeLog(`[e2b][config] requestTimeoutMs=${e2bRequestTimeoutMs}`)
 
   if (appId === 'wedding-invite') {
     appEnv.ALLOW_ADMIN_BOOTSTRAP = appEnv.ALLOW_ADMIN_BOOTSTRAP || 'true'
@@ -206,14 +280,15 @@ async function createPreview() {
       timeoutMs: 15 * 60 * 1000,
     }
   )
-
-  if (appId === 'wedding-invite') {
-    await runCommandWithLogs(sandbox, 'db-migrate', 'pnpm db:migrate', {
+  if (migrationCommand) {
+    await runCommandWithLogs(sandbox, 'db-migrate', migrationCommand, {
       cwd: `/home/user/app/${appPath}`,
       envs: appEnv,
       timeoutMs: 10 * 60 * 1000,
     })
+  }
 
+  if (appId === 'wedding-invite') {
     await runCommandWithLogs(sandbox, 'seed-e2e-admin', 'pnpm seed:e2e-admin', {
       cwd: `/home/user/app/${appPath}`,
       envs: appEnv,
@@ -226,17 +301,37 @@ async function createPreview() {
     envs: appEnv,
     timeoutMs: 20 * 60 * 1000,
   })
-  await runCommandWithLogs(sandbox, 'pnpm-start', 'pnpm start', {
-    cwd: `/home/user/app/${appPath}`,
-    envs: appEnv,
-    background: true,
-  })
   await runCommandWithLogs(
     sandbox,
-    'healthcheck',
-    `bash -lc 'for i in $(seq 1 60); do curl -fsS http://127.0.0.1:${port}/ >/dev/null && exit 0; sleep 2; done; exit 1'`,
-    { timeoutMs: 2 * 60 * 1000 }
+    'pnpm-start-detached',
+    `bash -lc 'rm -f '\''${escapedAppPidPath}'\''; nohup pnpm start > '\''${escapedAppLogPath}'\'' 2>&1 < /dev/null & echo $! > '\''${escapedAppPidPath}'\''; APP_PID=$(cat '\''${escapedAppPidPath}'\''); echo "[e2b][start] app pid=\${APP_PID} log=${appLogPath}"; sleep 1; ps -p "\${APP_PID}" -o pid=,ppid=,stat=,etime=,comm= || true'`,
+    {
+      cwd: `/home/user/app/${appPath}`,
+      envs: appEnv,
+    }
   )
+  await runCommandWithLogs(
+    sandbox,
+    'runtime-log-forwarder',
+    `bash -lc 'touch '\''${escapedAppLogPath}'\'' && tail -n +1 -F '\''${escapedAppLogPath}'\'''`,
+    {
+      background: true,
+      cwd: `/home/user/app/${appPath}`,
+      envs: appEnv,
+    }
+  )
+
+  try {
+    await runCommandWithLogs(
+      sandbox,
+      'healthcheck',
+      `bash -lc 'for i in $(seq 1 60); do if curl -fsS http://127.0.0.1:${port}/ >/dev/null; then echo "[e2b][healthcheck] success attempt=\${i}"; exit 0; fi; echo "[e2b][healthcheck] retry \${i}/60"; if [ -f '\''${escapedAppLogPath}'\'' ]; then echo "[e2b][healthcheck] app log tail"; tail -n 40 '\''${escapedAppLogPath}'\''; else echo "[e2b][healthcheck] app log missing"; fi; sleep 2; done; exit 1'`,
+      { timeoutMs: 2 * 60 * 1000 }
+    )
+  } catch (error) {
+    await collectAppDiagnostics(sandbox, appLogPath, appPidPath, port)
+    throw error
+  }
 
   const result = {
     appId,
