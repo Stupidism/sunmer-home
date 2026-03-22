@@ -33,6 +33,9 @@ if [[ -z "$gone_branches" ]]; then
   exit 0
 fi
 
+# 获取主 worktree 路径（第一行就是主 worktree）
+main_wt_path=$(git worktree list | head -1 | awk '{print $1}')
+
 echo "=== 清理远端已删除的分支 ==="
 
 while IFS= read -r branch; do
@@ -42,9 +45,21 @@ while IFS= read -r branch; do
   wt_path=$(git worktree list | grep "\[$branch\]" | awk '{print $1}' || true)
 
   if [[ -n "$wt_path" ]]; then
+    # 跳过主 worktree，防止误删
+    if [[ "$wt_path" == "$main_wt_path" ]]; then
+      echo "  [$branch] ⚠️  跳过（主 worktree）"
+      continue
+    fi
+
+    # 检查 worktree 是否有未提交的修改，有则跳过避免数据丢失
+    if [[ -d "$wt_path" ]] && git -C "$wt_path" status --porcelain | grep -q .; then
+      echo "  [$branch] ⚠️  跳过（worktree 有未提交的修改: $wt_path）"
+      continue
+    fi
+
     echo "  [$branch] worktree: $wt_path"
     if [[ "$DRY_RUN" == false ]]; then
-      git worktree remove "$wt_path" --force
+      git worktree remove "$wt_path"
       echo "    ✅ 已移除 worktree"
     fi
   else
