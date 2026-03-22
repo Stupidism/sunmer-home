@@ -18,6 +18,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "wedding-invite", "dev"],
       "port": 2655
+    },
+    {
+      "name": "nunu-island",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "nunu-island", "dev"],
+      "port": 1040
     }
   ]
 }
