@@ -38,7 +38,7 @@ export function ActivityPicker({
 
       {/* 活动选择面板 */}
       <div className="fixed inset-x-0 bottom-0 z-50 px-4 pb-8 animate-in slide-in-from-bottom-4 fade-in duration-200">
-        <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-4 max-w-md mx-auto">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-4 max-w-md md:max-w-lg mx-auto">
           {/* 选中时间提示 */}
           {selectedTime && (
             <div className="text-center mb-3 pb-3 border-b border-gray-100 dark:border-gray-800">

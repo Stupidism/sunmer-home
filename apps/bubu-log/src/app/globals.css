@@ -177,44 +177,52 @@ body {
   padding-top: env(safe-area-inset-top, 20px);
 }
 
-/* 手机容器 - PC端使用固定定位来约束悬浮元素 */
+/* 手机容器 - 响应式布局 */
 .phone-container {
-  /* 使用 CSS 变量存储容器信息 */
-  --phone-max-width: 28rem; /* max-w-md = 448px = 28rem */
+  /* 使用 CSS 变量存储容器信息，随断点变化 */
+  --phone-max-width: 100%;
 }
 
-/* 悬浮元素定位修复 - PC端限制在手机容器内 */
-@media (min-width: 448px) {
-  .voice-input-container {
-    left: calc(50% - var(--phone-max-width) / 2) !important;
-    right: calc(50% - var(--phone-max-width) / 2) !important;
-    max-width: var(--phone-max-width);
+@media (min-width: 768px) {
+  .phone-container {
+    --phone-max-width: 48rem; /* md:max-w-3xl */
   }
+}
 
+@media (min-width: 1024px) {
+  .phone-container {
+    --phone-max-width: 64rem; /* lg:max-w-5xl */
+  }
+}
+
+@media (min-width: 1280px) {
+  .phone-container {
+    --phone-max-width: 72rem; /* xl:max-w-6xl */
+  }
+}
+
+/* 悬浮元素定位修复 - 宽屏限制在容器内 */
+@media (min-width: 768px) {
   .fab-button {
-    /* FAB 主按钮定位在手机容器的右下角 */
+    /* FAB 主按钮定位在容器的右下角 */
     right: calc(50% - var(--phone-max-width) / 2 + 1rem) !important;
     left: auto !important;
   }
 
   .fab-voice-button {
-    /* 语音按钮在 FAB 左边，距离 FAB 按钮 4rem */
+    /* 语音按钮在 FAB 左边 */
     right: calc(50% - var(--phone-max-width) / 2 + 5rem) !important;
     left: auto !important;
   }
 
   .fab-modal {
-    /* FAB 弹出菜单限制在手机容器内 */
-    left: calc(50% - var(--phone-max-width) / 2) !important;
-    right: calc(50% - var(--phone-max-width) / 2) !important;
-    max-width: var(--phone-max-width);
+    /* FAB 弹出菜单限制在容器内 */
+    max-width: 28rem;
+    margin: 0 auto;
   }
 
   .fab-overlay {
-    /* 遮罩层覆盖整个手机容器 */
-    left: calc(50% - var(--phone-max-width) / 2) !important;
-    right: calc(50% - var(--phone-max-width) / 2) !important;
-    width: var(--phone-max-width) !important;
+    /* 遮罩层覆盖整个屏幕 */
   }
 }
 

@@ -151,7 +151,7 @@ function ChartView({
           <Moon size={20} className="text-sky-500" />
           <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">睡眠趋势</h2>
         </div>
-        <ChartContainer config={sleepChartConfig} className="h-[200px] w-full">
+        <ChartContainer config={sleepChartConfig} className="h-[200px] md:h-[300px] w-full">
           <LineChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="dateLabel" tick={{ fontSize: 12 }} stroke="#9ca3af" />
@@ -168,7 +168,7 @@ function ChartView({
           <Milk size={20} className="text-pink-500" />
           <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">奶量趋势</h2>
         </div>
-        <ChartContainer config={feedingChartConfig} className="h-[200px] w-full">
+        <ChartContainer config={feedingChartConfig} className="h-[200px] md:h-[300px] w-full">
           <LineChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="dateLabel" tick={{ fontSize: 12 }} stroke="#9ca3af" />
@@ -188,7 +188,7 @@ function ChartView({
           <Baby size={20} className="text-yellow-500" />
           <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">换尿布趋势</h2>
         </div>
-        <ChartContainer config={diaperChartConfig} className="h-[200px] w-full">
+        <ChartContainer config={diaperChartConfig} className="h-[200px] md:h-[300px] w-full">
           <LineChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="dateLabel" tick={{ fontSize: 12 }} stroke="#9ca3af" />
@@ -392,7 +392,7 @@ function WeeklyView({
             return (
               <div
                 key={date}
-                className={`relative h-[300px] rounded-lg ${isFuture
+                className={`relative h-[300px] md:h-[500px] lg:h-[600px] rounded-lg ${isFuture
                   ? 'bg-gray-50 dark:bg-gray-900'
                   : 'bg-gray-100 dark:bg-gray-700'
                   } ${isToday ? 'ring-2 ring-primary' : ''}`}
