@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "bubu-log",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "bubu-log", "dev"],
+      "port": 1030
+    },
+    {
+      "name": "nunu-log",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "nunu-log", "dev"],
+      "port": 928
+    },
+    {
+      "name": "wedding-invite",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "wedding-invite", "dev"],
+      "port": 2655
+    }
+  ]
+}
