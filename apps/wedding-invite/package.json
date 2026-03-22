@@ -3,9 +3,9 @@
   "version": "0.1.1",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 2655",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 2655",
     "lint": "eslint .",
     "payload": "payload",
     "db:push": "NODE_OPTIONS='-r ./scripts/shims/next-env-default.cjs' tsx scripts/push-payload-schema.ts",
