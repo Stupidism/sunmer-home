@@ -39,7 +39,9 @@ export default buildConfig({
       ? [
           vercelBlobStorage({
             collections: {
-              "memory-photos": true,
+              "memory-photos": {
+                clientUploads: true,
+              },
             },
             token: process.env.BLOB_READ_WRITE_TOKEN,
           }),
