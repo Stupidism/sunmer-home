@@ -128,7 +128,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ record })
   } catch (error) {
-    console.error('Failed to create template record:', error)
-    return NextResponse.json({ error: 'Failed to create template record' }, { status: 500 })
+    console.error('Failed to create template record:', error instanceof Error ? error.message : error)
+    console.error('Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error as object), 2))
+    return NextResponse.json({ error: 'Failed to create template record', details: error instanceof Error ? error.message : String(error) }, { status: 500 })
   }
 }
