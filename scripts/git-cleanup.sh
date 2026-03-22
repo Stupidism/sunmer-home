@@ -47,10 +47,10 @@ while IFS= read -r line; do
 
   # 检查该分支是否已合并到 main
   if git branch --merged "$MAIN_BRANCH" | grep -qw "$wt_branch"; then
-    echo "  worktree: $wt_path (分支: $wt_branch) — 已合并"
+    echo "  [$wt_branch] $wt_path — 已合并"
     if [[ "$DRY_RUN" == false ]]; then
       git worktree remove "$wt_path" --force
-      echo "    ✅ 已移除 worktree"
+      echo "    ✅ 已移除"
       unset 'worktree_branches[$wt_branch]'
     fi
   fi
