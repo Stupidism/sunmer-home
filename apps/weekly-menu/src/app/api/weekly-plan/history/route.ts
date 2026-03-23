@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url)
   const page = Math.max(1, Number(url.searchParams.get('page')) || 1)
-  const pageSize = Math.max(1, Math.min(10, Number(url.searchParams.get('pageSize')) || 2))
+  const pageSize = Math.max(1, Math.min(10, Number(url.searchParams.get('pageSize')) || 6))
 
   const currentWeekStart = getWeekStart(new Date())
   // 包含当前周：weekStartDate <= 当前周一，即当前周及过去周均显示
