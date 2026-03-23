@@ -84,14 +84,21 @@ export function HistoryList() {
         toast.error(data.error || '加载失败')
         return
       }
+      const nextTotalPages = Math.max(1, Number(data.totalPages) || 1)
+
+      if (currentPage > nextTotalPages) {
+        router.replace(`/history?page=${nextTotalPages}`)
+        return
+      }
+
       setItems(data.items || [])
-      setTotalPages(data.totalPages || 1)
+      setTotalPages(nextTotalPages)
     } catch {
       toast.error('加载失败')
     } finally {
       setLoading(false)
     }
-  }, [currentPage])
+  }, [currentPage, router])
 
   useEffect(() => {
     fetchHistory()
