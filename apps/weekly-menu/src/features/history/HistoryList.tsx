@@ -35,6 +35,8 @@ type HistoryItem = {
   dishPreview: string[]
 }
 
+const HISTORY_PAGE_SIZE = 6
+
 function formatWeekRange(weekStart: string) {
   const dateStr = typeof weekStart === 'string' ? weekStart.slice(0, 10) : ''
   if (!dateStr) return '—'
@@ -74,20 +76,29 @@ export function HistoryList() {
   const fetchHistory = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/weekly-plan/history?page=${currentPage}&pageSize=2`)
+      const res = await fetch(
+        `/api/weekly-plan/history?page=${currentPage}&pageSize=${HISTORY_PAGE_SIZE}`,
+      )
       const data = await res.json()
       if (!res.ok) {
         toast.error(data.error || '加载失败')
         return
       }
+      const nextTotalPages = Math.max(1, Number(data.totalPages) || 1)
+
+      if (currentPage > nextTotalPages) {
+        router.replace(`/history?page=${nextTotalPages}`)
+        return
+      }
+
       setItems(data.items || [])
-      setTotalPages(data.totalPages || 1)
+      setTotalPages(nextTotalPages)
     } catch {
       toast.error('加载失败')
     } finally {
       setLoading(false)
     }
-  }, [currentPage])
+  }, [currentPage, router])
 
   useEffect(() => {
     fetchHistory()
@@ -240,18 +251,9 @@ export function HistoryList() {
                 </Button>
               </Link>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="text-xs active:scale-95 active:opacity-80"
-                onClick={() => copyToCurrentWeek(item.id)}
-              >
-                <Copy className="h-3 w-3 mr-1" />
-                复制到本周
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs text-destructive hover:text-destructive active:scale-95 active:opacity-80"
+                className="text-xs border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive active:scale-95 active:opacity-80"
                 onClick={() =>
                   setDeleteTarget({
                     planId: item.id,
@@ -262,6 +264,15 @@ export function HistoryList() {
               >
                 <Trash2 className="h-3 w-3 mr-1" />
                 删除
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs active:scale-95 active:opacity-80"
+                onClick={() => copyToCurrentWeek(item.id)}
+              >
+                <Copy className="h-3 w-3 mr-1" />
+                复制到本周
               </Button>
             </div>
           </CardContent>
