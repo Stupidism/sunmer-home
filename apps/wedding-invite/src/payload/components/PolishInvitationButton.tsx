@@ -147,6 +147,9 @@ export function PolishInvitationButton() {
       }
 
       setMessage(payload.aiUsed ? "邀请词已 AI 润色并保存" : "邀请词已生成并保存");
+
+      // Refresh the page so Payload reloads the updated invitationCopy field
+      window.location.reload();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Polish failed");
     } finally {
