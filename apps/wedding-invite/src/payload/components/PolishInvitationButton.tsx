@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useField } from "@payloadcms/ui";
 
 function normalizeGuestID(raw: string | null | undefined): string | null {
   if (!raw) {
@@ -59,6 +60,7 @@ function resolveGuestID(): string | null {
 
 export function PolishInvitationButton() {
   const [guestID, setGuestID] = useState<string | null>(null);
+  const invitationCopyField = useField<string>({ path: "invitationCopy" });
   const [loading, setLoading] = useState(false);
   const [loadingLink, setLoadingLink] = useState(false);
   const [shareLink, setShareLink] = useState("");
@@ -133,11 +135,16 @@ export function PolishInvitationButton() {
         success?: boolean;
         aiUsed?: boolean;
         shareLink?: string;
+        invitationCopy?: string;
         error?: string;
       };
 
       if (!response.ok || !payload.success) {
         throw new Error(payload.error || "Polish failed");
+      }
+
+      if (payload.invitationCopy) {
+        invitationCopyField.setValue(payload.invitationCopy);
       }
 
       if (payload.shareLink) {
