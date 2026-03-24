@@ -9,14 +9,34 @@ type MemoryItem = {
   url: string;
 };
 
+function getBlobBaseUrl(): string | null {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) return null;
+  const match = token.match(/^vercel_blob_rw_([a-z\d]+)_[a-z\d]+$/i);
+  if (!match) return null;
+  return `https://${match[1].toLowerCase()}.public.blob.vercel-storage.com`;
+}
+
 function normalizeURL(doc: Record<string, unknown>): string | null {
-  if (typeof doc.url === "string" && doc.url.trim()) {
-    return doc.url.trim();
+  const url = typeof doc.url === "string" ? doc.url.trim() : "";
+  const filename = typeof doc.filename === "string" ? doc.filename.trim() : "";
+
+  // If URL is already an absolute blob/external URL, use it directly
+  if (url.startsWith("https://")) {
+    return url;
   }
 
-  if (typeof doc.filename === "string" && doc.filename.trim()) {
-    return `/api/memory-photos/file/${encodeURIComponent(doc.filename)}`;
+  // Try to construct a direct Vercel Blob URL
+  if (filename) {
+    const blobBase = getBlobBaseUrl();
+    if (blobBase) {
+      return `${blobBase}/${encodeURIComponent(filename)}`;
+    }
   }
+
+  // Fallback to Payload's static handler path
+  if (url) return url;
+  if (filename) return `/api/memory-photos/file/${encodeURIComponent(filename)}`;
 
   return null;
 }
