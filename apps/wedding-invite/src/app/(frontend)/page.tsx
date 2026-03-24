@@ -149,6 +149,7 @@ interface MemoryPhotoItem {
 interface MemoryPhotoData {
   couple: MemoryPhotoItem[];
   baby: MemoryPhotoItem[];
+  story: MemoryPhotoItem[];
 }
 
 function SectionTitle({ title, subtitle, className }: SectionTitleProps) {
@@ -294,15 +295,9 @@ function HeroSection({ inviteData }: { inviteData: PersonalizedInviteData | null
 
 // ==================== Couple Story Section ====================
 
-function StorySection({ inviteData }: { inviteData: PersonalizedInviteData | null }) {
+function StorySection({ inviteData, storyPhotos }: { inviteData: PersonalizedInviteData | null; storyPhotos: MemoryPhotoItem[] }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
-
-  const photos = [
-    { id: 1, alt: "我们的第一次相遇" },
-    { id: 2, alt: "甜蜜的约会时光" },
-    { id: 3, alt: "求婚的那一刻" },
-  ];
 
   return (
     <section
@@ -321,23 +316,38 @@ function StorySection({ inviteData }: { inviteData: PersonalizedInviteData | nul
         >
           {/* Photo Grid */}
           <motion.div variants={fadeInUp} className="grid grid-cols-2 gap-4">
+            {/* Photo 1 - wide */}
             <div className="col-span-2 aspect-[16/9] bg-gradient-to-br from-rose-100 to-pink-100 dark:from-rose-900/30 dark:to-pink-900/20 rounded-2xl flex items-center justify-center overflow-hidden group">
-              <div className="text-center p-6">
-                <Heart className="w-12 h-12 text-rose-300 mx-auto mb-3 group-hover:scale-110 transition-transform" />
-                <span className="text-rose-600/70 dark:text-rose-400/70 text-sm">照片 1</span>
-              </div>
+              {storyPhotos[0] ? (
+                <img src={storyPhotos[0].url} alt={storyPhotos[0].title} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              ) : (
+                <div className="text-center p-6">
+                  <Heart className="w-12 h-12 text-rose-300 mx-auto mb-3 group-hover:scale-110 transition-transform" />
+                  <span className="text-rose-600/70 dark:text-rose-400/70 text-sm">照片 1</span>
+                </div>
+              )}
             </div>
+            {/* Photo 2 - square */}
             <div className="aspect-square bg-gradient-to-br from-pink-100 to-rose-100 dark:from-pink-900/30 dark:to-rose-900/20 rounded-2xl flex items-center justify-center overflow-hidden group">
-              <div className="text-center p-4">
-                <Heart className="w-10 h-10 text-rose-300 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-                <span className="text-rose-600/70 dark:text-rose-400/70 text-sm">照片 2</span>
-              </div>
+              {storyPhotos[1] ? (
+                <img src={storyPhotos[1].url} alt={storyPhotos[1].title} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              ) : (
+                <div className="text-center p-4">
+                  <Heart className="w-10 h-10 text-rose-300 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="text-rose-600/70 dark:text-rose-400/70 text-sm">照片 2</span>
+                </div>
+              )}
             </div>
+            {/* Photo 3 - square */}
             <div className="aspect-square bg-gradient-to-br from-rose-100 to-pink-100 dark:from-rose-900/30 dark:to-pink-900/20 rounded-2xl flex items-center justify-center overflow-hidden group">
-              <div className="text-center p-4">
-                <Heart className="w-10 h-10 text-rose-300 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-                <span className="text-rose-600/70 dark:text-rose-400/70 text-sm">照片 3</span>
-              </div>
+              {storyPhotos[2] ? (
+                <img src={storyPhotos[2].url} alt={storyPhotos[2].title} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              ) : (
+                <div className="text-center p-4">
+                  <Heart className="w-10 h-10 text-rose-300 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="text-rose-600/70 dark:text-rose-400/70 text-sm">照片 3</span>
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -1195,7 +1205,7 @@ export function WeddingInvitationPage({
   initialInviteCode?: string;
 } = {}) {
   const [inviteData, setInviteData] = useState<PersonalizedInviteData | null>(null);
-  const [memoryPhotos, setMemoryPhotos] = useState<MemoryPhotoData>({ couple: [], baby: [] });
+  const [memoryPhotos, setMemoryPhotos] = useState<MemoryPhotoData>({ couple: [], baby: [], story: [] });
 
   useEffect(() => {
     const code = initialInviteCode || "";
@@ -1243,6 +1253,7 @@ export function WeddingInvitationPage({
           data?: {
             couple?: MemoryPhotoItem[];
             baby?: MemoryPhotoItem[];
+            story?: MemoryPhotoItem[];
           };
         };
 
@@ -1250,6 +1261,7 @@ export function WeddingInvitationPage({
           setMemoryPhotos({
             couple: Array.isArray(payload.data.couple) ? payload.data.couple : [],
             baby: Array.isArray(payload.data.baby) ? payload.data.baby : [],
+            story: Array.isArray(payload.data.story) ? payload.data.story : [],
           });
         }
       } catch (error) {
@@ -1273,7 +1285,7 @@ export function WeddingInvitationPage({
       <HeroSection inviteData={inviteData} />
 
       {/* Couple Story Section */}
-      <StorySection inviteData={inviteData} />
+      <StorySection inviteData={inviteData} storyPhotos={memoryPhotos.story} />
 
       {/* Wedding Details Section */}
       <DetailsSection />

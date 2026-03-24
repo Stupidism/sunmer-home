@@ -34,6 +34,7 @@ export const MemoryPhotos: CollectionConfig = {
       options: [
         { label: "新郎新娘", value: "couple" },
         { label: "宝宝", value: "baby" },
+        { label: "我们的故事", value: "story" },
       ],
     },
     {
