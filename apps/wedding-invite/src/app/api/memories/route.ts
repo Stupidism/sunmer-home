@@ -5,7 +5,7 @@ type MemoryItem = {
   id: string | number;
   title: string;
   description: string;
-  category: "couple" | "baby";
+  category: "couple" | "baby" | "story";
   url: string;
 };
 
@@ -59,7 +59,7 @@ export async function GET() {
           return null;
         }
 
-        const category = doc.category === "baby" ? "baby" : "couple";
+        const category = doc.category === "baby" ? "baby" : doc.category === "story" ? "story" : "couple";
         return {
           id: doc.id as string | number,
           title: typeof doc.title === "string" && doc.title ? doc.title : "我们的回忆",
@@ -75,6 +75,7 @@ export async function GET() {
       data: {
         couple: items.filter((item) => item.category === "couple"),
         baby: items.filter((item) => item.category === "baby"),
+        story: items.filter((item) => item.category === "story"),
       },
     });
   } catch (error) {
