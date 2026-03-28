@@ -34,7 +34,7 @@ export default defineConfig({
   webServer: {
     command: 'pnpm exec next dev --port 3210',
     url: 'http://localhost:3210',
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
 })
