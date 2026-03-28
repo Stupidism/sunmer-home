@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Wait for the auto-created invitation (created asynchronously by Guests afterChange hook)
-      let invitation: Record<string, unknown> | undefined;
+      let invitationId: string | number | undefined;
       for (let attempt = 0; attempt < 10; attempt++) {
         const invitations = await payload.find({
           collection: "invitations",
@@ -116,20 +116,21 @@ export async function POST(request: NextRequest) {
           where: { guest: { equals: guest.id } },
           overrideAccess: true,
         });
-        if (invitations.docs[0]) {
-          invitation = invitations.docs[0] as Record<string, unknown>;
+        const doc = invitations.docs[0];
+        if (doc) {
+          invitationId = doc.id;
           break;
         }
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
 
-      if (invitation) {
+      if (invitationId !== undefined) {
         await payload.create({
           collection: "rsvps",
           data: {
             displayTitle: `${guestName}-${new Date().toISOString().slice(0, 10)}`,
             guest: guest.id,
-            invitation: invitation.id,
+            invitation: invitationId,
             status,
             confirmedGuestCount: guestCount,
             phone,
@@ -145,7 +146,7 @@ export async function POST(request: NextRequest) {
 
         await payload.update({
           collection: "invitations",
-          id: invitation.id,
+          id: invitationId,
           data: { status: "responded" },
           overrideAccess: true,
         });
