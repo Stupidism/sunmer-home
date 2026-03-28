@@ -26,7 +26,7 @@ export default defineConfig({
   webServer: isRemoteBaseURL
     ? undefined
     : {
-        command: "pnpm dev --hostname 127.0.0.1 --port 3212",
+        command: "npx next dev --hostname 127.0.0.1 -p 3212",
         cwd: ".",
         url: baseURL,
         timeout: 120_000,

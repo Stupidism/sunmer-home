@@ -85,10 +85,90 @@ export async function POST(request: NextRequest) {
       body.transportPreference === "far_combo" ? "far_combo" : "near_rideshare_hsr";
     const inviteCode = typeof body.inviteCode === "string" ? body.inviteCode.trim() : "";
 
-    if (!guestName || !inviteCode) {
+    if (!guestName) {
       return NextResponse.json(
-        { success: false, error: "Name and invite code are required" },
+        { success: false, error: "Name is required" },
         { status: 400 }
+      );
+    }
+
+    // Walk-in RSVP: no invite code provided (submitted from homepage)
+    if (!inviteCode) {
+      const payload = await getPayloadClient();
+
+      // Create a walk-in guest record
+      const guest = await payload.create({
+        collection: "guests",
+        data: {
+          name: guestName,
+          phone,
+          relationshipNote: "主页直接填写",
+        },
+        overrideAccess: true,
+      });
+
+      // Wait for the auto-created invitation (created asynchronously by Guests afterChange hook)
+      let invitation: Record<string, unknown> | undefined;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const invitations = await payload.find({
+          collection: "invitations",
+          limit: 1,
+          where: { guest: { equals: guest.id } },
+          overrideAccess: true,
+        });
+        if (invitations.docs[0]) {
+          invitation = invitations.docs[0] as Record<string, unknown>;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      if (invitation) {
+        await payload.create({
+          collection: "rsvps",
+          data: {
+            displayTitle: `${guestName}-${new Date().toISOString().slice(0, 10)}`,
+            guest: guest.id,
+            invitation: invitation.id,
+            status,
+            confirmedGuestCount: guestCount,
+            phone,
+            message,
+            arrivalPlan,
+            needsHotel,
+            hotelNights,
+            transportPreference,
+            respondedAt: new Date().toISOString(),
+          },
+          overrideAccess: true,
+        });
+
+        await payload.update({
+          collection: "invitations",
+          id: invitation.id,
+          data: { status: "responded" },
+          overrideAccess: true,
+        });
+      }
+
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            id: guest.id,
+            name: guestName,
+            guest_count: guestCount,
+            phone,
+            message,
+            arrivalPlan,
+            needsHotel,
+            hotelNights,
+            transportPreference,
+            status,
+            submitted_at: new Date().toISOString(),
+          },
+        },
+        { status: 201 }
       );
     }
 
