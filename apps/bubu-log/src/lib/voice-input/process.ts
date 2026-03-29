@@ -156,7 +156,7 @@ interface DeepseekResponse {
   }>
 }
 
-interface ParsedActivity {
+export interface ParsedActivity {
   type: ActivityType
   startTime: string | null
   endTime: string | null
@@ -172,7 +172,7 @@ interface ParsedActivity {
   confidence: number
 }
 
-interface ParseError {
+export interface ParseError {
   error: string
   originalText: string
 }
@@ -226,7 +226,7 @@ function logNonSuccess(input: NonSuccessLogInput) {
   })
 }
 
-async function callDeepseek(text: string, userLocalTime: string): Promise<ParsedActivity | ParseError> {
+export async function callDeepseek(text: string, userLocalTime: string): Promise<ParsedActivity | ParseError> {
   const apiKey = process.env.DEEPSEEK_API_KEY
   
   if (!apiKey) {

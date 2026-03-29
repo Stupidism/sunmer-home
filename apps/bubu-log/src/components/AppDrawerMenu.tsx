@@ -12,7 +12,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@bubu-log/ui/sheet'
-import { Baby, ClipboardList, History, House, Menu, Settings, TrendingUp } from 'lucide-react'
+import { Baby, ClipboardList, FileUp, History, House, Menu, Settings, TrendingUp } from 'lucide-react'
 import { buildBabyScopedPath } from '@/lib/baby-scope'
 
 type DrawerItem = {
@@ -63,6 +63,12 @@ export function AppDrawerMenu({ babyId }: AppDrawerMenuProps) {
         label: '查看趋势',
         href: buildBabyScopedPath(babyId, '/daily-stats'),
         icon: TrendingUp,
+      },
+      {
+        key: 'batch-import',
+        label: '批量导入',
+        href: buildBabyScopedPath(babyId, '/batch-import'),
+        icon: FileUp,
       },
       {
         key: 'audits',
