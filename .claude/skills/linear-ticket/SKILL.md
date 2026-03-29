@@ -48,6 +48,12 @@
 4. 推送更新
 5. 向用户汇报
 
+### 阶段 7：合并前清理 worktree
+在 squash-merge 之前，必须清理该分支关联的 worktree，否则 `--delete-branch` 会因分支被 worktree 占用而失败：
+1. `git worktree list` 查找该分支的 worktree
+2. `git worktree remove <path>` 移除 worktree（如果目录已不存在，用 `git worktree prune` 清理残留引用）
+3. 然后执行 `gh pr merge --squash --delete-branch`
+
 ## 规则
 
 - 严格遵循 WORKFLOW.md

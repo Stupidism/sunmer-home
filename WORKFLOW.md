@@ -101,7 +101,10 @@ Todo → In Progress → Human Review → Merging → Done
 
 ### 9. 合并
 
-- 一旦通过审批，squash-merge PR：`gh pr merge --squash`
+- 一旦通过审批，先清理该分支关联的 worktree（避免分支删除失败）：
+  1. 查找 worktree：`git worktree list`
+  2. 移除对应 worktree：`git worktree remove <path>`（如果目录已不存在，用 `git worktree prune` 清理残留引用）
+- 然后 squash-merge PR：`gh pr merge --squash --delete-branch`
 - 将工单移至 **Done**
 
 ## 工单格式
