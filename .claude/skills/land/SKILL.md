@@ -17,10 +17,13 @@
 4. 如果 CI 失败：
    - 调查失败原因
    - 如果可以修复则修复，否则向用户报告
-5. 一旦所有检查通过且 PR 已批准：
-   - 执行 squash merge：`gh pr merge --squash --auto`
+5. 一旦所有检查通过且 PR 已批准，先清理该分支关联的 worktree：
+   - `git worktree list` 查找该分支的 worktree
+   - `git worktree remove <path>` 移除 worktree（如果目录已不存在，用 `git worktree prune` 清理残留引用）
+6. 执行 squash merge：
+   - `gh pr merge --squash --delete-branch`
    - 确认合并完成：`gh pr view --json state`
-6. 报告最终状态和 merge commit SHA
+7. 报告最终状态和 merge commit SHA
 
 ## 规则
 
