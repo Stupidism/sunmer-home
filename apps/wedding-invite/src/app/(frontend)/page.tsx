@@ -243,10 +243,10 @@ function HeroSection({ inviteData }: { inviteData: PersonalizedInviteData | null
           variants={fadeInUp}
           className="text-xl sm:text-2xl md:text-3xl text-rose-700 dark:text-rose-300 mb-8 font-light"
         >
-          {inviteData?.customOpening || "邀请您见证我们的幸福时刻"}
+          {inviteData?.customOpening || "诚挚邀请您见证我们的幸福时刻"}
         </motion.p>
 
-        {inviteData && (
+        {inviteData ? (
           <motion.p
             variants={fadeInUp}
             className="text-base sm:text-lg text-rose-700/90 dark:text-rose-300/90 mb-6"
@@ -254,6 +254,13 @@ function HeroSection({ inviteData }: { inviteData: PersonalizedInviteData | null
             亲爱的 {inviteData.guestName}（{inviteData.relationshipSide} ·
             {inviteData.relationshipCategory}），诚挚邀请您参加我们的婚礼。
           </motion.p>
+        ) : (
+          <motion.div variants={fadeInUp} className="max-w-xl mx-auto mb-6 space-y-3 text-base sm:text-lg text-rose-700/90 dark:text-rose-300/90 leading-relaxed">
+            <p>孙逢 &amp; 洪丽暖</p>
+            <p>谨定于 2026年5月5日（农历四月初九）</p>
+            <p>在江苏省东台市港汇国际大酒店举行婚礼</p>
+            <p>恭候您的光临</p>
+          </motion.div>
         )}
 
         {/* Date */}
@@ -618,9 +625,6 @@ function RSVPSection({
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    if (!inviteCode) {
-      newErrors.guests = "邀请链接无效，请联系新人确认";
-    }
     if (!formData.name.trim()) {
       newErrors.name = "请输入您的姓名";
     }
@@ -761,7 +765,7 @@ function RSVPSection({
                       </SelectTrigger>
                       <SelectContent>
                         {Array.from(
-                          { length: Math.max(inviteData?.maxGuestCount || 1, 1) },
+                          { length: Math.max(inviteData?.maxGuestCount || 5, 1) },
                           (_, i) => i + 1
                         ).map((num) => (
                           <SelectItem key={num} value={String(num)}>
@@ -872,7 +876,7 @@ function RSVPSection({
                   {/* Submit Button */}
                   <Button
                     type="submit"
-                    disabled={isSubmitting || !inviteCode}
+                    disabled={isSubmitting}
                     className="w-full bg-rose-500 hover:bg-rose-600 text-white py-6 rounded-xl text-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-70"
                   >
                     {isSubmitting ? (
