@@ -25,7 +25,7 @@ Todo → In Progress → Human Review → Merging → Done
 
 - 阅读工单描述，理解范围
 - 从 main 创建功能分支：`feat/<linear-id>-<short-slug>`
-- 如果用户在其他分支上，使用 git worktree 进行隔离
+- 始终使用 git worktree 进行隔离，不在用户工作目录中操作
 - 在 Linear 工单上发布工作记录评论：
   ```
   ## Claude Workpad
