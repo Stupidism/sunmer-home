@@ -1,8 +1,8 @@
-# Workflow: Claude Code + Linear
+# 工作流程：Claude Code + Linear
 
-This file defines how Claude Code agents should process Linear tickets in this monorepo.
+本文件定义了 Claude Code 代理如何在本 monorepo 中处理 Linear 工单。
 
-## Linear Board States
+## Linear 看板状态
 
 ```
 Todo → In Progress → Human Review → Merging → Done
@@ -10,123 +10,123 @@ Todo → In Progress → Human Review → Merging → Done
                       Rework → In Progress
 ```
 
-| State | Who acts | What happens |
-|-------|----------|--------------|
-| **Todo** | Agent picks up | Agent claims ticket, creates branch, starts work |
-| **In Progress** | Agent working | Agent implements, tests, creates PR |
-| **Human Review** | Human reviews | Agent pauses; if changes requested → Rework |
-| **Rework** | Agent re-works | Agent addresses feedback, re-pushes |
-| **Merging** | Agent merges | PR approved, squash-merge |
-| **Done** | Terminal | PR merged, ticket closed |
+| 状态 | 操作者 | 具体行为 |
+|------|--------|----------|
+| **Todo** | 代理认领 | 代理认领工单、创建分支、开始工作 |
+| **In Progress** | 代理工作中 | 代理进行开发、测试、创建 PR |
+| **Human Review** | 人工审查 | 代理暂停；如果需要修改 → Rework |
+| **Rework** | 代理返工 | 代理处理反馈、重新推送 |
+| **Merging** | 代理合并 | PR 已批准，执行 squash-merge |
+| **Done** | 终态 | PR 已合并，工单关闭 |
 
-## Agent Workflow (per ticket)
+## 代理工作流程（每个工单）
 
-### 1. Claim & Plan
+### 1. 认领与规划
 
-- Read the ticket description, understand scope
-- Create a feature branch from main: `feat/<linear-id>-<short-slug>`
-- Use git worktree if user is on a different branch
-- Post a workpad comment on the Linear ticket:
+- 阅读工单描述，理解范围
+- 从 main 创建功能分支：`feat/<linear-id>-<short-slug>`
+- 如果用户在其他分支上，使用 git worktree 进行隔离
+- 在 Linear 工单上发布工作记录评论：
   ```
   ## Claude Workpad
   - [ ] Step 1
   - [ ] Step 2
   ...
   ```
-- Move ticket to **In Progress**
+- 将工单移至 **In Progress**
 
-### 2. Implement
+### 2. 实现
 
-- Follow CLAUDE.md conventions strictly
-- Keep changes narrowly scoped — no unrelated refactors
-- Add `data-testid` attributes for e2e test selectors
-- Check off workpad items as completed
+- 严格遵循 CLAUDE.md 约定
+- 保持改动范围精确——不做无关的重构
+- 添加 `data-testid` 属性用于 e2e 测试选择器
+- 完成后勾选工作记录中的对应项
 
-### 3. Write E2E Tests
+### 3. 编写 E2E 测试
 
-- Write Playwright tests covering main flows
-- Enable video recording: `video: 'on'`
-- Tests must use `data-testid` selectors
+- 编写 Playwright 测试覆盖主要流程
+- 启用视频录制：`video: 'on'`
+- 测试必须使用 `data-testid` 选择器
 
-### 4. Create PR & Wait for Preview
+### 4. 创建 PR 并等待预览
 
-- Commit with conventional commit message (include `Closes SUN-XX`)
-- Push branch, create PR via `gh pr create`
-- PR body must include:
-  - `## Summary` — what changed and why
-  - `## Linear ticket` — link to the issue
-  - `## Test plan` — how changes were validated
-- Wait for Vercel preview deployment to be ready
+- 使用 conventional commit 风格提交（包含 `Closes SUN-XX`）
+- 推送分支，通过 `gh pr create` 创建 PR
+- PR 正文必须包含：
+  - `## Summary` — 修改内容及原因
+  - `## Linear ticket` — 工单链接
+  - `## Test plan` — 如何验证改动
+- 等待 Vercel 预览部署就绪
 
-### 5. Run E2E Against Vercel Preview
+### 5. 在 Vercel 预览环境运行 E2E 测试
 
-This is a **mandatory** step. Tests must run against the preview, not localhost.
+这是**必须**执行的步骤。测试必须在预览环境运行，而非 localhost。
 
-- Get the Vercel preview URL from PR comments
-- Preview uses Neon database branching — safe to seed test data
-- Create a `playwright.preview.config.ts` (no webServer, baseURL = preview URL, `video: 'on'`)
-- Run tests: `npx playwright test tests/<file>.spec.ts --config=playwright.preview.config.ts --workers=1`
-- Collect video recordings from `test-results/`
+- 从 PR 评论中获取 Vercel 预览 URL
+- 预览环境使用 Neon 数据库分支——可以安全地填充测试数据
+- 创建 `playwright.preview.config.ts`（不配置 webServer，baseURL 设为预览 URL，`video: 'on'`）
+- 运行测试：`npx playwright test tests/<file>.spec.ts --config=playwright.preview.config.ts --workers=1`
+- 从 `test-results/` 收集视频录制
 
-### 6. Post Evidence on Linear Ticket
+### 6. 在 Linear 工单上发布证据
 
-Before requesting review, the ticket must have:
+在请求审查之前，工单必须包含：
 
-1. **Workpad comment** with:
-   - Implementation plan checklist (all ✅)
-   - Validation results (test pass count)
-   - PR link
-   - Changed files list
+1. **工作记录评论**，包括：
+   - 实现计划清单（全部 ✅）
+   - 验证结果（测试通过数量）
+   - PR 链接
+   - 修改文件列表
 
-2. **Video evidence comment** with:
-   - Each test's video uploaded to Linear (via `fileUpload` mutation)
-   - Video links in a numbered list with test descriptions
-   - Test environment info (preview URL, browser, duration)
+2. **视频证据评论**，包括：
+   - 每个测试的视频上传到 Linear（通过 `fileUpload` mutation）
+   - 视频链接以编号列表形式展示，附带测试描述
+   - 测试环境信息（预览 URL、浏览器、耗时）
 
-### 7. Move to Human Review
+### 7. 移至人工审查
 
-Only after ALL of these are true:
-- [ ] All e2e tests pass against Vercel preview
-- [ ] Videos uploaded to Linear ticket
-- [ ] Workpad comment posted with PR link and test results
-- [ ] CI checks green on the PR
-- Move ticket to **Human Review**
+仅在以下条件全部满足后：
+- [ ] 所有 e2e 测试在 Vercel 预览环境通过
+- [ ] 视频已上传到 Linear 工单
+- [ ] 工作记录评论已发布，包含 PR 链接和测试结果
+- [ ] PR 上的 CI 检查全部通过
+- 将工单移至 **Human Review**
 
-### 8. Review Cycle
+### 8. 审查循环
 
-- If reviewer requests changes → ticket moves to **Rework**
-- Address ALL review comments
-- Re-validate, re-run tests if code changed
-- Push updates, move back to **Human Review**
+- 如果审查者要求修改 → 工单移至 **Rework**
+- 处理所有审查意见
+- 如果代码有改动，重新验证、重新运行测试
+- 推送更新，移回 **Human Review**
 
-### 9. Land
+### 9. 合并
 
-- Once approved, squash-merge the PR: `gh pr merge --squash`
-- Move ticket to **Done**
+- 一旦通过审批，squash-merge PR：`gh pr merge --squash`
+- 将工单移至 **Done**
 
-## Ticket Format
+## 工单格式
 
 ```markdown
 ## Context
-<Why this work is needed>
+<为什么需要这项工作>
 
 ## Requirements
-- [ ] Requirement 1
-- [ ] Requirement 2
+- [ ] 需求 1
+- [ ] 需求 2
 
 ## Acceptance Criteria
-- [ ] AC 1: <specific, testable condition>
-- [ ] AC 2: <specific, testable condition>
+- [ ] AC 1: <具体的、可测试的条件>
+- [ ] AC 2: <具体的、可测试的条件>
 
 ## Scope
 App: <bubu-log | nunu-island | wedding-invite | weekly-menu>
 Priority: <P0 | P1 | P2>
 ```
 
-## Conventions
+## 约定
 
-- **Branch naming**: `feat/SUN-XX-slug`, `fix/SUN-XX-slug`, `chore/SUN-XX-slug`
-- **Commit style**: conventional commits, e.g. `feat(bubu-log): add batch import`
-- **One ticket = one PR**: don't bundle unrelated work
-- **Out-of-scope items**: file as new Linear tickets
-- **Testing**: every feature ticket must have e2e tests with video proof
+- **分支命名**：`feat/SUN-XX-slug`、`fix/SUN-XX-slug`、`chore/SUN-XX-slug`
+- **提交风格**：conventional commits，例如 `feat(bubu-log): add batch import`
+- **一个工单 = 一个 PR**：不要捆绑无关的工作
+- **超出范围的事项**：创建新的 Linear 工单
+- **测试**：每个功能工单都必须有带视频证明的 e2e 测试

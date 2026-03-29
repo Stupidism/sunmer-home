@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
 #
-# poll-linear.sh — Poll Linear for Todo tickets and run Claude Code on each
+# poll-linear.sh — 轮询 Linear 获取 Todo 状态的工单，并对每个工单运行 Claude Code
 #
-# Prerequisites:
-#   - LINEAR_API_KEY env var set
-#   - LINEAR_TEAM_ID env var set (your Linear team ID)
-#   - claude CLI installed
+# 前置条件：
+#   - 设置 LINEAR_API_KEY 环境变量
+#   - 设置 LINEAR_TEAM_ID 环境变量（你的 Linear 团队 ID）
+#   - 已安装 claude CLI
 #
-# Usage:
+# 用法：
 #   LINEAR_API_KEY=lin_api_xxx LINEAR_TEAM_ID=xxx ./scripts/symphony/poll-linear.sh
 
 set -euo pipefail
 
-LINEAR_API_KEY="${LINEAR_API_KEY:?Set LINEAR_API_KEY}"
-LINEAR_TEAM_ID="${LINEAR_TEAM_ID:?Set LINEAR_TEAM_ID}"
+LINEAR_API_KEY="${LINEAR_API_KEY:?请设置 LINEAR_API_KEY}"
+LINEAR_TEAM_ID="${LINEAR_TEAM_ID:?请设置 LINEAR_TEAM_ID}"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 MAX_CONCURRENT="${MAX_CONCURRENT:-2}"
 
 declare -A RUNNING_PIDS
 
 cleanup() {
-  echo "Shutting down..."
+  echo "正在关闭..."
   for pid in "${RUNNING_PIDS[@]}"; do
     kill "$pid" 2>/dev/null || true
   done
@@ -53,16 +53,17 @@ move_to_in_progress() {
   fi
 }
 
-echo "=== Symphony Poller ==="
-echo "Team:           ${LINEAR_TEAM_ID}"
-echo "Max concurrent: ${MAX_CONCURRENT}"
-echo "Poll interval:  30s"
+echo "=== Symphony 轮询器 ==="
+echo "团队：          ${LINEAR_TEAM_ID}"
+echo "最大并发数：    ${MAX_CONCURRENT}"
+echo "轮询间隔：      30秒"
 echo "========================"
 
 while true; do
+  # 清理已完成的代理进程
   for ticket_id in "${!RUNNING_PIDS[@]}"; do
     if ! kill -0 "${RUNNING_PIDS[$ticket_id]}" 2>/dev/null; then
-      echo "[$(date '+%H:%M:%S')] Agent finished: ${ticket_id}"
+      echo "[$(date '+%H:%M:%S')] 代理已完成：${ticket_id}"
       unset "RUNNING_PIDS[$ticket_id]"
     fi
   done
@@ -84,7 +85,7 @@ for n in nodes:
       if [ -n "${RUNNING_PIDS[$identifier]+x}" ]; then continue; fi
       if [ "${#RUNNING_PIDS[@]}" -ge "$MAX_CONCURRENT" ]; then break; fi
 
-      echo "[$(date '+%H:%M:%S')] Claiming ticket: ${identifier} — ${title}"
+      echo "[$(date '+%H:%M:%S')] 认领工单：${identifier} — ${title}"
       move_to_in_progress "$issue_id"
 
       "$REPO_ROOT/scripts/symphony/run-ticket.sh" "$identifier" "$title" "$desc" &

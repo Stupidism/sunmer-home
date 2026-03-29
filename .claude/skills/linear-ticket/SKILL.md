@@ -1,56 +1,56 @@
-# Linear Ticket Skill
+# Linear Ticket 技能
 
-Work on a Linear ticket end-to-end following the WORKFLOW.md process.
+按照 WORKFLOW.md 流程端到端地处理 Linear 工单。
 
-## Input
+## 输入
 
-User provides a Linear ticket with: identifier (e.g. SUN-42), title, description, acceptance criteria.
+用户提供一个 Linear 工单，包含：标识符（如 SUN-42）、标题、描述、验收标准。
 
-## Steps
+## 步骤
 
-### Phase 1: Claim & Plan
-1. Read the ticket description carefully
-2. Create a feature branch from main: `feat/<linear-id>-<short-slug>`
-   - Use git worktree for isolation if user is on a different branch
-3. Draft a workpad plan (checklist of implementation steps)
-4. Present the plan to the user for confirmation before proceeding
+### 阶段 1：认领与规划
+1. 仔细阅读工单描述
+2. 从 main 创建功能分支：`feat/<linear-id>-<short-slug>`
+   - 如果用户在其他分支上，使用 git worktree 进行隔离
+3. 起草工作计划（实现步骤清单）
+4. 在开始前向用户展示计划并等待确认
 
-### Phase 2: Implement
-1. Explore the relevant codebase to understand existing patterns
-2. Implement changes following CLAUDE.md conventions
-3. Keep changes narrowly scoped — never expand beyond ticket scope
-4. If you discover out-of-scope improvements, note them for separate tickets
+### 阶段 2：实现
+1. 探索相关代码库，了解现有模式
+2. 按照 CLAUDE.md 约定实现改动
+3. 保持改动范围精确——不要超出工单范围
+4. 如果发现超出范围的改进点，记录下来作为单独的工单
 
-### Phase 3: Validate
-1. Run type check: `npx tsc --noEmit` (in the relevant app directory)
-2. Run lint if available: `pnpm lint`
-3. Run tests if available (unit or e2e)
-4. Verify each acceptance criterion from the ticket is met
-5. If any validation fails, fix and re-validate
+### 阶段 3：验证
+1. 运行类型检查：`npx tsc --noEmit`（在相关应用目录中）
+2. 如果可用，运行 lint：`pnpm lint`
+3. 如果可用，运行测试（单元测试或 e2e 测试）
+4. 验证工单中的每个验收标准是否满足
+5. 如果验证失败，修复后重新验证
 
-### Phase 4: Ship
-1. Use `/commit` to create well-formed commits
-2. Use `/pr` to create a pull request
-3. PR must reference the Linear ticket
-4. Report the PR URL to the user
+### 阶段 4：发布
+1. 使用 `/commit` 创建规范的提交
+2. 使用 `/pr` 创建 pull request
+3. PR 必须引用 Linear 工单
+4. 向用户报告 PR URL
 
-### Phase 5: E2E on Preview
-1. Wait for Vercel preview to deploy
-2. Run e2e tests against preview URL with video recording
-3. Upload videos to Linear ticket
-4. Post workpad comment with all evidence
+### 阶段 5：在预览环境运行 E2E 测试
+1. 等待 Vercel 预览部署完成
+2. 在预览 URL 上运行带视频录制的 e2e 测试
+3. 将视频上传到 Linear 工单
+4. 发布包含所有证据的工作记录评论
 
-### Phase 6: Review Feedback
-If the user reports review feedback:
-1. Read all review comments
-2. Address each comment (implement fix or explain why not)
-3. Re-validate
-4. Push updates
-5. Report back
+### 阶段 6：处理审查反馈
+如果用户报告了审查反馈：
+1. 阅读所有审查评论
+2. 逐一处理每条评论（实现修复或解释原因）
+3. 重新验证
+4. 推送更新
+5. 向用户汇报
 
-## Rules
+## 规则
 
-- Follow WORKFLOW.md strictly
-- One ticket = one PR
-- Never skip validation or video evidence
-- If blocked, ask the user rather than guessing
+- 严格遵循 WORKFLOW.md
+- 一个工单 = 一个 PR
+- 不要跳过验证或视频证据
+- 如果遇到阻塞，向用户提问而不是猜测
