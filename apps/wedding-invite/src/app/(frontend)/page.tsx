@@ -500,9 +500,11 @@ function DetailsSection() {
 function MemoryCarousel({
   title,
   photos,
+  testId,
 }: {
   title: string;
   photos: MemoryPhotoItem[];
+  testId?: string;
 }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -526,7 +528,7 @@ function MemoryCarousel({
   const current = hasPhotos ? photos[selectedIndex % photos.length] : null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid={testId} data-active-index={selectedIndex}>
       <h3 className="text-2xl font-serif text-rose-900 dark:text-rose-100">{title}</h3>
       <div className="rounded-3xl border border-rose-100 bg-white/70 p-4 shadow-lg dark:border-rose-900/30 dark:bg-rose-950/30">
         {hasPhotos ? (
@@ -557,6 +559,7 @@ function MemoryCarousel({
                 key={idx}
                 type="button"
                 aria-label={`Go to slide ${idx + 1}`}
+                data-testid={testId ? `${testId}-dot-${idx}` : undefined}
                 onClick={() => emblaApi?.scrollTo(idx)}
                 className={cn(
                   "h-2 w-2 rounded-full transition-colors",
@@ -570,7 +573,7 @@ function MemoryCarousel({
         )}
 
         {/* Title and description for current slide */}
-        <div className="mt-3 text-center text-sm text-rose-700/80 dark:text-rose-200/80">
+        <div className="mt-3 text-center text-sm text-rose-700/80 dark:text-rose-200/80" data-testid={testId ? `${testId}-caption` : undefined}>
           <div>{current?.title || "未上传"}</div>
           {current?.description ? <div className="mt-1 text-xs opacity-80">{current.description}</div> : null}
         </div>
@@ -599,10 +602,10 @@ function MemoriesSection({ photos }: { photos: MemoryPhotoData }) {
           variants={staggerContainer}
         >
           <motion.div variants={fadeInUp}>
-            <MemoryCarousel title="孙逢和洪丽暖" photos={photos.couple} />
+            <MemoryCarousel title="孙逢和洪丽暖" photos={photos.couple} testId="carousel-couple" />
           </motion.div>
           <motion.div variants={fadeInUp}>
-            <MemoryCarousel title="宝宝" photos={photos.baby} />
+            <MemoryCarousel title="宝宝" photos={photos.baby} testId="carousel-baby" />
           </motion.div>
         </motion.div>
       </div>
