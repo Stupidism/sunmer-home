@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import useEmblaCarousel from "embla-carousel-react";
+import Autoplay from "embla-carousel-autoplay";
 import { motion, useScroll, useTransform, AnimatePresence, useInView } from "framer-motion";
 import {
   Calendar,
@@ -502,59 +504,75 @@ function MemoryCarousel({
   title: string;
   photos: MemoryPhotoItem[];
 }) {
-  const [index, setIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [
+    Autoplay({ delay: 4000, stopOnInteraction: false, stopOnMouseEnter: true }),
+  ]);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setSelectedIndex(emblaApi.selectedScrollSnap());
+  }, [emblaApi]);
 
   useEffect(() => {
-    setIndex(0);
-  }, [photos.length]);
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on("select", onSelect);
+    return () => { emblaApi.off("select", onSelect); };
+  }, [emblaApi, onSelect]);
 
   const hasPhotos = photos.length > 0;
-  const current = hasPhotos ? photos[index % photos.length] : null;
-
-  const prev = () => {
-    if (!hasPhotos) return;
-    setIndex((prevIndex) => (prevIndex - 1 + photos.length) % photos.length);
-  };
-
-  const next = () => {
-    if (!hasPhotos) return;
-    setIndex((prevIndex) => (prevIndex + 1) % photos.length);
-  };
+  const current = hasPhotos ? photos[selectedIndex % photos.length] : null;
 
   return (
     <div className="space-y-4">
       <h3 className="text-2xl font-serif text-rose-900 dark:text-rose-100">{title}</h3>
       <div className="rounded-3xl border border-rose-100 bg-white/70 p-4 shadow-lg dark:border-rose-900/30 dark:bg-rose-950/30">
-        <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-gradient-to-br from-rose-100 to-pink-100 dark:from-rose-900/30 dark:to-pink-900/20">
-          {current ? (
-            <img src={current.url} alt={current.title} className="h-full w-full object-cover" />
-          ) : (
+        {hasPhotos ? (
+          <div className="overflow-hidden rounded-2xl" ref={emblaRef}>
+            <div className="flex">
+              {photos.map((photo, idx) => (
+                <div key={idx} className="min-w-0 flex-[0_0_100%]">
+                  <div className="aspect-[4/3] overflow-hidden bg-gradient-to-br from-rose-100 to-pink-100 dark:from-rose-900/30 dark:to-pink-900/20">
+                    <img src={photo.url} alt={photo.title} className="h-full w-full object-cover" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-gradient-to-br from-rose-100 to-pink-100 dark:from-rose-900/30 dark:to-pink-900/20">
             <div className="flex h-full items-center justify-center text-rose-600/70 dark:text-rose-300/70">
               请在 CMS 上传照片后展示
             </div>
-          )}
-        </div>
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={prev}
-            disabled={!hasPhotos}
-            className="rounded-full border border-rose-200 px-4 py-2 text-sm text-rose-700 disabled:opacity-40 dark:border-rose-700 dark:text-rose-200"
-          >
-            上一张
-          </button>
-          <div className="text-center text-sm text-rose-700/80 dark:text-rose-200/80">
-            <div>{current?.title || "未上传"}</div>
-            {current?.description ? <div className="mt-1 text-xs opacity-80">{current.description}</div> : null}
           </div>
-          <button
-            type="button"
-            onClick={next}
-            disabled={!hasPhotos}
-            className="rounded-full border border-rose-200 px-4 py-2 text-sm text-rose-700 disabled:opacity-40 dark:border-rose-700 dark:text-rose-200"
-          >
-            下一张
-          </button>
+        )}
+
+        {/* Dot indicators */}
+        {hasPhotos && photos.length > 1 && (
+          <div className="mt-3 flex items-center justify-center gap-1.5">
+            {photos.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                aria-label={`Go to slide ${idx + 1}`}
+                onClick={() => emblaApi?.scrollTo(idx)}
+                className={cn(
+                  "h-2 w-2 rounded-full transition-colors",
+                  idx === selectedIndex
+                    ? "bg-rose-600"
+                    : "bg-rose-300 dark:bg-rose-700"
+                )}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Title and description for current slide */}
+        <div className="mt-3 text-center text-sm text-rose-700/80 dark:text-rose-200/80">
+          <div>{current?.title || "未上传"}</div>
+          {current?.description ? <div className="mt-1 text-xs opacity-80">{current.description}</div> : null}
         </div>
       </div>
     </div>
