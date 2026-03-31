@@ -259,7 +259,7 @@ function HeroSection({ inviteData }: { inviteData: PersonalizedInviteData | null
         ) : (
           <motion.div variants={fadeInUp} className="max-w-xl mx-auto mb-6 space-y-3 text-base sm:text-lg text-rose-700/90 dark:text-rose-300/90 leading-relaxed">
             <p>孙逢 &amp; 洪丽暖</p>
-            <p>谨定于 2026年5月5日（农历四月初九）</p>
+            <p>谨定于 2026年5月5日（农历三月十九）</p>
             <p>在江苏省东台市港汇国际大酒店举行婚礼</p>
             <p>恭候您的光临</p>
           </motion.div>
