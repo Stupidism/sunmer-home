@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { revalidatePath } from "next/cache";
 import { isCMSAdmin } from "../access/isCMSAdmin";
 
 export const Guests: CollectionConfig = {
@@ -27,6 +28,32 @@ export const Guests: CollectionConfig = {
         const guestID = doc.id;
         const guestName = doc.name;
 
+        // Revalidate the invite page for this guest
+        try {
+          const invitationResult = await req.payload.find({
+            collection: "invitations",
+            where: { guest: { equals: guestID } },
+            limit: 1,
+            depth: 0,
+            overrideAccess: true,
+          });
+
+          const invitation = invitationResult.docs[0] as
+            | { inviteCode?: unknown }
+            | undefined;
+          const inviteCode =
+            invitation && typeof invitation.inviteCode === "string"
+              ? invitation.inviteCode
+              : null;
+          if (inviteCode) {
+            revalidatePath(`/invite/${inviteCode}`);
+          }
+          revalidatePath("/");
+        } catch (error) {
+          console.warn("[Guests afterChange] revalidation failed:", error);
+        }
+
+        // Auto-create invitation if none exists
         void (async () => {
           for (let attempt = 0; attempt < 20; attempt += 1) {
             await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 50 : 150));
