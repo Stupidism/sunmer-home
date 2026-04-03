@@ -1,22 +1,125 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authFailureResponse, getRequestedBabyId, requireAuth } from '@/lib/auth/get-current-baby'
-import { callDeepseek, type ParsedActivity } from '@/lib/voice-input/process'
+import { callDeepseek, type ParsedActivity, type PairHint } from '@/lib/voice-input/process'
 import { ActivityType } from '@/types/activity'
 import { getPayloadClient } from '@/lib/payload/client'
 import { createAuditLog } from '@/lib/payload/audit'
 
 const POINT_EVENT_TYPES = ['DIAPER', 'SUPPLEMENT', 'SPIT_UP', 'ROLL_OVER', 'PULL_TO_SIT']
 
+type BatchAction = 'create' | 'update' | 'skip'
+
 interface BatchParseItem {
   originalText: string
   parsed?: ParsedActivity & { startTimeISO: string; endTimeISO: string | null }
   error?: string
+  pairHint?: PairHint
+  merged?: boolean
+  mergedWith?: number | null
+  skipped?: boolean
+  action?: BatchAction
+  existingActivityId?: string | null
 }
 
 // Each entry has its own text and timestamp
 interface BatchEntry {
   text: string
   localTime: string
+}
+
+/**
+ * Phase 2: Pair-merge post-processing.
+ * Matches start/end/cancel entries of the same activity type and merges them.
+ */
+function mergePairs(
+  results: BatchParseItem[],
+  existingOpenSleep: { id: string; startTime: string } | null,
+): BatchParseItem[] {
+  // Initialize merge metadata on every item
+  for (const item of results) {
+    item.pairHint = item.parsed?.pairHint ?? null
+    item.merged = false
+    item.mergedWith = null
+    item.skipped = false
+    item.action = item.error ? 'skip' : 'create'
+    item.existingActivityId = null
+  }
+
+  // Collect indices of unmatched "start" items, keyed by activity type
+  const openStarts = new Map<string, number[]>()
+
+  for (let i = 0; i < results.length; i++) {
+    const item = results[i]
+    if (!item.parsed || item.error) continue
+
+    const hint = item.pairHint
+    const type = item.parsed.type
+
+    if (hint === 'start') {
+      // Push onto the open-start stack for this type
+      if (!openStarts.has(type)) openStarts.set(type, [])
+      openStarts.get(type)!.push(i)
+    } else if (hint === 'cancel') {
+      // Cancel the most recent unmatched start of the same type
+      const stack = openStarts.get(type)
+      if (stack && stack.length > 0) {
+        const startIdx = stack.pop()!
+        // Mark both as skipped
+        results[startIdx].skipped = true
+        results[startIdx].action = 'skip'
+        item.skipped = true
+        item.action = 'skip'
+      } else {
+        // No matching start – skip the cancel entry alone
+        item.skipped = true
+        item.action = 'skip'
+      }
+    } else if (hint === 'end') {
+      // Try to match with the most recent unmatched start of same type
+      const stack = openStarts.get(type)
+      if (stack && stack.length > 0) {
+        const startIdx = stack.pop()!
+        const startItem = results[startIdx]
+
+        // Merge: use startItem's startTime, endItem's endTime & attributes
+        startItem.parsed = {
+          ...startItem.parsed!,
+          endTimeISO: item.parsed.endTimeISO ?? item.parsed.startTimeISO,
+          endTime: item.parsed.endTime ?? item.parsed.startTime,
+          // Overlay non-null fields from the end item
+          ...(item.parsed.milkAmount != null ? { milkAmount: item.parsed.milkAmount } : {}),
+          ...(item.parsed.milkSource != null ? { milkSource: item.parsed.milkSource } : {}),
+          ...(item.parsed.notes != null ? { notes: item.parsed.notes } : {}),
+        }
+        startItem.action = 'create'
+        startItem.merged = false // the start item is the surviving record
+
+        // Mark the end item as merged-into the start
+        item.merged = true
+        item.mergedWith = startIdx
+        item.action = 'skip'
+      } else {
+        // No matching start in this batch.
+        // For SLEEP "end" (= "醒了"), try to match with an existing open sleep record
+        if (type === ActivityType.SLEEP && existingOpenSleep) {
+          item.action = 'update'
+          item.existingActivityId = existingOpenSleep.id
+          // The endTime for the update is this item's startTime (the time "醒了" was reported)
+          item.parsed = {
+            ...item.parsed,
+            startTimeISO: existingOpenSleep.startTime,
+            endTimeISO: item.parsed.startTimeISO,
+            startTime: existingOpenSleep.startTime,
+            endTime: item.parsed.startTime,
+          }
+        }
+        // Otherwise, leave as a standalone "create" – the user can review
+      }
+    }
+    // hint === null → standalone, keep defaults (action = 'create')
+  }
+
+  return results
 }
 
 // POST: Parse multiple lines of voice input text
@@ -34,9 +137,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '单次最多解析50条记录' }, { status: 400 })
     }
 
-    await requireAuth({ babyId: getRequestedBabyId(request) })
+    const { baby } = await requireAuth({ babyId: getRequestedBabyId(request) })
 
-    // Parse all entries in parallel
+    // Phase 1: AI parse all entries in parallel
     const results: BatchParseItem[] = await Promise.all(
       entries.map(async (entry): Promise<BatchParseItem> => {
         const text = (entry.text || '').trim()
@@ -81,7 +184,53 @@ export async function POST(request: NextRequest) {
       })
     )
 
-    return NextResponse.json({ results })
+    // Phase 2: Look up existing open SLEEP record (last 12h, no endTime)
+    let existingOpenSleep: { id: string; startTime: string } | null = null
+    const hasEndSleep = results.some(
+      r => r.parsed?.type === ActivityType.SLEEP && r.pairHint !== 'start' && r.parsed?.pairHint === 'end',
+    )
+    // Also check raw pairHint from parsed before mergePairs sets it
+    const hasEndSleepFromParsed = results.some(
+      r => r.parsed?.type === ActivityType.SLEEP && r.parsed?.pairHint === 'end',
+    )
+
+    if (hasEndSleep || hasEndSleepFromParsed) {
+      try {
+        const payload = await getPayloadClient()
+        const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
+
+        const openSleepRecords = await payload.find({
+          collection: 'activities',
+          where: {
+            and: [
+              { babyId: { equals: baby.id } },
+              { type: { equals: ActivityType.SLEEP } },
+              { startTime: { greater_than_equal: twelveHoursAgo } },
+              { endTime: { exists: false } },
+            ],
+          },
+          sort: '-startTime',
+          limit: 1,
+          depth: 0,
+          overrideAccess: true,
+        })
+
+        if (openSleepRecords.docs.length > 0) {
+          const doc = openSleepRecords.docs[0]
+          existingOpenSleep = {
+            id: String(doc.id),
+            startTime: typeof doc.startTime === 'string' ? doc.startTime : new Date(doc.startTime).toISOString(),
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to look up open sleep record:', err)
+      }
+    }
+
+    // Phase 2: Pair-merge post-processing
+    const merged = mergePairs(results, existingOpenSleep)
+
+    return NextResponse.json({ results: merged })
   } catch (error) {
     const authError = authFailureResponse(error)
     if (authError) return authError
@@ -94,7 +243,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT: Batch create confirmed activities
+// PUT: Batch create/update confirmed activities
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({} as Record<string, unknown>))
@@ -104,59 +253,107 @@ export async function PUT(request: NextRequest) {
     const payload = await getPayloadClient()
 
     const created: Array<{ id: string; type: string; originalText: string }> = []
+    const updated: Array<{ id: string; type: string; originalText: string }> = []
+    const skipped: Array<{ originalText: string; reason: string }> = []
     const errors: Array<{ originalText: string; error: string }> = []
 
     for (const item of items) {
-      try {
-        const activity = await payload.create({
-          collection: 'activities',
-          data: {
-            type: item.type,
-            startTime: item.startTime,
-            endTime: item.endTime || null,
-            babyId: baby.id,
-            milkAmount: item.milkAmount || null,
-            milkSource: item.milkSource || null,
-            hasPoop: item.hasPoop ?? null,
-            hasPee: item.hasPee ?? null,
-            poopColor: item.poopColor || null,
-            peeAmount: item.peeAmount || null,
-            spitUpType: item.spitUpType || null,
-            count: item.count || null,
-            notes: item.notes || null,
-          },
-          depth: 0,
-          overrideAccess: true,
-        })
+      const action: BatchAction = item.action || 'create'
 
-        created.push({
-          id: String(activity.id),
-          type: item.type,
+      // Skip items explicitly marked as skip
+      if (action === 'skip') {
+        skipped.push({
           originalText: item.originalText || '',
+          reason: item.skipped ? '已取消' : '已合并到其他记录',
         })
+        continue
+      }
 
-        await createAuditLog(payload, {
-          action: 'CREATE',
-          resourceId: String(activity.id),
-          inputMethod: 'VOICE',
-          inputText: item.originalText || '',
-          description: `批量导入: "${item.originalText}" - 创建${item.type}`,
-          success: true,
-          beforeData: null,
-          afterData: activity,
-          activityId: String(activity.id),
-          babyId: baby.id,
-          userId: user.id,
-        })
+      try {
+        if (action === 'update' && item.existingActivityId) {
+          // Update existing record (e.g., add endTime to open sleep)
+          const activity = await payload.update({
+            collection: 'activities',
+            id: item.existingActivityId,
+            data: {
+              endTime: item.endTime || null,
+              ...(item.notes != null ? { notes: item.notes } : {}),
+            },
+            depth: 0,
+            overrideAccess: true,
+          })
+
+          updated.push({
+            id: String(activity.id),
+            type: item.type,
+            originalText: item.originalText || '',
+          })
+
+          await createAuditLog(payload, {
+            action: 'UPDATE',
+            resourceId: String(activity.id),
+            inputMethod: 'VOICE',
+            inputText: item.originalText || '',
+            description: `批量导入: "${item.originalText}" - 更新${item.type}(补endTime)`,
+            success: true,
+            beforeData: null,
+            afterData: activity,
+            activityId: String(activity.id),
+            babyId: baby.id,
+            userId: user.id,
+          })
+        } else {
+          // Create new record
+          const activity = await payload.create({
+            collection: 'activities',
+            data: {
+              type: item.type,
+              startTime: item.startTime,
+              endTime: item.endTime || null,
+              babyId: baby.id,
+              milkAmount: item.milkAmount || null,
+              milkSource: item.milkSource || null,
+              hasPoop: item.hasPoop ?? null,
+              hasPee: item.hasPee ?? null,
+              poopColor: item.poopColor || null,
+              peeAmount: item.peeAmount || null,
+              spitUpType: item.spitUpType || null,
+              count: item.count || null,
+              notes: item.notes || null,
+            },
+            depth: 0,
+            overrideAccess: true,
+          })
+
+          created.push({
+            id: String(activity.id),
+            type: item.type,
+            originalText: item.originalText || '',
+          })
+
+          await createAuditLog(payload, {
+            action: 'CREATE',
+            resourceId: String(activity.id),
+            inputMethod: 'VOICE',
+            inputText: item.originalText || '',
+            description: `批量导入: "${item.originalText}" - 创建${item.type}`,
+            success: true,
+            beforeData: null,
+            afterData: activity,
+            activityId: String(activity.id),
+            babyId: baby.id,
+            userId: user.id,
+          })
+        }
       } catch (err) {
         errors.push({
           originalText: item.originalText || '',
-          error: err instanceof Error ? err.message : '创建失败',
+          error: err instanceof Error ? err.message : '操作失败',
         })
       }
     }
 
-    return NextResponse.json({ created, errors })
+    return NextResponse.json({ created, updated, skipped, errors })
   } catch (error) {
     const authError = authFailureResponse(error)
     if (authError) return authError

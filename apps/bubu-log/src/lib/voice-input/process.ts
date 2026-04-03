@@ -62,8 +62,23 @@ const SYSTEM_PROMPT = `你是一个宝宝活动记录助手。用户会用自然
   "spitUpType": "吐奶类型（PROJECTILE喷射性/NORMAL普通）"，仅当type为SPIT_UP时返回，默认PROJECTILE,
   "count": 次数（整数），仅当type为ROLL_OVER或PULL_TO_SIT时使用，如果没提到默认为3,
   "notes": "用户提到的其他备注信息",
-  "confidence": 0-1 之间的置信度，表示你对解析结果的信心
+  "confidence": 0-1 之间的置信度，表示你对解析结果的信心,
+  "pairHint": "配对提示，用于批量导入时自动合并配对记录"
 }
+
+pairHint 字段规则（非常重要）：
+- "start": 表示这是一个活动的开始，如"宝宝睡觉了"、"开始喝奶"、"开始喂奶"、"开始亲喂"、"开始轻味"（轻味=亲喂语音误识别）
+- "end": 表示这是一个活动的结束，如"宝宝醒了"、"喝了160毫升结束"、"喝完了"、"喂完了"
+- "cancel": 表示取消前面的开始，如"取消"、"没吃"、"不吃了"、"算了"
+- null: 表示这是一个独立完整的活动记录（如"宝宝在户外运动"、"换尿布"、"吸奶10分钟160毫升"），不需要配对
+注意：
+- "宝宝睡觉了"/"宝宝睡着了" → pairHint="start"（入睡开始）
+- "宝宝醒了"/"睡醒了" → pairHint="end"（睡眠结束）
+- "开始喝奶"/"开始喂奶" → pairHint="start"（喂奶开始）
+- "喝了XX毫升结束"/"喝完了" → pairHint="end"（喂奶结束）
+- "取消"/"没吃两口"（含取消意图） → pairHint="cancel"
+- "吸奶10分钟160毫升" → pairHint=null（已经是完整记录）
+- "宝宝在户外运动" → pairHint=null（独立完整记录）
 
 重要规则：
 1. 如果无法确定活动类型，返回 {"error": "无法识别活动类型", "originalText": "用户原文"}
@@ -156,6 +171,8 @@ interface DeepseekResponse {
   }>
 }
 
+export type PairHint = 'start' | 'end' | 'cancel' | null
+
 export interface ParsedActivity {
   type: ActivityType
   startTime: string | null
@@ -170,6 +187,7 @@ export interface ParsedActivity {
   count: number | null
   notes: string | null
   confidence: number
+  pairHint?: PairHint
 }
 
 export interface ParseError {
