@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useImperativeHandle, forwardRef, useEffect, useState } from 'react'
-import { ActivityType, ActivityTypeLabels } from '@/types/activity'
+import { ActivityType, ActivityTypeLabels, SupplementTypeLabels, type SupplementType } from '@/types/activity'
 import { ActivityIcon } from './ActivityIcon'
 import type { Activity } from '@/lib/api/hooks'
 import { dayjs, calculateDurationMinutes, formatTime, formatDuration } from '@/lib/dayjs'
@@ -225,7 +225,7 @@ export const DayTimeline = forwardRef<DayTimelineRef, DayTimelineProps>(
       } else if (activity.type === 'SUPPLEMENT') {
         // 显示补剂类型
         if (activity.supplementType) {
-          label = activity.supplementType
+          label = SupplementTypeLabels[activity.supplementType as SupplementType] || activity.supplementType
         }
       } else if (activity.type === 'SPIT_UP') {
         // 显示吐奶类型

@@ -144,6 +144,8 @@ export async function computeDailyStatsForBaby(
     totalHeadLiftMinutes: 0,
     supplementADCount: 0,
     supplementD3Count: 0,
+    supplementProbioticsCount: 0,
+    supplementPrebioticsCount: 0,
     spitUpCount: 0,
     projectileSpitUpCount: 0,
   }
@@ -223,6 +225,10 @@ export async function computeDailyStatsForBaby(
             stats.supplementADCount += 1
           } else if (activity.supplementType === 'D3') {
             stats.supplementD3Count += 1
+          } else if (activity.supplementType === 'PROBIOTICS') {
+            stats.supplementProbioticsCount += 1
+          } else if (activity.supplementType === 'PREBIOTICS') {
+            stats.supplementPrebioticsCount += 1
           }
         }
         break

@@ -136,6 +136,28 @@ export function SupplementForm({ onSubmit, onCancel, initialValues, isEditing }:
             <Pill size={20} />
             D3
           </button>
+          <button
+            onClick={() => setSupplementType('PROBIOTICS')}
+            className={`p-4 rounded-2xl text-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+              supplementType === 'PROBIOTICS'
+                ? 'bg-green-500 text-white shadow-lg scale-105'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+            }`}
+          >
+            <Pill size={20} />
+            益生菌
+          </button>
+          <button
+            onClick={() => setSupplementType('PREBIOTICS')}
+            className={`p-4 rounded-2xl text-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+              supplementType === 'PREBIOTICS'
+                ? 'bg-teal-500 text-white shadow-lg scale-105'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+            }`}
+          >
+            <Pill size={20} />
+            益生元
+          </button>
         </div>
       </div>
 

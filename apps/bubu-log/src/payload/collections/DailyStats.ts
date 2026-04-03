@@ -68,6 +68,8 @@ export const DailyStats: CollectionConfig = {
     { name: 'totalHeadLiftMinutes', label: '抬头总分钟', type: 'number', required: true, defaultValue: 0, min: 0, admin: { step: 1 } },
     { name: 'supplementADCount', label: 'AD 次数', type: 'number', required: true, defaultValue: 0, min: 0, admin: { step: 1 } },
     { name: 'supplementD3Count', label: 'D3 次数', type: 'number', required: true, defaultValue: 0, min: 0, admin: { step: 1 } },
+    { name: 'supplementProbioticsCount', label: '益生菌次数', type: 'number', required: true, defaultValue: 0, min: 0, admin: { step: 1 } },
+    { name: 'supplementPrebioticsCount', label: '益生元次数', type: 'number', required: true, defaultValue: 0, min: 0, admin: { step: 1 } },
     { name: 'spitUpCount', label: '吐奶次数', type: 'number', required: true, defaultValue: 0, min: 0, admin: { step: 1 } },
     { name: 'projectileSpitUpCount', label: '喷射吐奶次数', type: 'number', required: true, defaultValue: 0, min: 0, admin: { step: 1 } },
     {

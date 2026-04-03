@@ -203,6 +203,8 @@ export const Activities: CollectionConfig = {
       options: [
         { label: 'AD', value: 'AD' },
         { label: 'D3', value: 'D3' },
+        { label: '益生菌', value: 'PROBIOTICS' },
+        { label: '益生元', value: 'PREBIOTICS' },
       ],
     },
     {

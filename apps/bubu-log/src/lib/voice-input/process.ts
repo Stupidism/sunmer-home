@@ -1,4 +1,4 @@
-import { ActivityType, PoopColor, PeeAmount, type SpitUpType, type MilkSource } from '@/types/activity'
+import { ActivityType, PoopColor, PeeAmount, type SpitUpType, type MilkSource, type SupplementType } from '@/types/activity'
 import { getPayloadClient } from '@/lib/payload/client'
 import { createAuditLog } from '@/lib/payload/audit'
 
@@ -34,6 +34,13 @@ const SYSTEM_PROMPT = `你是一个宝宝活动记录助手。用户会用自然
 - BATH: 洗澡/沐浴/泡澡
 - OUTDOOR: 户外/晒太阳/出门/外面/遛弯
 - EARLY_EDUCATION: 早教/读书/讲故事/玩耍/游戏/听音乐
+- SUPPLEMENT: 补剂/维生素/AD/D3/益生菌/益生元
+  【补剂类型 supplementType】：
+    * AD: 维生素AD（如"吃了AD"、"补AD"）
+    * D3: 维生素D3（如"吃了D3"、"补D3"）
+    * PROBIOTICS: 益生菌（如"吃了益生菌"、"补益生菌"）
+    * PREBIOTICS: 益生元（如"吃了益生元"、"补益生元"）
+  【语音识别纠错】："一生菌"/"易生菌"/"异生菌" → "益生菌" (PROBIOTICS)；"一生元"/"易生元"/"异生元" → "益生元" (PREBIOTICS)
 
 便便颜色 (poopColor):
 - YELLOW: 黄色
@@ -59,6 +66,7 @@ const SYSTEM_PROMPT = `你是一个宝宝活动记录助手。用户会用自然
   "hasPee": 是否有小便（布尔值），如果没提到返回 null,
   "poopColor": "便便颜色"，如果没提到返回 null,
   "peeAmount": "小便量"，如果没提到返回 null,
+  "supplementType": "补剂类型（AD/D3/PROBIOTICS/PREBIOTICS）"，仅当type为SUPPLEMENT时返回，默认AD,
   "spitUpType": "吐奶类型（PROJECTILE喷射性/NORMAL普通）"，仅当type为SPIT_UP时返回，默认PROJECTILE,
   "count": 次数（整数），仅当type为ROLL_OVER或PULL_TO_SIT时使用，如果没提到默认为3,
   "notes": "用户提到的其他备注信息",
@@ -166,6 +174,7 @@ export interface ParsedActivity {
   hasPee: boolean | null
   poopColor: PoopColor | null
   peeAmount: PeeAmount | null
+  supplementType: SupplementType | null
   spitUpType: SpitUpType | null
   count: number | null
   notes: string | null
@@ -494,6 +503,7 @@ export async function processVoiceInput(options: ProcessVoiceInputOptions): Prom
             hasPee: parsed.hasPee,
             poopColor: parsed.poopColor,
             peeAmount: parsed.peeAmount,
+            supplementType: parsed.supplementType,
             spitUpType: parsed.spitUpType,
             count: parsed.count,
             notes: parsed.notes,
@@ -519,6 +529,7 @@ export async function processVoiceInput(options: ProcessVoiceInputOptions): Prom
         hasPee: parsed.hasPee,
         poopColor: parsed.poopColor,
         peeAmount: parsed.peeAmount,
+        supplementType: parsed.supplementType,
         spitUpType: parsed.spitUpType,
         count: parsed.count,
         notes: parsed.notes,
@@ -702,7 +713,19 @@ function generateConfirmationMessage(parsed: ParsedActivity): string {
     FORMULA: '奶粉',
   }
 
+  const supplementTypeLabels: Record<string, string> = {
+    AD: 'AD',
+    D3: 'D3',
+    PROBIOTICS: '益生菌',
+    PREBIOTICS: '益生元',
+  }
+
   let message = `已记录: ${typeLabels[parsed.type]}`
+
+  // Show supplement type
+  if (parsed.type === ActivityType.SUPPLEMENT && parsed.supplementType) {
+    message += `（${supplementTypeLabels[parsed.supplementType] || parsed.supplementType}）`
+  }
 
   // For count-based activities, show count instead of duration
   if (parsed.count && (parsed.type === ActivityType.ROLL_OVER || parsed.type === ActivityType.PULL_TO_SIT)) {
