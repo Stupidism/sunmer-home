@@ -1,4 +1,4 @@
-import { ActivityType, PoopColor, PeeAmount, type SpitUpType, type MilkSource, type SupplementType } from '@/types/activity'
+import { ActivityType, PoopColor, PeeAmount, type SpitUpType, type MilkSource, type SupplementType, SupplementTypeLabels } from '@/types/activity'
 import { getPayloadClient } from '@/lib/payload/client'
 import { createAuditLog } from '@/lib/payload/audit'
 
@@ -713,18 +713,11 @@ function generateConfirmationMessage(parsed: ParsedActivity): string {
     FORMULA: '奶粉',
   }
 
-  const supplementTypeLabels: Record<string, string> = {
-    AD: 'AD',
-    D3: 'D3',
-    PROBIOTICS: '益生菌',
-    PREBIOTICS: '益生元',
-  }
-
   let message = `已记录: ${typeLabels[parsed.type]}`
 
   // Show supplement type
   if (parsed.type === ActivityType.SUPPLEMENT && parsed.supplementType) {
-    message += `（${supplementTypeLabels[parsed.supplementType] || parsed.supplementType}）`
+    message += `（${SupplementTypeLabels[parsed.supplementType] || parsed.supplementType}）`
   }
 
   // For count-based activities, show count instead of duration
