@@ -367,7 +367,6 @@ paths:
                         description: Timestamp of the message
                     required:
                       - text
-                      - localTime
                   maxItems: 50
                 localTime:
                   type: string

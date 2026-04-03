@@ -258,7 +258,14 @@ export async function PUT(request: NextRequest) {
     const errors: Array<{ originalText: string; error: string }> = []
 
     for (const item of items) {
-      const action: BatchAction = item.action || 'create'
+      if (!item.action) {
+        errors.push({
+          originalText: item.originalText || '',
+          error: 'action 字段为必填项',
+        })
+        continue
+      }
+      const action: BatchAction = item.action
 
       // Skip items explicitly marked as skip
       if (action === 'skip') {
@@ -271,6 +278,29 @@ export async function PUT(request: NextRequest) {
 
       try {
         if (action === 'update' && item.existingActivityId) {
+          // Verify the activity belongs to the current baby before updating
+          const existing = await payload.find({
+            collection: 'activities',
+            where: {
+              and: [
+                { id: { equals: item.existingActivityId } },
+                { babyId: { equals: baby.id } },
+              ],
+            },
+            limit: 1,
+            pagination: false,
+            depth: 0,
+            overrideAccess: true,
+          })
+
+          if (existing.docs.length === 0) {
+            errors.push({
+              originalText: item.originalText || '',
+              error: '未找到对应的活动记录',
+            })
+            continue
+          }
+
           // Update existing record (e.g., add endTime to open sleep)
           const activity = await payload.update({
             collection: 'activities',
