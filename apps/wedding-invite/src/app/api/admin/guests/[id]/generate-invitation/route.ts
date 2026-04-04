@@ -131,14 +131,18 @@ export async function POST(
       (typeof guest.inviteCode === "string" && guest.inviteCode) ||
       makeDeterministicInviteCode(guest.id ?? id);
 
+    // Preserve "responded" status – only advance to "sent" from "draft"
+    const currentStatus = typeof guest.status === "string" ? guest.status : "draft";
+    const newStatus = currentStatus === "responded" ? "responded" : "sent";
+
     await payload.update({
       collection: "guests",
       id,
       data: {
         invitationCopy,
         inviteCode,
-        maxGuestCount: estimateMaxGuestCount(guest),
-        status: "sent",
+        maxGuestCount: Math.min(10, estimateMaxGuestCount(guest)),
+        status: newStatus,
         shareLink: buildShareLink(inviteCode, siteURL),
       },
       overrideAccess: true,
