@@ -1,17 +1,144 @@
-name: Delete Neon Branch on PR Close
+name: Neon Preview Branch Cleanup
 
 on:
   pull_request:
     types:
+      - opened
+      - reopened
+      - synchronize
       - closed
+
+permissions:
+  contents: read
+  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  delete_neon_branch:
-    name: Delete Neon Branch
-    if: github.event.pull_request.head.repo.full_name == github.repository
+  detect-affected:
+    name: Detect Affected Apps
+    if: >
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      unaffected_json: ${{ steps.detect.outputs.unaffected_json }}
+      has_unaffected: ${{ steps.detect.outputs.has_unaffected }}
+    steps:
+      - name: Detect affected projects and label PR
+        id: detect
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const pull_number = context.payload.pull_request.number
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100,
+            })
+
+            const changed = files.map((f) => f.filename)
+            const alwaysAffectAll = [
+              'pnpm-lock.yaml',
+              'pnpm-workspace.yaml',
+              'package.json',
+              'turbo.json',
+            ]
+
+            const projects = [
+              {
+                appId: 'bubu-log',
+                projectId: 'morning-mouse-25532220',
+                triggers: ['apps/bubu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'nunu-island',
+                projectId: 'shy-feather-65398796',
+                triggers: ['apps/nunu-island/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'nunu-log',
+                projectId: 'shiny-dream-05784525',
+                triggers: ['apps/nunu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'wedding-invite',
+                projectId: 'small-wind-49890586',
+                triggers: ['apps/wedding-invite/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+            ]
+
+            const affectAll = changed.some((file) =>
+              alwaysAffectAll.some((target) => file === target || file.startsWith(`${target}/`))
+            )
+
+            const affected = projects.filter((project) => {
+              if (affectAll) return true
+              return changed.some((file) => project.triggers.some((prefix) => file.startsWith(prefix)))
+            })
+
+            const unaffected = projects.filter((p) => !affected.some((a) => a.appId === p.appId))
+
+            core.info(`Changed files: ${changed.length}`)
+            core.info(`Affect all: ${affectAll}`)
+            core.info(`Affected: ${affected.map((p) => p.appId).join(', ') || '(none)'}`)
+            core.info(`Unaffected: ${unaffected.map((p) => p.appId).join(', ') || '(none)'}`)
+
+            // Auto-label PR with affected apps
+            const desiredLabels = affected.map((p) => `app:${p.appId}`)
+            const allAppLabels = projects.map((p) => `app:${p.appId}`)
+            const currentLabels = context.payload.pull_request.labels.map((l) => l.name)
+            const currentAppLabels = currentLabels.filter((l) => allAppLabels.includes(l))
+
+            const labelsToAdd = desiredLabels.filter((l) => !currentAppLabels.includes(l))
+            const labelsToRemove = currentAppLabels.filter((l) => !desiredLabels.includes(l))
+
+            for (const label of labelsToAdd) {
+              try {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: pull_number, labels: [label] })
+              } catch (e) {
+                core.warning(`Failed to add label ${label}: ${e.message}`)
+              }
+            }
+
+            for (const label of labelsToRemove) {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number: pull_number, name: label })
+              } catch (e) {
+                core.warning(`Failed to remove label ${label}: ${e.message}`)
+              }
+            }
+
+            core.setOutput('unaffected_json', JSON.stringify({ include: unaffected }))
+            core.setOutput('has_unaffected', String(unaffected.length > 0))
+
+  cleanup-unaffected:
+    name: Delete Neon Branch (${{ matrix.appId }})
+    needs: detect-affected
+    if: needs.detect-affected.outputs.has_unaffected == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-affected.outputs.unaffected_json) }}
+    steps:
+      - name: Delete Neon Branch
+        uses: neondatabase/delete-branch-action@v3
+        continue-on-error: true
+        with:
+          project_id: ${{ matrix.projectId }}
+          branch: preview/${{ github.event.pull_request.head.ref }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+  cleanup-closed:
+    name: Delete Neon Branch (${{ matrix.appId }})
+    if: >
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
