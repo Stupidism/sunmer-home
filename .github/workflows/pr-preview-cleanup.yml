@@ -1,4 +1,4 @@
-name: PR Preview Database
+name: PR Preview Cleanup
 
 on:
   pull_request:
@@ -118,7 +118,7 @@ jobs:
             core.setOutput('has_unaffected', String(unaffected.length > 0))
 
   cleanup-unaffected:
-    name: Delete Neon Branch (${{ matrix.appId }})
+    name: Cleanup Neon Branch (${{ matrix.appId }})
     needs: detect-affected
     if: needs.detect-affected.outputs.has_unaffected == 'true'
     runs-on: ubuntu-latest
@@ -126,7 +126,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.detect-affected.outputs.unaffected_json) }}
     steps:
-      - name: Delete Neon Branch
+      - name: Cleanup Neon Branch
         uses: neondatabase/delete-branch-action@v3
         continue-on-error: true
         with:
@@ -135,7 +135,7 @@ jobs:
           api_key: ${{ secrets.NEON_API_KEY }}
 
   cleanup-closed:
-    name: Delete Neon Branch (${{ matrix.appId }})
+    name: Cleanup Neon Branch (${{ matrix.appId }})
     if: >
       github.event.action == 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -153,7 +153,7 @@ jobs:
           - appId: wedding-invite
             projectId: small-wind-49890586
     steps:
-      - name: Delete Neon Branch
+      - name: Cleanup Neon Branch
         uses: neondatabase/delete-branch-action@v3
         continue-on-error: true
         with:
