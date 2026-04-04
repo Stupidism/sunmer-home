@@ -231,7 +231,7 @@ export interface Activity {
   milkAmount?: number | null;
   milkSource?: ('BREAST_MILK' | 'FORMULA') | null;
   breastFirmness?: ('SOFT' | 'ELASTIC' | 'HARD') | null;
-  supplementType?: ('AD' | 'D3') | null;
+  supplementType?: ('AD' | 'D3' | 'PROBIOTICS' | 'PREBIOTICS') | null;
   spitUpType?: ('NORMAL' | 'PROJECTILE') | null;
   count?: number | null;
   notes?: string | null;
