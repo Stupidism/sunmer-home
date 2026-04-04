@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { revalidatePath } from "next/cache";
 import { isCMSAdmin } from "../access/isCMSAdmin";
 
 function makeInviteCode(name: string): string {
@@ -67,6 +68,21 @@ export const Invitations: CollectionConfig = {
         }
 
         return data;
+      },
+    ],
+    afterChange: [
+      ({ doc }) => {
+        try {
+          const inviteCode = typeof doc.inviteCode === "string" ? doc.inviteCode : null;
+          if (inviteCode) {
+            revalidatePath(`/invite/${inviteCode}`);
+          }
+          // Also revalidate the home page in case it lists invitations
+          revalidatePath("/");
+        } catch (error) {
+          console.warn("[Invitations afterChange] revalidation failed:", error);
+        }
+        return doc;
       },
     ],
   },
