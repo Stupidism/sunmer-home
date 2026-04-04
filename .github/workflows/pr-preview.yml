@@ -1,4 +1,4 @@
-name: Vercel PR Preview
+name: PR Preview
 
 on:
   pull_request:
@@ -6,6 +6,7 @@ on:
       - opened
       - reopened
       - synchronize
+      - labeled
       - ready_for_review
       - closed
 
@@ -14,99 +15,69 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   detect-affected:
+    name: Detect Affected Apps
     if: >
       github.event.action != 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     outputs:
-      matrix_json: ${{ steps.detect.outputs.matrix_json }}
-      all_projects_json: ${{ steps.detect.outputs.all_projects_json }}
       affected_json: ${{ steps.detect.outputs.affected_json }}
-      preview_count: ${{ steps.detect.outputs.preview_count }}
+      unaffected_json: ${{ steps.detect.outputs.unaffected_json }}
+      all_projects_json: ${{ steps.detect.outputs.all_projects_json }}
+      affected_names_json: ${{ steps.detect.outputs.affected_names_json }}
+      affected_count: ${{ steps.detect.outputs.affected_count }}
+      unaffected_count: ${{ steps.detect.outputs.unaffected_count }}
     steps:
-      - name: Detect affected projects for Vercel preview
+      - name: Checkout config and scripts
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/projects.json
+            .github/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Detect affected projects and label PR
         id: detect
         uses: actions/github-script@v7
         with:
           script: |
-            const owner = context.repo.owner
-            const repo = context.repo.repo
-            const pull_number = context.payload.pull_request.number
+            const { detectAffected } = await import('${{ github.workspace }}/.github/scripts/detect-affected.mjs')
 
-            const files = await github.paginate(github.rest.pulls.listFiles, {
-              owner,
-              repo,
-              pull_number,
-              per_page: 100,
+            const { projects, affected, unaffected, skipped } = await detectAffected({
+              github,
+              context,
+              core,
+              extraAffectAll: ['.github/workflows/pr-preview.yml'],
             })
 
-            const changed = files.map((f) => f.filename)
-            const alwaysAffectAll = [
-              'pnpm-lock.yaml',
-              'pnpm-workspace.yaml',
-              'package.json',
-              'turbo.json',
-              '.github/workflows/vercel-preview.yml',
-            ]
+            if (skipped) {
+              core.info('Non-app label event, nothing to do')
+              core.setOutput('affected_count', '0')
+              core.setOutput('unaffected_count', '0')
+              return
+            }
 
-            const projects = [
-              {
-                appId: 'bubu-log',
-                appName: 'bubu-log',
-                appPath: 'apps/bubu-log',
-                projectIdSecret: 'VERCEL_PROJECT_ID_BUBU_LOG',
-                triggers: ['apps/bubu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
-              },
-              {
-                appId: 'nunu-island',
-                appName: 'nunu-island',
-                appPath: 'apps/nunu-island',
-                projectIdSecret: 'VERCEL_PROJECT_ID_NUNU_ISLAND',
-                triggers: ['apps/nunu-island/', 'packages/ui/', 'packages/typescript-config/'],
-              },
-              {
-                appId: 'nunu-log',
-                appName: 'nunu-log',
-                appPath: 'apps/nunu-log',
-                projectIdSecret: 'VERCEL_PROJECT_ID_NUNU_LOG',
-                triggers: ['apps/nunu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
-              },
-              {
-                appId: 'wedding-invite',
-                appName: 'wedding-invite',
-                appPath: 'apps/wedding-invite',
-                projectIdSecret: 'VERCEL_PROJECT_ID_WEDDING_INVITE',
-                triggers: ['apps/wedding-invite/', 'packages/ui/', 'packages/typescript-config/'],
-              },
-            ]
-
-            const affectAll = changed.some((file) =>
-              alwaysAffectAll.some((target) => file === target || file.startsWith(`${target}/`))
-            )
-
-            const affected = projects.filter((project) => {
-              if (affectAll) return true
-              return changed.some((file) => project.triggers.some((prefix) => file.startsWith(prefix)))
-            })
-
-            core.info(`Changed files: ${changed.length}`)
-            core.info(`Affect all projects: ${affectAll}`)
-            core.info(`Affected projects: ${affected.map((p) => p.appId).join(', ') || '(none)'}`)
-
-            core.setOutput('matrix_json', JSON.stringify({ include: affected }))
+            core.setOutput('affected_json', JSON.stringify({ include: affected }))
+            core.setOutput('unaffected_json', JSON.stringify({ include: unaffected.map((p) => ({ appId: p.appId, projectId: p.neonProjectId })) }))
             core.setOutput('all_projects_json', JSON.stringify(projects.map((p) => ({ appId: p.appId, appName: p.appName }))))
-            core.setOutput('affected_json', JSON.stringify(affected.map((p) => ({ appId: p.appId, appName: p.appName }))))
-            core.setOutput('preview_count', String(affected.length))
+            core.setOutput('affected_names_json', JSON.stringify(affected.map((p) => ({ appId: p.appId, appName: p.appName }))))
+            core.setOutput('affected_count', String(affected.length))
+            core.setOutput('unaffected_count', String(unaffected.length))
 
   preview:
+    name: Deploy Preview (${{ matrix.appId }})
     needs: detect-affected
-    if: needs.detect-affected.outputs.preview_count != '0'
+    if: needs.detect-affected.outputs.affected_count != '0'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.detect-affected.outputs.matrix_json) }}
+      matrix: ${{ fromJSON(needs.detect-affected.outputs.affected_json) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -185,9 +156,19 @@ jobs:
           echo "org_id=$ORG_ID" >> "$GITHUB_OUTPUT"
           echo "scope=${VERCEL_SCOPE:-$ORG_ID}" >> "$GITHUB_OUTPUT"
 
+      - name: Create Neon preview branch
+        id: create_neon_branch
+        if: steps.resolve.outputs.enabled == 'true'
+        uses: neondatabase/create-branch-action@v6
+        continue-on-error: true
+        with:
+          project_id: ${{ matrix.neonProjectId }}
+          branch_name: preview/${{ github.event.pull_request.head.ref }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
       - name: Pull Vercel preview env
         id: pull_vercel_preview_env
-        if: steps.resolve.outputs.enabled == 'true'
+        if: steps.resolve.outputs.enabled == 'true' && steps.create_neon_branch.outcome == 'success'
         continue-on-error: true
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
@@ -199,7 +180,7 @@ jobs:
 
       - name: Run preview DB migrations for wedding-invite
         id: migrate_wedding_preview_db
-        if: steps.resolve.outputs.enabled == 'true' && matrix.appId == 'wedding-invite'
+        if: steps.resolve.outputs.enabled == 'true' && steps.create_neon_branch.outcome == 'success' && matrix.appId == 'wedding-invite'
         continue-on-error: true
         run: |
           if [ ! -f .vercel/.env.preview.local ]; then
@@ -215,7 +196,7 @@ jobs:
 
       - name: Build preview artifacts
         id: build_preview_artifacts
-        if: steps.resolve.outputs.enabled == 'true' && (matrix.appId != 'wedding-invite' || steps.migrate_wedding_preview_db.outcome == 'success')
+        if: steps.resolve.outputs.enabled == 'true' && steps.create_neon_branch.outcome == 'success' && (matrix.appId != 'wedding-invite' || steps.migrate_wedding_preview_db.outcome == 'success')
         continue-on-error: true
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
@@ -316,6 +297,17 @@ jobs:
             "headSha": "${{ github.event.pull_request.head.sha }}"
           }
           EOF
+          elif [ '${{ steps.create_neon_branch.outcome }}' = 'failure' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "failed",
+            "reason": "neon-branch-create-failed",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
+          }
+          EOF
           elif [ '${{ steps.pull_vercel_preview_env.outcome }}' = 'failure' ]; then
             cat > "$RESULT_FILE" <<EOF
           {
@@ -377,152 +369,13 @@ jobs:
           RESULT_FILE: ${{ runner.temp }}/vercel-preview-result/${{ matrix.appId }}.json
           APP_ID: ${{ matrix.appId }}
           ALL_PROJECTS_JSON: ${{ needs.detect-affected.outputs.all_projects_json }}
-          AFFECTED_JSON: ${{ needs.detect-affected.outputs.affected_json }}
+          AFFECTED_JSON: ${{ needs.detect-affected.outputs.affected_names_json }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         with:
           script: |
-            const fs = require('node:fs')
-
-            const marker = '<!-- vercel-pr-preview -->'
-            const statePrefix = '<!-- vercel-pr-preview-state '
-            const issue_number = context.issue.number
-            const updated = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')
-            const allProjects = JSON.parse(process.env.ALL_PROJECTS_JSON || '[]')
-            const affectedProjects = JSON.parse(process.env.AFFECTED_JSON || '[]')
-            const affectedSet = new Set(affectedProjects.map((item) => item.appId))
-
-            let result = {
-              appId: process.env.APP_ID,
-              appName: process.env.APP_ID,
-              status: 'failed',
-              reason: 'missing-result-file',
-              runUrl: process.env.RUN_URL,
-              headSha: process.env.HEAD_SHA,
-            }
-
-            try {
-              const raw = fs.readFileSync(process.env.RESULT_FILE, 'utf8')
-              result = JSON.parse(raw)
-            } catch (error) {
-              core.warning(`Failed to read preview result for ${process.env.APP_ID}: ${error}`)
-            }
-
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number,
-              per_page: 100,
-            })
-
-            const existing = comments.find((comment) =>
-              comment.body && comment.body.includes(marker)
-            )
-
-            let existingState = {}
-            if (existing?.body) {
-              const match = existing.body.match(/<!-- vercel-pr-preview-state ([\s\S]*?) -->/)
-              if (match?.[1]) {
-                try {
-                  existingState = JSON.parse(match[1])
-                } catch (error) {
-                  core.warning(`Failed to parse existing preview state: ${error}`)
-                }
-              }
-            }
-
-            const nextState = {}
-            for (const project of allProjects) {
-              if (affectedSet.has(project.appId)) {
-                nextState[project.appId] = {
-                  appId: project.appId,
-                  appName: project.appName,
-                  status: 'running',
-                  reason: 'waiting-for-result',
-                  runUrl: process.env.RUN_URL,
-                }
-              } else {
-                nextState[project.appId] = {
-                  appId: project.appId,
-                  appName: project.appName,
-                  status: 'skipped',
-                  reason: 'not-affected',
-                }
-              }
-            }
-
-            for (const [appId, state] of Object.entries(existingState)) {
-              if (nextState[appId]) {
-                nextState[appId] = { ...nextState[appId], ...state }
-              }
-            }
-
-            nextState[result.appId] = { ...nextState[result.appId], ...result }
-
-            const toRow = (project) => {
-              const item = nextState[project.appId] || {
-                appId: project.appId,
-                appName: project.appName,
-                status: 'skipped',
-                reason: 'not-affected',
-              }
-              const status = item.status || 'failed'
-              const icon = status === 'ready'
-                ? '![Ready](https://vercel.com/static/status/ready.svg)'
-                : status === 'failed'
-                  ? '![Error](https://vercel.com/static/status/error.svg)'
-                  : status === 'running'
-                    ? '![Building](https://vercel.com/static/status/building.svg)'
-                    : '![Skipped](https://vercel.com/static/status/canceled.svg)'
-              const statusLabel = status === 'ready'
-                ? 'Ready'
-                : status === 'failed'
-                  ? 'Failed'
-                  : status === 'running'
-                    ? 'Running'
-                    : 'Skipped'
-
-              const actions = []
-              if (item.previewUrl) {
-                actions.push(`[Preview](${item.previewUrl})`)
-              }
-              if (item.buildUrl) {
-                actions.push(`[Build](${item.buildUrl})`)
-              }
-              if (status === 'failed') {
-                actions.push(`[Logs](${item.runUrl || process.env.RUN_URL})`)
-              }
-
-              return `| ${project.appName} | ${icon} ${statusLabel} | ${actions.join(', ') || '-'} | ${updated} |`
-            }
-
-            const body = [
-              marker,
-              `<!-- vercel-pr-preview-state ${JSON.stringify(nextState)} -->`,
-              '### Vercel Preview',
-              '',
-              '| Project | Deployment | Actions | Updated (UTC) |',
-              '| :--- | :----- | :------ | :------ |',
-              ...allProjects.map(toRow),
-              '',
-              '_This preview is recreated on new commits and managed by Vercel._',
-            ].join('\n')
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              })
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number,
-                body,
-              })
-            }
+            const { upsertPreviewComment } = await import('${{ github.workspace }}/.github/scripts/upsert-preview-comment.mjs')
+            await upsertPreviewComment({ github, context, core })
 
       - name: Fail job if deploy did not succeed
         if: always()
@@ -537,12 +390,47 @@ jobs:
             exit 1
           fi
 
-  close-note:
+  cleanup-unaffected:
+    name: Cleanup Neon Branch (${{ matrix.appId }})
+    needs: detect-affected
+    if: needs.detect-affected.outputs.unaffected_count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-affected.outputs.unaffected_json) }}
+    steps:
+      - name: Cleanup Neon Branch
+        uses: neondatabase/delete-branch-action@v3
+        continue-on-error: true
+        with:
+          project_id: ${{ matrix.projectId }}
+          branch: preview/${{ github.event.pull_request.head.ref }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+  cleanup-closed:
+    name: Cleanup All Neon Branches
     if: >
       github.event.action == 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/projects.json
+            .github/scripts/cleanup-neon-branches.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Cleanup all Neon branches
+        uses: actions/github-script@v7
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        with:
+          script: |
+            const { cleanupNeonBranches } = await import('${{ github.workspace }}/.github/scripts/cleanup-neon-branches.mjs')
+            await cleanupNeonBranches({ core, branchName: 'preview/${{ github.event.pull_request.head.ref }}' })
+
       - name: Mark preview comment closed
         uses: actions/github-script@v7
         with:
