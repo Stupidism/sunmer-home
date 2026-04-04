@@ -64,6 +64,7 @@ jobs:
               appName: p.appName,
               appPath: p.appPath,
               neonProjectId: p.neonProjectId,
+              neonAutoPreviewBranch: p.neonAutoPreviewBranch || false,
               projectIdSecret: p.vercelProjectIdSecret,
               triggers: p.triggers,
             }))
