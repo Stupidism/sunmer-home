@@ -33,10 +33,12 @@ jobs:
       affected_count: ${{ steps.detect.outputs.affected_count }}
       unaffected_count: ${{ steps.detect.outputs.unaffected_count }}
     steps:
-      - name: Checkout projects config
+      - name: Checkout config and scripts
         uses: actions/checkout@v4
         with:
-          sparse-checkout: .github/projects.json
+          sparse-checkout: |
+            .github/projects.json
+            .github/scripts
           sparse-checkout-cone-mode: false
 
       - name: Detect affected projects and label PR
@@ -44,77 +46,14 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('node:fs')
-            const config = JSON.parse(fs.readFileSync('.github/projects.json', 'utf8'))
+            const { detectAffected } = await import('${{ github.workspace }}/.github/scripts/detect-affected.mjs')
 
-            const owner = context.repo.owner
-            const repo = context.repo.repo
-            const pull_number = context.payload.pull_request.number
-
-            const files = await github.paginate(github.rest.pulls.listFiles, {
-              owner,
-              repo,
-              pull_number,
-              per_page: 100,
+            const { projects, affected, unaffected } = await detectAffected({
+              github,
+              context,
+              core,
+              extraAffectAll: ['.github/workflows/pr-preview.yml'],
             })
-
-            const changed = files.map((f) => f.filename)
-
-            const alwaysAffectAll = [
-              ...config.alwaysAffectAll,
-              '.github/workflows/pr-preview.yml',
-              '.github/projects.json',
-            ]
-
-            const projects = config.projects.map((p) => ({
-              appId: p.appId,
-              appName: p.appName,
-              appPath: p.appPath,
-              neonProjectId: p.neonProjectId,
-              projectIdSecret: p.vercelProjectIdSecret,
-              triggers: p.triggers,
-            }))
-
-            const affectAll = changed.some((file) =>
-              alwaysAffectAll.some((target) => file === target || file.startsWith(`${target}/`))
-            )
-
-            const affected = projects.filter((project) => {
-              if (affectAll) return true
-              return changed.some((file) => project.triggers.some((prefix) => file.startsWith(prefix)))
-            })
-
-            const unaffected = projects.filter((p) => !affected.some((a) => a.appId === p.appId))
-
-            core.info(`Changed files: ${changed.length}`)
-            core.info(`Affect all: ${affectAll}`)
-            core.info(`Affected: ${affected.map((p) => p.appId).join(', ') || '(none)'}`)
-            core.info(`Unaffected: ${unaffected.map((p) => p.appId).join(', ') || '(none)'}`)
-
-            // Auto-label PR with affected apps
-            const desiredLabels = affected.map((p) => `app:${p.appId}`)
-            const allAppLabels = projects.map((p) => `app:${p.appId}`)
-            const currentLabels = context.payload.pull_request.labels.map((l) => l.name)
-            const currentAppLabels = currentLabels.filter((l) => allAppLabels.includes(l))
-
-            const labelsToAdd = desiredLabels.filter((l) => !currentAppLabels.includes(l))
-            const labelsToRemove = currentAppLabels.filter((l) => !desiredLabels.includes(l))
-
-            for (const label of labelsToAdd) {
-              try {
-                await github.rest.issues.addLabels({ owner, repo, issue_number: pull_number, labels: [label] })
-              } catch (e) {
-                core.warning(`Failed to add label ${label}: ${e.message}`)
-              }
-            }
-
-            for (const label of labelsToRemove) {
-              try {
-                await github.rest.issues.removeLabel({ owner, repo, issue_number: pull_number, name: label })
-              } catch (e) {
-                core.warning(`Failed to remove label ${label}: ${e.message}`)
-              }
-            }
 
             core.setOutput('affected_json', JSON.stringify({ include: affected }))
             core.setOutput('unaffected_json', JSON.stringify({ include: unaffected.map((p) => ({ appId: p.appId, projectId: p.neonProjectId })) }))
@@ -427,146 +366,8 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         with:
           script: |
-            const fs = require('node:fs')
-
-            const marker = '<!-- vercel-pr-preview -->'
-            const issue_number = context.issue.number
-            const updated = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')
-            const allProjects = JSON.parse(process.env.ALL_PROJECTS_JSON || '[]')
-            const affectedProjects = JSON.parse(process.env.AFFECTED_JSON || '[]')
-            const affectedSet = new Set(affectedProjects.map((item) => item.appId))
-
-            let result = {
-              appId: process.env.APP_ID,
-              appName: process.env.APP_ID,
-              status: 'failed',
-              reason: 'missing-result-file',
-              runUrl: process.env.RUN_URL,
-              headSha: process.env.HEAD_SHA,
-            }
-
-            try {
-              const raw = fs.readFileSync(process.env.RESULT_FILE, 'utf8')
-              result = JSON.parse(raw)
-            } catch (error) {
-              core.warning(`Failed to read preview result for ${process.env.APP_ID}: ${error}`)
-            }
-
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number,
-              per_page: 100,
-            })
-
-            const existing = comments.find((comment) =>
-              comment.body && comment.body.includes(marker)
-            )
-
-            let existingState = {}
-            if (existing?.body) {
-              const match = existing.body.match(/<!-- vercel-pr-preview-state ([\s\S]*?) -->/)
-              if (match?.[1]) {
-                try {
-                  existingState = JSON.parse(match[1])
-                } catch (error) {
-                  core.warning(`Failed to parse existing preview state: ${error}`)
-                }
-              }
-            }
-
-            const nextState = {}
-            for (const project of allProjects) {
-              if (affectedSet.has(project.appId)) {
-                nextState[project.appId] = {
-                  appId: project.appId,
-                  appName: project.appName,
-                  status: 'running',
-                  reason: 'waiting-for-result',
-                  runUrl: process.env.RUN_URL,
-                }
-              } else {
-                nextState[project.appId] = {
-                  appId: project.appId,
-                  appName: project.appName,
-                  status: 'skipped',
-                  reason: 'not-affected',
-                }
-              }
-            }
-
-            for (const [appId, state] of Object.entries(existingState)) {
-              if (nextState[appId]) {
-                nextState[appId] = { ...nextState[appId], ...state }
-              }
-            }
-
-            nextState[result.appId] = { ...nextState[result.appId], ...result }
-
-            const toRow = (project) => {
-              const item = nextState[project.appId] || {
-                appId: project.appId,
-                appName: project.appName,
-                status: 'skipped',
-                reason: 'not-affected',
-              }
-              const status = item.status || 'failed'
-              const icon = status === 'ready'
-                ? '![Ready](https://vercel.com/static/status/ready.svg)'
-                : status === 'failed'
-                  ? '![Error](https://vercel.com/static/status/error.svg)'
-                  : status === 'running'
-                    ? '![Building](https://vercel.com/static/status/building.svg)'
-                    : '![Skipped](https://vercel.com/static/status/canceled.svg)'
-              const statusLabel = status === 'ready'
-                ? 'Ready'
-                : status === 'failed'
-                  ? 'Failed'
-                  : status === 'running'
-                    ? 'Running'
-                    : 'Skipped'
-
-              const actions = []
-              if (item.previewUrl) {
-                actions.push(`[Preview](${item.previewUrl})`)
-              }
-              if (item.buildUrl) {
-                actions.push(`[Build](${item.buildUrl})`)
-              }
-              if (status === 'failed') {
-                actions.push(`[Logs](${item.runUrl || process.env.RUN_URL})`)
-              }
-
-              return `| ${project.appName} | ${icon} ${statusLabel} | ${actions.join(', ') || '-'} | ${updated} |`
-            }
-
-            const body = [
-              marker,
-              `<!-- vercel-pr-preview-state ${JSON.stringify(nextState)} -->`,
-              '### Vercel Preview',
-              '',
-              '| Project | Deployment | Actions | Updated (UTC) |',
-              '| :--- | :----- | :------ | :------ |',
-              ...allProjects.map(toRow),
-              '',
-              '_This preview is recreated on new commits and managed by Vercel._',
-            ].join('\n')
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              })
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number,
-                body,
-              })
-            }
+            const { upsertPreviewComment } = await import('${{ github.workspace }}/.github/scripts/upsert-preview-comment.mjs')
+            await upsertPreviewComment({ github, context, core })
 
       - name: Fail job if deploy did not succeed
         if: always()
@@ -605,45 +406,22 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout projects config
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          sparse-checkout: .github/projects.json
+          sparse-checkout: |
+            .github/projects.json
+            .github/scripts/cleanup-neon-branches.mjs
           sparse-checkout-cone-mode: false
 
       - name: Cleanup all Neon branches
         uses: actions/github-script@v7
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          BRANCH_NAME: preview/${{ github.event.pull_request.head.ref }}
         with:
           script: |
-            const fs = require('node:fs')
-            const config = JSON.parse(fs.readFileSync('.github/projects.json', 'utf8'))
-
-            for (const project of config.projects) {
-              try {
-                const res = await fetch(
-                  `https://console.neon.tech/api/v2/projects/${project.neonProjectId}/branches?search=${encodeURIComponent(process.env.BRANCH_NAME)}`,
-                  { headers: { Authorization: `Bearer ${process.env.NEON_API_KEY}` } }
-                )
-                const data = await res.json()
-                const branch = data.branches?.find((b) => b.name === process.env.BRANCH_NAME)
-
-                if (!branch) {
-                  core.info(`${project.appId}: no branch '${process.env.BRANCH_NAME}', skip`)
-                  continue
-                }
-
-                const delRes = await fetch(
-                  `https://console.neon.tech/api/v2/projects/${project.neonProjectId}/branches/${branch.id}`,
-                  { method: 'DELETE', headers: { Authorization: `Bearer ${process.env.NEON_API_KEY}` } }
-                )
-                core.info(`${project.appId}: deleted '${process.env.BRANCH_NAME}' (${delRes.status})`)
-              } catch (e) {
-                core.warning(`${project.appId}: failed to cleanup — ${e.message}`)
-              }
-            }
+            const { cleanupNeonBranches } = await import('${{ github.workspace }}/.github/scripts/cleanup-neon-branches.mjs')
+            await cleanupNeonBranches({ core, branchName: 'preview/${{ github.event.pull_request.head.ref }}' })
 
       - name: Mark preview comment closed
         uses: actions/github-script@v7
