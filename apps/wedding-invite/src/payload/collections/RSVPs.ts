@@ -61,13 +61,6 @@ export const RSVPs: CollectionConfig = {
       required: true,
     },
     {
-      name: "invitation",
-      label: "邀请函",
-      type: "relationship",
-      relationTo: "invitations",
-      required: true,
-    },
-    {
       name: "status",
       label: "回复状态",
       type: "select",

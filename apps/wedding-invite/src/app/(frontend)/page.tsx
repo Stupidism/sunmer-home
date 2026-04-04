@@ -1244,6 +1244,7 @@ export function WeddingInvitationPage({
       try {
         const response = await fetch(`/api/invitation?code=${encodeURIComponent(code)}`, {
           signal: controller.signal,
+          cache: "no-store",
         });
         if (!response.ok) {
           return;
