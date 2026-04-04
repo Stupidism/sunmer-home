@@ -27,8 +27,10 @@ export const Guests: CollectionConfig = {
       async ({ doc, req }) => {
         const guestID = doc.id;
         const guestName = doc.name;
+        const invitationCopy =
+          typeof doc.invitationCopy === "string" ? doc.invitationCopy : null;
 
-        // Revalidate the invite page for this guest via HTTP
+        // Sync invitationCopy to Invitation.customOpening & revalidate pages
         try {
           const invitationResult = await req.payload.find({
             collection: "invitations",
@@ -39,12 +41,27 @@ export const Guests: CollectionConfig = {
           });
 
           const invitation = invitationResult.docs[0] as
-            | { inviteCode?: unknown }
+            | { id?: string | number; inviteCode?: unknown; customOpening?: unknown }
             | undefined;
           const inviteCode =
             invitation && typeof invitation.inviteCode === "string"
               ? invitation.inviteCode
               : null;
+
+          // If the guest's invitationCopy changed, sync it to Invitation.customOpening
+          if (invitation?.id && invitationCopy && invitation.customOpening !== invitationCopy) {
+            try {
+              await req.payload.update({
+                collection: "invitations",
+                id: invitation.id,
+                data: { customOpening: invitationCopy },
+                overrideAccess: true,
+              });
+            } catch (syncError) {
+              console.warn("[Guests afterChange] failed to sync invitationCopy to invitation:", syncError);
+            }
+          }
+
           const paths = ["/"];
           if (inviteCode) {
             paths.push(`/invite/${inviteCode}`);
@@ -78,7 +95,7 @@ export const Guests: CollectionConfig = {
                   guest: guestID,
                   maxGuestCount: 1,
                   status: "draft",
-                  customOpening: `亲爱的${guestName}，欢迎来参加我们的婚礼。`,
+                  customOpening: invitationCopy || `亲爱的${guestName}，欢迎来参加我们的婚礼。`,
                 },
                 overrideAccess: true,
               });

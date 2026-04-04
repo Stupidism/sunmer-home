@@ -98,6 +98,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Code is required" }, { status: 400 });
     }
 
+    const noCacheHeaders = {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    };
+
     const noDatabaseFallback = decodeNoDatabaseFallback(code);
     if (noDatabaseFallback) {
       return NextResponse.json({
@@ -112,7 +116,7 @@ export async function GET(request: NextRequest) {
           customOpening: `亲爱的${noDatabaseFallback.name}，欢迎来参加我们的婚礼。`,
           maxGuestCount: 1,
         },
-      });
+      }, { headers: noCacheHeaders });
     }
 
     const payload = await getPayloadClient();
@@ -149,6 +153,7 @@ export async function GET(request: NextRequest) {
             relationshipCategory?: string;
             relationshipNote?: string;
             memorySnippet?: string;
+            invitationCopy?: string;
           }
         | undefined;
       if (!guest) {
@@ -169,10 +174,11 @@ export async function GET(request: NextRequest) {
           relationshipNote: typeof guest.relationshipNote === "string" ? guest.relationshipNote : "",
           memorySnippet: typeof guest.memorySnippet === "string" ? guest.memorySnippet : "",
           customOpening:
-            typeof guest.name === "string" ? `亲爱的${guest.name}，欢迎来参加我们的婚礼。` : "",
+            (typeof guest.invitationCopy === "string" && guest.invitationCopy) ||
+            (typeof guest.name === "string" ? `亲爱的${guest.name}，欢迎来参加我们的婚礼。` : ""),
           maxGuestCount: 1,
         },
-      });
+      }, { headers: noCacheHeaders });
     }
 
     const invitation = asRecord(invitationResult?.docs[0]);
@@ -189,7 +195,15 @@ export async function GET(request: NextRequest) {
     const category =
       typeof guest.relationshipCategory === "string" ? guest.relationshipCategory : "other";
 
-    return NextResponse.json({
+    // Guest.invitationCopy takes priority over Invitation.customOpening.
+    // Users typically edit the "邀请词" field on the Guest record in Payload admin,
+    // so we must prefer that value to avoid stale text.
+    const customOpening =
+      (typeof guest.invitationCopy === "string" && guest.invitationCopy) ||
+      (typeof invitation.customOpening === "string" && invitation.customOpening) ||
+      "";
+
+    const responseData = {
       success: true,
       data: {
         inviteCode: invitation.inviteCode,
@@ -199,11 +213,14 @@ export async function GET(request: NextRequest) {
         relationshipNote:
           typeof guest.relationshipNote === "string" ? guest.relationshipNote : "",
         memorySnippet: typeof guest.memorySnippet === "string" ? guest.memorySnippet : "",
-        customOpening:
-          typeof invitation.customOpening === "string" ? invitation.customOpening : "",
+        customOpening,
         maxGuestCount:
           typeof invitation.maxGuestCount === "number" ? invitation.maxGuestCount : 1,
       },
+    };
+
+    return NextResponse.json(responseData, {
+      headers: noCacheHeaders,
     });
   } catch (error) {
     console.error("Failed to fetch invitation:", error);
