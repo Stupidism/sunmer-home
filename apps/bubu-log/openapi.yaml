@@ -336,6 +336,141 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /batch-parse:
+    post:
+      operationId: batchParse
+      summary: Parse multiple chat messages with unified AI processing
+      description: |
+        Accepts an array of chat message entries (text + timestamp) and sends them all to AI
+        for holistic analysis. The AI identifies activities, pairs start/end events, handles
+        cancellations, and returns structured data with action (create/update/skip) for each.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entries:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      text:
+                        type: string
+                        description: The message text
+                      localTime:
+                        type: string
+                        description: Message timestamp (e.g. "2026-03-27 08:49")
+                    required:
+                      - text
+                      - localTime
+                  maxItems: 50
+              required:
+                - entries
+      responses:
+        '200':
+          description: Parsed activity items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BatchParsedItem'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    put:
+      operationId: batchConfirm
+      summary: Batch create/update confirmed activities
+      description: |
+        After user reviews the parsed items, submit confirmed items for creation or update.
+        Each item must have an explicit action field (create/update/skip).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/BatchConfirmItem'
+              required:
+                - items
+      responses:
+        '200':
+          description: Batch operation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                        originalTexts:
+                          type: array
+                          items:
+                            type: string
+                  updated:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                        originalTexts:
+                          type: array
+                          items:
+                            type: string
+                  skipped:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        originalTexts:
+                          type: array
+                          items:
+                            type: string
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        originalTexts:
+                          type: array
+                          items:
+                            type: string
+                        error:
+                          type: string
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /voice-input:
     post:
       operationId: parseVoiceInput
@@ -960,6 +1095,138 @@ components:
         birthDate:
           type: string
           format: date-time
+
+    BatchParsedItem:
+      type: object
+      required:
+        - action
+        - type
+        - startTime
+        - originalTexts
+      properties:
+        action:
+          type: string
+          enum:
+            - create
+            - update
+            - skip
+        type:
+          $ref: '#/components/schemas/ActivityType'
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        milkAmount:
+          type: integer
+          nullable: true
+        milkSource:
+          $ref: '#/components/schemas/MilkSource'
+          nullable: true
+        duration:
+          type: integer
+          nullable: true
+          description: Duration in minutes
+        hasPoop:
+          type: boolean
+          nullable: true
+        hasPee:
+          type: boolean
+          nullable: true
+        poopColor:
+          $ref: '#/components/schemas/PoopColor'
+          nullable: true
+        peeAmount:
+          $ref: '#/components/schemas/PeeAmount'
+          nullable: true
+        spitUpType:
+          $ref: '#/components/schemas/SpitUpType'
+          nullable: true
+        supplementType:
+          $ref: '#/components/schemas/SupplementType'
+          nullable: true
+        count:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        skipReason:
+          type: string
+          nullable: true
+          description: Reason for skip (only when action=skip)
+        originalTexts:
+          type: array
+          items:
+            type: string
+          description: Original chat message texts that map to this item
+        existingActivityId:
+          type: string
+          nullable: true
+          description: ID of existing activity to update (only for action=update)
+
+    BatchConfirmItem:
+      type: object
+      required:
+        - action
+        - type
+        - startTime
+      properties:
+        action:
+          type: string
+          enum:
+            - create
+            - update
+            - skip
+        type:
+          $ref: '#/components/schemas/ActivityType'
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        existingActivityId:
+          type: string
+          nullable: true
+          description: Required for action=update
+        milkAmount:
+          type: integer
+          nullable: true
+        milkSource:
+          $ref: '#/components/schemas/MilkSource'
+          nullable: true
+        hasPoop:
+          type: boolean
+          nullable: true
+        hasPee:
+          type: boolean
+          nullable: true
+        poopColor:
+          $ref: '#/components/schemas/PoopColor'
+          nullable: true
+        peeAmount:
+          $ref: '#/components/schemas/PeeAmount'
+          nullable: true
+        spitUpType:
+          $ref: '#/components/schemas/SpitUpType'
+          nullable: true
+        supplementType:
+          $ref: '#/components/schemas/SupplementType'
+          nullable: true
+        count:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        originalTexts:
+          type: array
+          items:
+            type: string
 
     Error:
       type: object

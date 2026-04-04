@@ -8,11 +8,12 @@ import {
   FileUp,
   Loader2,
   Check,
-  X,
   AlertCircle,
   CheckCircle2,
   Square,
   CheckSquare,
+  ArrowUpCircle,
+  SkipForward,
 } from 'lucide-react'
 import { ActivityType, ActivityTypeLabels, MilkSourceLabels } from '@/types/activity'
 import { dayjs } from '@/lib/dayjs'
@@ -21,33 +22,32 @@ import { BackHomeButton } from '@/components/BackHomeButton'
 import { withCurrentBabyIdOnApiPath } from '@/lib/baby-scope'
 
 interface ParsedItem {
+  action: 'create' | 'update' | 'skip'
   type: ActivityType
-  startTimeISO: string
-  endTimeISO: string | null
+  startTime: string
+  endTime: string | null
   milkAmount: number | null
   milkSource: string | null
+  duration: number | null
   hasPoop: boolean | null
   hasPee: boolean | null
   poopColor: string | null
   peeAmount: string | null
   spitUpType: string | null
+  supplementType: string | null
   count: number | null
   notes: string | null
-  confidence: number
-}
-
-interface BatchResult {
-  originalText: string
-  parsed?: ParsedItem
-  error?: string
+  skipReason: string | null
+  originalTexts: string[]
+  existingActivityId?: string | null
 }
 
 type Step = 'input' | 'review' | 'done'
 
-// 日期时间行的正则：2026/3/27 08:49 或 2026-03-27 08:49
+// Date-time line regex: 2026/3/27 08:49 or 2026-03-27 08:49
 const DATETIME_RE = /^\d{4}[/-]\d{1,2}[/-]\d{1,2}\s+\d{1,2}:\d{2}/
 
-// 标题/头部行（如【宝宝每日数据记录】）
+// Header lines (e.g. 【宝宝每日数据记录】)
 const HEADER_RE = /^[【\[]/
 
 interface BatchEntry {
@@ -56,9 +56,9 @@ interface BatchEntry {
 }
 
 /**
- * 解析粘贴的文本，支持两种格式：
- * 1. 带时间戳的两行格式：时间戳行 + 描述行
- * 2. 纯文本格式：每行一条记录
+ * Parse pasted text, supporting two formats:
+ * 1. Timestamped two-line format: timestamp line + description line
+ * 2. Plain text: one record per line
  */
 function parseInputText(raw: string): BatchEntry[] {
   const lines = raw.split('\n').map((l) => l.trim())
@@ -70,11 +70,9 @@ function parseInputText(raw: string): BatchEntry[] {
 
   for (const line of lines) {
     if (!line) continue
-    // 跳过标题行
     if (HEADER_RE.test(line)) continue
 
     if (DATETIME_RE.test(line)) {
-      // 这是时间戳行，规范化格式：2026/3/27 08:49 -> 2026-03-27 08:49
       const normalized = line
         .replace(/\//g, '-')
         .replace(/(\d{4})-(\d{1,2})-(\d{1,2})/, (_, y, m, d) =>
@@ -83,7 +81,6 @@ function parseInputText(raw: string): BatchEntry[] {
       continue
     }
 
-    // 这是描述行
     entries.push({
       text: line,
       localTime: pendingTime || fallbackTime,
@@ -97,15 +94,17 @@ function parseInputText(raw: string): BatchEntry[] {
 function formatParsedSummary(p: ParsedItem): string {
   const parts: string[] = [ActivityTypeLabels[p.type] || p.type]
 
-  const start = dayjs(p.startTimeISO)
+  const start = dayjs(p.startTime)
   parts.push(start.format('HH:mm'))
 
-  if (p.endTimeISO) {
-    const end = dayjs(p.endTimeISO)
+  if (p.endTime) {
+    const end = dayjs(p.endTime)
     const durationMin = end.diff(start, 'minute')
     if (durationMin > 0) {
       parts.push(`${durationMin}分钟`)
     }
+  } else if (p.duration) {
+    parts.push(`${p.duration}分钟`)
   }
 
   if (p.milkAmount) {
@@ -123,6 +122,37 @@ function formatParsedSummary(p: ParsedItem): string {
   return parts.join(' / ')
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  create: '新建',
+  update: '更新',
+  skip: '跳过',
+}
+
+function ActionBadge({ action }: { action: string }) {
+  if (action === 'create') {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs font-medium">
+        <Check size={12} />
+        {ACTION_LABELS[action]}
+      </span>
+    )
+  }
+  if (action === 'update') {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-medium">
+        <ArrowUpCircle size={12} />
+        {ACTION_LABELS[action]}
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs font-medium">
+      <SkipForward size={12} />
+      {ACTION_LABELS[action]}
+    </span>
+  )
+}
+
 export default function BatchImportPage() {
   const params = useParams()
   const babyId = params.babyId as string
@@ -132,9 +162,14 @@ export default function BatchImportPage() {
   const [inputText, setInputText] = useState('')
   const [isParsing, setIsParsing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [results, setResults] = useState<BatchResult[]>([])
+  const [items, setItems] = useState<ParsedItem[]>([])
   const [checked, setChecked] = useState<boolean[]>([])
-  const [submitResult, setSubmitResult] = useState<{ created: number; errors: number } | null>(null)
+  const [submitResult, setSubmitResult] = useState<{
+    created: number
+    updated: number
+    skipped: number
+    errors: number
+  } | null>(null)
 
   const handleParse = useCallback(async () => {
     const entries = parseInputText(inputText)
@@ -159,10 +194,10 @@ export default function BatchImportPage() {
         return
       }
 
-      const batchResults: BatchResult[] = data.results
-      setResults(batchResults)
-      // Default: check all successfully parsed items
-      setChecked(batchResults.map((r) => !!r.parsed))
+      const parsedItems: ParsedItem[] = data.items
+      setItems(parsedItems)
+      // Default: check all non-skip items
+      setChecked(parsedItems.map((item) => item.action !== 'skip'))
       setStep('review')
     } catch {
       toast.error('网络错误，请重试')
@@ -181,35 +216,40 @@ export default function BatchImportPage() {
 
   const toggleAll = useCallback(() => {
     setChecked((prev) => {
-      const allChecked = prev.every((c, i) => !results[i]?.parsed || c)
-      return prev.map((c, i) => (results[i]?.parsed ? !allChecked : c))
+      const allNonSkipChecked = items.every((item, i) => item.action === 'skip' || prev[i])
+      return items.map((item) =>
+        item.action === 'skip' ? false : !allNonSkipChecked,
+      )
     })
-  }, [results])
+  }, [items])
 
-  const checkedCount = checked.filter((c, i) => c && results[i]?.parsed).length
-  const parsedCount = results.filter((r) => r.parsed).length
+  const actionableItems = items.filter((item) => item.action !== 'skip')
+  const checkedCount = checked.filter((c, i) => c && items[i]?.action !== 'skip').length
 
   const handleSubmit = useCallback(async () => {
-    const items = results
+    const selectedItems = items
       .filter((_, i) => checked[i])
-      .filter((r) => r.parsed)
-      .map((r) => ({
-        type: r.parsed!.type,
-        startTime: r.parsed!.startTimeISO,
-        endTime: r.parsed!.endTimeISO,
-        milkAmount: r.parsed!.milkAmount,
-        milkSource: r.parsed!.milkSource,
-        hasPoop: r.parsed!.hasPoop,
-        hasPee: r.parsed!.hasPee,
-        poopColor: r.parsed!.poopColor,
-        peeAmount: r.parsed!.peeAmount,
-        spitUpType: r.parsed!.spitUpType,
-        count: r.parsed!.count,
-        notes: r.parsed!.notes,
-        originalText: r.originalText,
+      .filter((item) => item.action !== 'skip')
+      .map((item) => ({
+        action: item.action,
+        type: item.type,
+        startTime: item.startTime,
+        endTime: item.endTime,
+        existingActivityId: item.existingActivityId || null,
+        milkAmount: item.milkAmount,
+        milkSource: item.milkSource,
+        hasPoop: item.hasPoop,
+        hasPee: item.hasPee,
+        poopColor: item.poopColor,
+        peeAmount: item.peeAmount,
+        spitUpType: item.spitUpType,
+        supplementType: item.supplementType,
+        count: item.count,
+        notes: item.notes,
+        originalTexts: item.originalTexts,
       }))
 
-    if (items.length === 0) {
+    if (selectedItems.length === 0) {
       toast.error('请至少选择一条记录')
       return
     }
@@ -219,7 +259,7 @@ export default function BatchImportPage() {
       const response = await fetch(withCurrentBabyIdOnApiPath('/api/app/batch-parse'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ items: selectedItems }),
       })
 
       const data = await response.json()
@@ -230,30 +270,38 @@ export default function BatchImportPage() {
       }
 
       const createdCount = data.created?.length ?? 0
+      const updatedCount = data.updated?.length ?? 0
+      const skippedCount = data.skipped?.length ?? 0
       const errorCount = data.errors?.length ?? 0
-      setSubmitResult({ created: createdCount, errors: errorCount })
+      setSubmitResult({
+        created: createdCount,
+        updated: updatedCount,
+        skipped: skippedCount,
+        errors: errorCount,
+      })
       setStep('done')
 
       queryClient.invalidateQueries({ queryKey: ['get', '/activities'] })
       queryClient.invalidateQueries({ queryKey: ['get', '/activities/latest'] })
 
-      if (createdCount > 0) {
-        toast.success(`成功导入 ${createdCount} 条记录`)
+      const totalSuccess = createdCount + updatedCount
+      if (totalSuccess > 0) {
+        toast.success(`成功处理 ${totalSuccess} 条记录`)
       }
       if (errorCount > 0) {
-        toast.error(`${errorCount} 条记录创建失败`)
+        toast.error(`${errorCount} 条记录处理失败`)
       }
     } catch {
       toast.error('网络错误，请重试')
     } finally {
       setIsSubmitting(false)
     }
-  }, [results, checked, queryClient])
+  }, [items, checked, queryClient])
 
   const handleReset = useCallback(() => {
     setStep('input')
     setInputText('')
-    setResults([])
+    setItems([])
     setChecked([])
     setSubmitResult(null)
   }, [])
@@ -337,25 +385,27 @@ export default function BatchImportPage() {
             <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  解析结果 ({parsedCount}/{results.length} 条成功)
+                  解析结果 ({actionableItems.length} 条可导入，{items.length - actionableItems.length} 条跳过)
                 </p>
-                <button
-                  data-testid="batch-toggle-all"
-                  onClick={toggleAll}
-                  className="text-xs text-violet-600 dark:text-violet-400 font-medium"
-                >
-                  {checkedCount === parsedCount ? '取消全选' : '全选'}
-                </button>
+                {actionableItems.length > 0 && (
+                  <button
+                    data-testid="batch-toggle-all"
+                    onClick={toggleAll}
+                    className="text-xs text-violet-600 dark:text-violet-400 font-medium"
+                  >
+                    {checkedCount === actionableItems.length ? '取消全选' : '全选'}
+                  </button>
+                )}
               </div>
 
               <div className="space-y-2">
-                {results.map((item, index) => (
+                {items.map((item, index) => (
                   <div
                     key={index}
                     data-testid={`batch-result-item-${index}`}
                     className={`rounded-xl border p-3 transition-colors ${
-                      item.error
-                        ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
+                      item.action === 'skip'
+                        ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 opacity-60'
                         : checked[index]
                           ? 'border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20'
                           : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
@@ -363,7 +413,7 @@ export default function BatchImportPage() {
                   >
                     <div className="flex items-start gap-3">
                       {/* Checkbox */}
-                      {item.parsed ? (
+                      {item.action !== 'skip' ? (
                         <button
                           data-testid={`batch-check-${index}`}
                           onClick={() => toggleItem(index)}
@@ -377,36 +427,40 @@ export default function BatchImportPage() {
                         </button>
                       ) : (
                         <div className="mt-0.5 flex-shrink-0">
-                          <AlertCircle size={20} className="text-red-500" />
+                          <AlertCircle size={20} className="text-gray-400" />
                         </div>
                       )}
 
                       <div className="flex-1 min-w-0">
-                        {/* Original text */}
+                        {/* Original texts */}
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                          &quot;{item.originalText}&quot;
+                          {item.originalTexts.map((t, i) => (
+                            <span key={i}>
+                              {i > 0 && ' + '}
+                              &quot;{t}&quot;
+                            </span>
+                          ))}
                         </p>
 
                         {/* Parsed result */}
-                        {item.parsed ? (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-xs font-medium">
-                              {ActivityTypeLabels[item.parsed.type] || item.parsed.type}
-                            </span>
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {formatParsedSummary(item.parsed)}
-                            </span>
-                            {item.parsed.confidence < 0.75 && (
-                              <span className="text-xs text-amber-600 dark:text-amber-400">
-                                (低置信度)
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <ActionBadge action={item.action} />
+                          {item.action !== 'skip' && (
+                            <>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-xs font-medium">
+                                {ActivityTypeLabels[item.type] || item.type}
                               </span>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-red-600 dark:text-red-400">
-                            {item.error}
-                          </p>
-                        )}
+                              <span className="text-sm text-gray-700 dark:text-gray-300">
+                                {formatParsedSummary(item)}
+                              </span>
+                            </>
+                          )}
+                          {item.action === 'skip' && item.skipReason && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {item.skipReason}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -455,7 +509,9 @@ export default function BatchImportPage() {
                 导入完成
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                成功导入 {submitResult.created} 条记录
+                {submitResult.created > 0 && `新建 ${submitResult.created} 条`}
+                {submitResult.created > 0 && submitResult.updated > 0 && '，'}
+                {submitResult.updated > 0 && `更新 ${submitResult.updated} 条`}
                 {submitResult.errors > 0 && `，${submitResult.errors} 条失败`}
               </p>
             </div>
