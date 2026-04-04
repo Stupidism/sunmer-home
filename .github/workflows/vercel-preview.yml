@@ -26,11 +26,20 @@ jobs:
       affected_json: ${{ steps.detect.outputs.affected_json }}
       preview_count: ${{ steps.detect.outputs.preview_count }}
     steps:
+      - name: Checkout projects config
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/projects.json
+          sparse-checkout-cone-mode: false
+
       - name: Detect affected projects for Vercel preview
         id: detect
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('node:fs')
+            const config = JSON.parse(fs.readFileSync('.github/projects.json', 'utf8'))
+
             const owner = context.repo.owner
             const repo = context.repo.repo
             const pull_number = context.payload.pull_request.number
@@ -43,44 +52,21 @@ jobs:
             })
 
             const changed = files.map((f) => f.filename)
+
+            // Shared config + this workflow's own file
             const alwaysAffectAll = [
-              'pnpm-lock.yaml',
-              'pnpm-workspace.yaml',
-              'package.json',
-              'turbo.json',
+              ...config.alwaysAffectAll,
               '.github/workflows/vercel-preview.yml',
             ]
 
-            const projects = [
-              {
-                appId: 'bubu-log',
-                appName: 'bubu-log',
-                appPath: 'apps/bubu-log',
-                projectIdSecret: 'VERCEL_PROJECT_ID_BUBU_LOG',
-                triggers: ['apps/bubu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
-              },
-              {
-                appId: 'nunu-island',
-                appName: 'nunu-island',
-                appPath: 'apps/nunu-island',
-                projectIdSecret: 'VERCEL_PROJECT_ID_NUNU_ISLAND',
-                triggers: ['apps/nunu-island/', 'packages/ui/', 'packages/typescript-config/'],
-              },
-              {
-                appId: 'nunu-log',
-                appName: 'nunu-log',
-                appPath: 'apps/nunu-log',
-                projectIdSecret: 'VERCEL_PROJECT_ID_NUNU_LOG',
-                triggers: ['apps/nunu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
-              },
-              {
-                appId: 'wedding-invite',
-                appName: 'wedding-invite',
-                appPath: 'apps/wedding-invite',
-                projectIdSecret: 'VERCEL_PROJECT_ID_WEDDING_INVITE',
-                triggers: ['apps/wedding-invite/', 'packages/ui/', 'packages/typescript-config/'],
-              },
-            ]
+            const projects = config.projects.map((p) => ({
+              appId: p.appId,
+              appName: p.appName,
+              appPath: p.appPath,
+              neonProjectId: p.neonProjectId,
+              projectIdSecret: p.vercelProjectIdSecret,
+              triggers: p.triggers,
+            }))
 
             const affectAll = changed.some((file) =>
               alwaysAffectAll.some((target) => file === target || file.startsWith(`${target}/`))
@@ -190,48 +176,34 @@ jobs:
         if: steps.resolve.outputs.enabled == 'true'
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ matrix.neonProjectId }}
           BRANCH_NAME: preview/${{ github.event.pull_request.head.ref }}
         run: |
-          APP_ID='${{ matrix.appId }}'
-          NEON_PROJECT_ID=''
-
-          case "$APP_ID" in
-            bubu-log)    NEON_PROJECT_ID="morning-mouse-25532220" ;;
-            nunu-island) NEON_PROJECT_ID="shy-feather-65398796" ;;
-            nunu-log)    NEON_PROJECT_ID="shiny-dream-05784525" ;;
-            wedding-invite) NEON_PROJECT_ID="small-wind-49890586" ;;
-          esac
-
           if [ -z "$NEON_PROJECT_ID" ]; then
-            echo "No Neon project mapped for $APP_ID, skipping check"
+            echo "No Neon project mapped for ${{ matrix.appId }}, skipping check"
             exit 0
           fi
 
           MAX_ATTEMPTS=10
           SLEEP_SEC=15
           for i in $(seq 1 $MAX_ATTEMPTS); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            FOUND=$(curl -s \
               -H "Authorization: Bearer $NEON_API_KEY" \
-              "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches?search=$BRANCH_NAME")
+              "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches?search=$BRANCH_NAME" \
+              | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);const match=j.branches?.find(b=>b.name==='$BRANCH_NAME');process.stdout.write(match?'true':'false')})")
 
-            if [ "$STATUS" = "200" ]; then
-              FOUND=$(curl -s \
-                -H "Authorization: Bearer $NEON_API_KEY" \
-                "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches?search=$BRANCH_NAME" \
-                | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);const match=j.branches?.find(b=>b.name==='$BRANCH_NAME');process.stdout.write(match?'true':'false')})")
-              if [ "$FOUND" = "true" ]; then
-                echo "Neon branch '$BRANCH_NAME' found for $APP_ID"
-                exit 0
-              fi
+            if [ "$FOUND" = "true" ]; then
+              echo "Neon branch '$BRANCH_NAME' found for ${{ matrix.appId }}"
+              exit 0
             fi
 
             if [ "$i" -lt "$MAX_ATTEMPTS" ]; then
-              echo "Attempt $i/$MAX_ATTEMPTS: Neon branch '$BRANCH_NAME' not found for $APP_ID, retrying in ${SLEEP_SEC}s..."
+              echo "Attempt $i/$MAX_ATTEMPTS: Neon branch '$BRANCH_NAME' not found for ${{ matrix.appId }}, retrying in ${SLEEP_SEC}s..."
               sleep $SLEEP_SEC
             fi
           done
 
-          echo "::error::Neon preview branch '$BRANCH_NAME' not found for $APP_ID after $MAX_ATTEMPTS attempts. The Vercel-Neon integration may not have created it."
+          echo "::error::Neon preview branch '$BRANCH_NAME' not found for ${{ matrix.appId }} after $MAX_ATTEMPTS attempts. The Vercel-Neon integration may not have created it."
           exit 1
 
       - name: Pull Vercel preview env
