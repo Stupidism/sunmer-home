@@ -81,11 +81,15 @@ export function PolishInvitationButton() {
 
       const payload = (await response.json()) as {
         success?: boolean;
+        inviteCode?: string | null;
         shareLink?: string | null;
       };
 
-      if (response.ok && payload.success && payload.shareLink) {
-        setShareLink(payload.shareLink);
+      if (response.ok && payload.success) {
+        const link = payload.inviteCode
+          ? `${window.location.origin}/invite/${encodeURIComponent(payload.inviteCode)}`
+          : payload.shareLink || "";
+        setShareLink(link);
       } else {
         setShareLink("");
       }
@@ -134,6 +138,7 @@ export function PolishInvitationButton() {
       const payload = (await response.json()) as {
         success?: boolean;
         aiUsed?: boolean;
+        inviteCode?: string;
         shareLink?: string;
         invitationCopy?: string;
         error?: string;
@@ -147,7 +152,9 @@ export function PolishInvitationButton() {
         invitationCopyField.setValue(payload.invitationCopy);
       }
 
-      if (payload.shareLink) {
+      if (payload.inviteCode) {
+        setShareLink(`${window.location.origin}/invite/${encodeURIComponent(payload.inviteCode)}`);
+      } else if (payload.shareLink) {
         setShareLink(payload.shareLink);
       } else {
         await loadLink();
