@@ -64,7 +64,6 @@ jobs:
               appName: p.appName,
               appPath: p.appPath,
               neonProjectId: p.neonProjectId,
-              neonAutoPreviewBranch: p.neonAutoPreviewBranch || false,
               projectIdSecret: p.vercelProjectIdSecret,
               triggers: p.triggers,
             }))
@@ -172,44 +171,19 @@ jobs:
           echo "org_id=$ORG_ID" >> "$GITHUB_OUTPUT"
           echo "scope=${VERCEL_SCOPE:-$ORG_ID}" >> "$GITHUB_OUTPUT"
 
-      - name: Check Neon preview branch exists
-        id: check_neon_branch
-        if: steps.resolve.outputs.enabled == 'true' && matrix.neonAutoPreviewBranch == true
-        env:
-          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          NEON_PROJECT_ID: ${{ matrix.neonProjectId }}
-          BRANCH_NAME: preview/${{ github.event.pull_request.head.ref }}
-        run: |
-          if [ -z "$NEON_PROJECT_ID" ]; then
-            echo "No Neon project mapped for ${{ matrix.appId }}, skipping check"
-            exit 0
-          fi
-
-          MAX_ATTEMPTS=10
-          SLEEP_SEC=15
-          for i in $(seq 1 $MAX_ATTEMPTS); do
-            FOUND=$(curl -s \
-              -H "Authorization: Bearer $NEON_API_KEY" \
-              "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches?search=$BRANCH_NAME" \
-              | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);const match=j.branches?.find(b=>b.name==='$BRANCH_NAME');process.stdout.write(match?'true':'false')})")
-
-            if [ "$FOUND" = "true" ]; then
-              echo "Neon branch '$BRANCH_NAME' found for ${{ matrix.appId }}"
-              exit 0
-            fi
-
-            if [ "$i" -lt "$MAX_ATTEMPTS" ]; then
-              echo "Attempt $i/$MAX_ATTEMPTS: Neon branch '$BRANCH_NAME' not found for ${{ matrix.appId }}, retrying in ${SLEEP_SEC}s..."
-              sleep $SLEEP_SEC
-            fi
-          done
-
-          echo "::error::Neon preview branch '$BRANCH_NAME' not found for ${{ matrix.appId }} after $MAX_ATTEMPTS attempts. The Vercel-Neon integration may not have created it."
-          exit 1
+      - name: Create Neon preview branch
+        id: create_neon_branch
+        if: steps.resolve.outputs.enabled == 'true'
+        uses: neondatabase/create-branch-action@v6
+        continue-on-error: true
+        with:
+          project_id: ${{ matrix.neonProjectId }}
+          branch_name: preview/${{ github.event.pull_request.head.ref }}
+          api_key: ${{ secrets.NEON_API_KEY }}
 
       - name: Pull Vercel preview env
         id: pull_vercel_preview_env
-        if: steps.resolve.outputs.enabled == 'true' && steps.check_neon_branch.outcome == 'success'
+        if: steps.resolve.outputs.enabled == 'true' && steps.create_neon_branch.outcome == 'success'
         continue-on-error: true
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
@@ -221,7 +195,7 @@ jobs:
 
       - name: Run preview DB migrations for wedding-invite
         id: migrate_wedding_preview_db
-        if: steps.resolve.outputs.enabled == 'true' && steps.check_neon_branch.outcome == 'success' && matrix.appId == 'wedding-invite'
+        if: steps.resolve.outputs.enabled == 'true' && steps.create_neon_branch.outcome == 'success' && matrix.appId == 'wedding-invite'
         continue-on-error: true
         run: |
           if [ ! -f .vercel/.env.preview.local ]; then
@@ -237,7 +211,7 @@ jobs:
 
       - name: Build preview artifacts
         id: build_preview_artifacts
-        if: steps.resolve.outputs.enabled == 'true' && steps.check_neon_branch.outcome == 'success' && (matrix.appId != 'wedding-invite' || steps.migrate_wedding_preview_db.outcome == 'success')
+        if: steps.resolve.outputs.enabled == 'true' && steps.create_neon_branch.outcome == 'success' && (matrix.appId != 'wedding-invite' || steps.migrate_wedding_preview_db.outcome == 'success')
         continue-on-error: true
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
@@ -338,13 +312,13 @@ jobs:
             "headSha": "${{ github.event.pull_request.head.sha }}"
           }
           EOF
-          elif [ '${{ steps.check_neon_branch.outcome }}' = 'failure' ]; then
+          elif [ '${{ steps.create_neon_branch.outcome }}' = 'failure' ]; then
             cat > "$RESULT_FILE" <<EOF
           {
             "appId": "${{ matrix.appId }}",
             "appName": "${{ matrix.appName }}",
             "status": "failed",
-            "reason": "neon-branch-not-found",
+            "reason": "neon-branch-create-failed",
             "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
             "headSha": "${{ github.event.pull_request.head.sha }}"
           }
