@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayloadClient } from "@/lib/payload/client";
 
+// Ensure this route is always dynamic and never cached by Next.js
+export const dynamic = "force-dynamic";
+
 const relationshipCategoryLabel: Record<string, string> = {
   friend: "朋友",
   classmate: "同学",

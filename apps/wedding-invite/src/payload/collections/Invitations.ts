@@ -1,6 +1,6 @@
 import type { CollectionConfig } from "payload";
-import { revalidatePath } from "next/cache";
 import { isCMSAdmin } from "../access/isCMSAdmin";
+import { triggerRevalidation } from "../revalidate";
 
 function makeInviteCode(name: string): string {
   const normalized = name
@@ -72,16 +72,14 @@ export const Invitations: CollectionConfig = {
     ],
     afterChange: [
       ({ doc }) => {
-        try {
-          const inviteCode = typeof doc.inviteCode === "string" ? doc.inviteCode : null;
-          if (inviteCode) {
-            revalidatePath(`/invite/${inviteCode}`);
-          }
-          // Also revalidate the home page in case it lists invitations
-          revalidatePath("/");
-        } catch (error) {
-          console.warn("[Invitations afterChange] revalidation failed:", error);
+        const inviteCode = typeof doc.inviteCode === "string" ? doc.inviteCode : null;
+        const paths = ["/"];
+        if (inviteCode) {
+          paths.push(`/invite/${inviteCode}`);
         }
+        // Fire-and-forget: trigger revalidation via HTTP so it runs inside
+        // a proper Next.js server context where revalidatePath() works.
+        void triggerRevalidation(paths);
         return doc;
       },
     ],

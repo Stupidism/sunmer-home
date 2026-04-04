@@ -1,6 +1,6 @@
 import type { CollectionConfig } from "payload";
-import { revalidatePath } from "next/cache";
 import { isCMSAdmin } from "../access/isCMSAdmin";
+import { triggerRevalidation } from "../revalidate";
 
 export const Guests: CollectionConfig = {
   slug: "guests",
@@ -28,7 +28,7 @@ export const Guests: CollectionConfig = {
         const guestID = doc.id;
         const guestName = doc.name;
 
-        // Revalidate the invite page for this guest
+        // Revalidate the invite page for this guest via HTTP
         try {
           const invitationResult = await req.payload.find({
             collection: "invitations",
@@ -45,10 +45,11 @@ export const Guests: CollectionConfig = {
             invitation && typeof invitation.inviteCode === "string"
               ? invitation.inviteCode
               : null;
+          const paths = ["/"];
           if (inviteCode) {
-            revalidatePath(`/invite/${inviteCode}`);
+            paths.push(`/invite/${inviteCode}`);
           }
-          revalidatePath("/");
+          void triggerRevalidation(paths);
         } catch (error) {
           console.warn("[Guests afterChange] revalidation failed:", error);
         }
