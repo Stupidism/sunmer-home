@@ -1,4 +1,4 @@
-name: Vercel PR Preview
+name: PR Preview
 
 on:
   pull_request:
@@ -14,17 +14,23 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 jobs:
   detect-affected:
+    name: Detect Affected Apps
     if: >
       github.event.action != 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     outputs:
-      matrix_json: ${{ steps.detect.outputs.matrix_json }}
-      all_projects_json: ${{ steps.detect.outputs.all_projects_json }}
       affected_json: ${{ steps.detect.outputs.affected_json }}
-      preview_count: ${{ steps.detect.outputs.preview_count }}
+      unaffected_json: ${{ steps.detect.outputs.unaffected_json }}
+      all_projects_json: ${{ steps.detect.outputs.all_projects_json }}
+      affected_names_json: ${{ steps.detect.outputs.affected_names_json }}
+      affected_count: ${{ steps.detect.outputs.affected_count }}
+      unaffected_count: ${{ steps.detect.outputs.unaffected_count }}
     steps:
       - name: Checkout projects config
         uses: actions/checkout@v4
@@ -32,7 +38,7 @@ jobs:
           sparse-checkout: .github/projects.json
           sparse-checkout-cone-mode: false
 
-      - name: Detect affected projects for Vercel preview
+      - name: Detect affected projects and label PR
         id: detect
         uses: actions/github-script@v7
         with:
@@ -53,10 +59,10 @@ jobs:
 
             const changed = files.map((f) => f.filename)
 
-            // Shared config + this workflow's own file
             const alwaysAffectAll = [
               ...config.alwaysAffectAll,
-              '.github/workflows/vercel-preview.yml',
+              '.github/workflows/pr-preview.yml',
+              '.github/projects.json',
             ]
 
             const projects = config.projects.map((p) => ({
@@ -77,22 +83,53 @@ jobs:
               return changed.some((file) => project.triggers.some((prefix) => file.startsWith(prefix)))
             })
 
-            core.info(`Changed files: ${changed.length}`)
-            core.info(`Affect all projects: ${affectAll}`)
-            core.info(`Affected projects: ${affected.map((p) => p.appId).join(', ') || '(none)'}`)
+            const unaffected = projects.filter((p) => !affected.some((a) => a.appId === p.appId))
 
-            core.setOutput('matrix_json', JSON.stringify({ include: affected }))
+            core.info(`Changed files: ${changed.length}`)
+            core.info(`Affect all: ${affectAll}`)
+            core.info(`Affected: ${affected.map((p) => p.appId).join(', ') || '(none)'}`)
+            core.info(`Unaffected: ${unaffected.map((p) => p.appId).join(', ') || '(none)'}`)
+
+            // Auto-label PR with affected apps
+            const desiredLabels = affected.map((p) => `app:${p.appId}`)
+            const allAppLabels = projects.map((p) => `app:${p.appId}`)
+            const currentLabels = context.payload.pull_request.labels.map((l) => l.name)
+            const currentAppLabels = currentLabels.filter((l) => allAppLabels.includes(l))
+
+            const labelsToAdd = desiredLabels.filter((l) => !currentAppLabels.includes(l))
+            const labelsToRemove = currentAppLabels.filter((l) => !desiredLabels.includes(l))
+
+            for (const label of labelsToAdd) {
+              try {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: pull_number, labels: [label] })
+              } catch (e) {
+                core.warning(`Failed to add label ${label}: ${e.message}`)
+              }
+            }
+
+            for (const label of labelsToRemove) {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number: pull_number, name: label })
+              } catch (e) {
+                core.warning(`Failed to remove label ${label}: ${e.message}`)
+              }
+            }
+
+            core.setOutput('affected_json', JSON.stringify({ include: affected }))
+            core.setOutput('unaffected_json', JSON.stringify({ include: unaffected.map((p) => ({ appId: p.appId, projectId: p.neonProjectId })) }))
             core.setOutput('all_projects_json', JSON.stringify(projects.map((p) => ({ appId: p.appId, appName: p.appName }))))
-            core.setOutput('affected_json', JSON.stringify(affected.map((p) => ({ appId: p.appId, appName: p.appName }))))
-            core.setOutput('preview_count', String(affected.length))
+            core.setOutput('affected_names_json', JSON.stringify(affected.map((p) => ({ appId: p.appId, appName: p.appName }))))
+            core.setOutput('affected_count', String(affected.length))
+            core.setOutput('unaffected_count', String(unaffected.length))
 
   preview:
+    name: Deploy Preview (${{ matrix.appId }})
     needs: detect-affected
-    if: needs.detect-affected.outputs.preview_count != '0'
+    if: needs.detect-affected.outputs.affected_count != '0'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.detect-affected.outputs.matrix_json) }}
+      matrix: ${{ fromJSON(needs.detect-affected.outputs.affected_json) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -384,7 +421,7 @@ jobs:
           RESULT_FILE: ${{ runner.temp }}/vercel-preview-result/${{ matrix.appId }}.json
           APP_ID: ${{ matrix.appId }}
           ALL_PROJECTS_JSON: ${{ needs.detect-affected.outputs.all_projects_json }}
-          AFFECTED_JSON: ${{ needs.detect-affected.outputs.affected_json }}
+          AFFECTED_JSON: ${{ needs.detect-affected.outputs.affected_names_json }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         with:
@@ -392,7 +429,6 @@ jobs:
             const fs = require('node:fs')
 
             const marker = '<!-- vercel-pr-preview -->'
-            const statePrefix = '<!-- vercel-pr-preview-state '
             const issue_number = context.issue.number
             const updated = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')
             const allProjects = JSON.parse(process.env.ALL_PROJECTS_JSON || '[]')
@@ -544,12 +580,70 @@ jobs:
             exit 1
           fi
 
-  close-note:
+  cleanup-unaffected:
+    name: Cleanup Neon Branch (${{ matrix.appId }})
+    needs: detect-affected
+    if: needs.detect-affected.outputs.unaffected_count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-affected.outputs.unaffected_json) }}
+    steps:
+      - name: Cleanup Neon Branch
+        uses: neondatabase/delete-branch-action@v3
+        continue-on-error: true
+        with:
+          project_id: ${{ matrix.projectId }}
+          branch: preview/${{ github.event.pull_request.head.ref }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+  cleanup-closed:
+    name: Cleanup All Neon Branches
     if: >
       github.event.action == 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout projects config
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/projects.json
+          sparse-checkout-cone-mode: false
+
+      - name: Cleanup all Neon branches
+        uses: actions/github-script@v7
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          BRANCH_NAME: preview/${{ github.event.pull_request.head.ref }}
+        with:
+          script: |
+            const fs = require('node:fs')
+            const config = JSON.parse(fs.readFileSync('.github/projects.json', 'utf8'))
+
+            for (const project of config.projects) {
+              try {
+                const res = await fetch(
+                  `https://console.neon.tech/api/v2/projects/${project.neonProjectId}/branches?search=${encodeURIComponent(process.env.BRANCH_NAME)}`,
+                  { headers: { Authorization: `Bearer ${process.env.NEON_API_KEY}` } }
+                )
+                const data = await res.json()
+                const branch = data.branches?.find((b) => b.name === process.env.BRANCH_NAME)
+
+                if (!branch) {
+                  core.info(`${project.appId}: no branch '${process.env.BRANCH_NAME}', skip`)
+                  continue
+                }
+
+                const delRes = await fetch(
+                  `https://console.neon.tech/api/v2/projects/${project.neonProjectId}/branches/${branch.id}`,
+                  { method: 'DELETE', headers: { Authorization: `Bearer ${process.env.NEON_API_KEY}` } }
+                )
+                core.info(`${project.appId}: deleted '${process.env.BRANCH_NAME}' (${delRes.status})`)
+              } catch (e) {
+                core.warning(`${project.appId}: failed to cleanup — ${e.message}`)
+              }
+            }
+
       - name: Mark preview comment closed
         uses: actions/github-script@v7
         with:
