@@ -185,9 +185,58 @@ jobs:
           echo "org_id=$ORG_ID" >> "$GITHUB_OUTPUT"
           echo "scope=${VERCEL_SCOPE:-$ORG_ID}" >> "$GITHUB_OUTPUT"
 
+      - name: Check Neon preview branch exists
+        id: check_neon_branch
+        if: steps.resolve.outputs.enabled == 'true'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          BRANCH_NAME: preview/${{ github.event.pull_request.head.ref }}
+        run: |
+          APP_ID='${{ matrix.appId }}'
+          NEON_PROJECT_ID=''
+
+          case "$APP_ID" in
+            bubu-log)    NEON_PROJECT_ID="morning-mouse-25532220" ;;
+            nunu-island) NEON_PROJECT_ID="shy-feather-65398796" ;;
+            nunu-log)    NEON_PROJECT_ID="shiny-dream-05784525" ;;
+            wedding-invite) NEON_PROJECT_ID="small-wind-49890586" ;;
+          esac
+
+          if [ -z "$NEON_PROJECT_ID" ]; then
+            echo "No Neon project mapped for $APP_ID, skipping check"
+            exit 0
+          fi
+
+          MAX_ATTEMPTS=10
+          SLEEP_SEC=15
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $NEON_API_KEY" \
+              "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches?search=$BRANCH_NAME")
+
+            if [ "$STATUS" = "200" ]; then
+              FOUND=$(curl -s \
+                -H "Authorization: Bearer $NEON_API_KEY" \
+                "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches?search=$BRANCH_NAME" \
+                | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);const match=j.branches?.find(b=>b.name==='$BRANCH_NAME');process.stdout.write(match?'true':'false')})")
+              if [ "$FOUND" = "true" ]; then
+                echo "Neon branch '$BRANCH_NAME' found for $APP_ID"
+                exit 0
+              fi
+            fi
+
+            if [ "$i" -lt "$MAX_ATTEMPTS" ]; then
+              echo "Attempt $i/$MAX_ATTEMPTS: Neon branch '$BRANCH_NAME' not found for $APP_ID, retrying in ${SLEEP_SEC}s..."
+              sleep $SLEEP_SEC
+            fi
+          done
+
+          echo "::error::Neon preview branch '$BRANCH_NAME' not found for $APP_ID after $MAX_ATTEMPTS attempts. The Vercel-Neon integration may not have created it."
+          exit 1
+
       - name: Pull Vercel preview env
         id: pull_vercel_preview_env
-        if: steps.resolve.outputs.enabled == 'true'
+        if: steps.resolve.outputs.enabled == 'true' && steps.check_neon_branch.outcome == 'success'
         continue-on-error: true
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
@@ -199,7 +248,7 @@ jobs:
 
       - name: Run preview DB migrations for wedding-invite
         id: migrate_wedding_preview_db
-        if: steps.resolve.outputs.enabled == 'true' && matrix.appId == 'wedding-invite'
+        if: steps.resolve.outputs.enabled == 'true' && steps.check_neon_branch.outcome == 'success' && matrix.appId == 'wedding-invite'
         continue-on-error: true
         run: |
           if [ ! -f .vercel/.env.preview.local ]; then
@@ -215,7 +264,7 @@ jobs:
 
       - name: Build preview artifacts
         id: build_preview_artifacts
-        if: steps.resolve.outputs.enabled == 'true' && (matrix.appId != 'wedding-invite' || steps.migrate_wedding_preview_db.outcome == 'success')
+        if: steps.resolve.outputs.enabled == 'true' && steps.check_neon_branch.outcome == 'success' && (matrix.appId != 'wedding-invite' || steps.migrate_wedding_preview_db.outcome == 'success')
         continue-on-error: true
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
@@ -313,6 +362,17 @@ jobs:
             "reason": "ready",
             "previewUrl": "${{ steps.deploy_preview.outputs.preview_url }}",
             "buildUrl": "${{ steps.deploy_preview.outputs.build_url }}",
+            "headSha": "${{ github.event.pull_request.head.sha }}"
+          }
+          EOF
+          elif [ '${{ steps.check_neon_branch.outcome }}' = 'failure' ]; then
+            cat > "$RESULT_FILE" <<EOF
+          {
+            "appId": "${{ matrix.appId }}",
+            "appName": "${{ matrix.appName }}",
+            "status": "failed",
+            "reason": "neon-branch-not-found",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
             "headSha": "${{ github.event.pull_request.head.sha }}"
           }
           EOF

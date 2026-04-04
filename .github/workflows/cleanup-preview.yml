@@ -1,4 +1,4 @@
-name: Neon Preview Branch Cleanup
+name: PR Preview Database
 
 on:
   pull_request:
