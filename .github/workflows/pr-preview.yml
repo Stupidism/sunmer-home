@@ -6,6 +6,7 @@ on:
       - opened
       - reopened
       - synchronize
+      - labeled
       - ready_for_review
       - closed
 
@@ -48,12 +49,19 @@ jobs:
           script: |
             const { detectAffected } = await import('${{ github.workspace }}/.github/scripts/detect-affected.mjs')
 
-            const { projects, affected, unaffected } = await detectAffected({
+            const { projects, affected, unaffected, skipped } = await detectAffected({
               github,
               context,
               core,
               extraAffectAll: ['.github/workflows/pr-preview.yml'],
             })
+
+            if (skipped) {
+              core.info('Non-app label event, nothing to do')
+              core.setOutput('affected_count', '0')
+              core.setOutput('unaffected_count', '0')
+              return
+            }
 
             core.setOutput('affected_json', JSON.stringify({ include: affected }))
             core.setOutput('unaffected_json', JSON.stringify({ include: unaffected.map((p) => ({ appId: p.appId, projectId: p.neonProjectId })) }))
