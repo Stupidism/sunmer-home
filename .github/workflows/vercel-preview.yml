@@ -173,7 +173,7 @@ jobs:
 
       - name: Check Neon preview branch exists
         id: check_neon_branch
-        if: steps.resolve.outputs.enabled == 'true'
+        if: steps.resolve.outputs.enabled == 'true' && matrix.neonAutoPreviewBranch == true
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ matrix.neonProjectId }}

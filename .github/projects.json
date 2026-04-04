@@ -11,6 +11,7 @@
       "appName": "bubu-log",
       "appPath": "apps/bubu-log",
       "neonProjectId": "morning-mouse-25532220",
+      "neonAutoPreviewBranch": true,
       "vercelProjectIdSecret": "VERCEL_PROJECT_ID_BUBU_LOG",
       "triggers": ["apps/bubu-log/", "packages/ui/", "packages/log-ui/", "packages/typescript-config/"]
     },
@@ -19,6 +20,7 @@
       "appName": "nunu-island",
       "appPath": "apps/nunu-island",
       "neonProjectId": "shy-feather-65398796",
+      "neonAutoPreviewBranch": false,
       "vercelProjectIdSecret": "VERCEL_PROJECT_ID_NUNU_ISLAND",
       "triggers": ["apps/nunu-island/", "packages/ui/", "packages/typescript-config/"]
     },
@@ -27,6 +29,7 @@
       "appName": "nunu-log",
       "appPath": "apps/nunu-log",
       "neonProjectId": "shiny-dream-05784525",
+      "neonAutoPreviewBranch": false,
       "vercelProjectIdSecret": "VERCEL_PROJECT_ID_NUNU_LOG",
       "triggers": ["apps/nunu-log/", "packages/ui/", "packages/log-ui/", "packages/typescript-config/"]
     },
@@ -35,6 +38,7 @@
       "appName": "wedding-invite",
       "appPath": "apps/wedding-invite",
       "neonProjectId": "small-wind-49890586",
+      "neonAutoPreviewBranch": false,
       "vercelProjectIdSecret": "VERCEL_PROJECT_ID_WEDDING_INVITE",
       "triggers": ["apps/wedding-invite/", "packages/ui/", "packages/typescript-config/"]
     }
