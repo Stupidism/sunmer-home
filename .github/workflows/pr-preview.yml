@@ -178,9 +178,9 @@ jobs:
           VERCEL_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: pnpm dlx vercel@latest pull --yes --environment=preview --git-branch="$VERCEL_GIT_BRANCH" --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN"
 
-      - name: Run preview DB migrations for wedding-invite
-        id: migrate_wedding_preview_db
-        if: steps.resolve.outputs.enabled == 'true' && steps.create_neon_branch.outcome == 'success' && matrix.appId == 'wedding-invite'
+      - name: Run preview DB migrations
+        id: migrate_preview_db
+        if: steps.resolve.outputs.enabled == 'true' && steps.create_neon_branch.outcome == 'success'
         continue-on-error: true
         run: |
           if [ ! -f .vercel/.env.preview.local ]; then
@@ -192,11 +192,19 @@ jobs:
           source .vercel/.env.preview.local
           set +a
 
-          pnpm --filter wedding-invite db:push
+          APP_ID='${{ matrix.appId }}'
+
+          # Check if the app has a db:push script
+          if pnpm --filter "$APP_ID" run --if-present db:push; then
+            echo "DB migration succeeded for $APP_ID"
+          else
+            echo "::warning::DB migration failed for $APP_ID"
+            exit 1
+          fi
 
       - name: Build preview artifacts
         id: build_preview_artifacts
-        if: steps.resolve.outputs.enabled == 'true' && steps.create_neon_branch.outcome == 'success' && (matrix.appId != 'wedding-invite' || steps.migrate_wedding_preview_db.outcome == 'success')
+        if: steps.resolve.outputs.enabled == 'true' && steps.create_neon_branch.outcome == 'success' && steps.migrate_preview_db.outcome == 'success'
         continue-on-error: true
         env:
           VERCEL_ORG_ID: ${{ steps.resolve.outputs.org_id }}
@@ -330,7 +338,7 @@ jobs:
             "headSha": "${{ github.event.pull_request.head.sha }}"
           }
           EOF
-          elif [ '${{ steps.migrate_wedding_preview_db.outcome }}' = 'failure' ]; then
+          elif [ '${{ steps.migrate_preview_db.outcome }}' = 'failure' ]; then
             cat > "$RESULT_FILE" <<EOF
           {
             "appId": "${{ matrix.appId }}",
