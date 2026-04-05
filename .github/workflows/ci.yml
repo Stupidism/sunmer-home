@@ -7,9 +7,93 @@ on:
     branches: [main]
 
 jobs:
+  detect-affected:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix_json: ${{ steps.detect.outputs.matrix_json }}
+      affected_count: ${{ steps.detect.outputs.affected_count }}
+    steps:
+      - name: Detect affected apps
+        id: detect
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const projects = [
+              {
+                appId: 'bubu-log',
+                appPath: 'apps/bubu-log',
+                triggers: ['apps/bubu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
+                hasLint: true,
+                hasE2E: true,
+              },
+              {
+                appId: 'nunu-island',
+                appPath: 'apps/nunu-island',
+                triggers: ['apps/nunu-island/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'nunu-log',
+                appPath: 'apps/nunu-log',
+                triggers: ['apps/nunu-log/', 'packages/ui/', 'packages/log-ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'wedding-invite',
+                appPath: 'apps/wedding-invite',
+                triggers: ['apps/wedding-invite/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+              {
+                appId: 'weekly-menu',
+                appPath: 'apps/weekly-menu',
+                triggers: ['apps/weekly-menu/', 'packages/ui/', 'packages/typescript-config/'],
+              },
+            ]
+
+            const alwaysAffectAll = [
+              'pnpm-lock.yaml',
+              'pnpm-workspace.yaml',
+              'package.json',
+              'turbo.json',
+              '.github/workflows/ci.yml',
+            ]
+
+            let changed = []
+            if (context.eventName === 'pull_request') {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                per_page: 100,
+              })
+              changed = files.map((f) => f.filename)
+            } else {
+              // push to main: run everything
+              changed = ['pnpm-lock.yaml']
+            }
+
+            const affectAll = changed.some((file) =>
+              alwaysAffectAll.some((prefix) => file === prefix || file.startsWith(prefix))
+            )
+
+            const affected = projects.filter((project) => {
+              if (affectAll) return true
+              return changed.some((file) => project.triggers.some((prefix) => file.startsWith(prefix)))
+            })
+
+            core.info(`Changed files: ${changed.length}`)
+            core.info(`Affect all: ${affectAll}`)
+            core.info(`Affected apps: ${affected.map((p) => p.appId).join(', ') || '(none)'}`)
+
+            core.setOutput('matrix_json', JSON.stringify({ include: affected }))
+            core.setOutput('affected_count', String(affected.length))
+
   ci:
+    needs: detect-affected
+    if: needs.detect-affected.outputs.affected_count != '0'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-affected.outputs.matrix_json) }}
     env:
       AUTH_SECRET: test-secret
       AUTH_TRUST_HOST: true
@@ -40,28 +124,19 @@ jobs:
         run: pnpm install
 
       - name: Lint
-        run: pnpm -C apps/bubu-log lint
+        if: matrix.hasLint
+        run: pnpm -C ${{ matrix.appPath }} lint
 
-      - name: Type check (bubu-log)
-        run: pnpm -C apps/bubu-log exec tsc --noEmit
-
-      - name: Type check (wedding-invite)
-        run: pnpm -C apps/wedding-invite exec tsc --noEmit
-
-      - name: Type check (nunu-island)
-        run: pnpm -C apps/nunu-island exec tsc --noEmit
-
-      - name: Type check (nunu-log)
-        run: pnpm -C apps/nunu-log exec tsc --noEmit
-
-      - name: Type check (weekly-menu)
-        run: pnpm -C apps/weekly-menu exec tsc --noEmit
+      - name: Type check
+        run: pnpm -C ${{ matrix.appPath }} exec tsc --noEmit
 
       - name: Unit tests
-        run: pnpm -r test --if-present
+        run: pnpm --filter ${{ matrix.appId }} test --if-present
 
       - name: Install Playwright browsers
-        run: pnpm -C apps/bubu-log exec playwright install --with-deps
+        if: matrix.hasE2E
+        run: pnpm -C ${{ matrix.appPath }} exec playwright install --with-deps
 
       - name: E2E tests
-        run: pnpm -C apps/bubu-log test:e2e
+        if: matrix.hasE2E
+        run: pnpm -C ${{ matrix.appPath }} test:e2e
