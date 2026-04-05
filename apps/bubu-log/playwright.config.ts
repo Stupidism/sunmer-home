@@ -15,10 +15,10 @@ export default defineConfig({
     ['list'],
   ],
   use: {
-    baseURL: 'http://localhost:3210',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3210',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'on-first-retry',
+    video: process.env.PLAYWRIGHT_VIDEO === 'on' ? 'on' : 'on-first-retry',
     /* 设置默认超时 */
     actionTimeout: 10000,
     navigationTimeout: 30000,
@@ -31,10 +31,12 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'pnpm exec next dev --port 3210',
-    url: 'http://localhost:3210',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  ...(!process.env.PLAYWRIGHT_BASE_URL && {
+    webServer: {
+      command: 'pnpm exec next dev --port 3210',
+      url: 'http://localhost:3210',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120 * 1000,
+    },
+  }),
 })

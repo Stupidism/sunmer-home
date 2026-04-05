@@ -115,6 +115,7 @@ export function SupplementForm({ onSubmit, onCancel, initialValues, isEditing }:
         <p className="text-sm font-medium text-gray-600 dark:text-gray-400">补剂类型</p>
         <div className="grid grid-cols-2 gap-3">
           <button
+            data-testid="supplement-type-AD"
             onClick={() => setSupplementType('AD')}
             className={`p-4 rounded-2xl text-lg font-semibold transition-all flex items-center justify-center gap-2 ${
               supplementType === 'AD'
@@ -126,6 +127,7 @@ export function SupplementForm({ onSubmit, onCancel, initialValues, isEditing }:
             AD
           </button>
           <button
+            data-testid="supplement-type-D3"
             onClick={() => setSupplementType('D3')}
             className={`p-4 rounded-2xl text-lg font-semibold transition-all flex items-center justify-center gap-2 ${
               supplementType === 'D3'
@@ -137,6 +139,7 @@ export function SupplementForm({ onSubmit, onCancel, initialValues, isEditing }:
             D3
           </button>
           <button
+            data-testid="supplement-type-PROBIOTICS"
             onClick={() => setSupplementType('PROBIOTICS')}
             className={`p-4 rounded-2xl text-lg font-semibold transition-all flex items-center justify-center gap-2 ${
               supplementType === 'PROBIOTICS'
@@ -148,6 +151,7 @@ export function SupplementForm({ onSubmit, onCancel, initialValues, isEditing }:
             益生菌
           </button>
           <button
+            data-testid="supplement-type-PREBIOTICS"
             onClick={() => setSupplementType('PREBIOTICS')}
             className={`p-4 rounded-2xl text-lg font-semibold transition-all flex items-center justify-center gap-2 ${
               supplementType === 'PREBIOTICS'
@@ -185,6 +189,7 @@ export function SupplementForm({ onSubmit, onCancel, initialValues, isEditing }:
           取消
         </button>
         <button
+          data-testid="supplement-submit"
           onClick={handleSubmit}
           className="p-4 rounded-2xl font-semibold text-lg transition-all bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-lg"
         >
