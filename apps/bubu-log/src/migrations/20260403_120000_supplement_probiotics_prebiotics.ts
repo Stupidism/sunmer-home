@@ -3,8 +3,8 @@ import type { MigrateUpArgs, MigrateDownArgs } from '@payloadcms/db-postgres'
 
 export async function up({ db }: MigrateUpArgs): Promise<void> {
   await db.execute(sql`
-    ALTER TYPE "public"."SupplementType" ADD VALUE IF NOT EXISTS 'PROBIOTICS';
-    ALTER TYPE "public"."SupplementType" ADD VALUE IF NOT EXISTS 'PREBIOTICS';
+    ALTER TYPE "public"."enum_Activity_supplement_type" ADD VALUE IF NOT EXISTS 'PROBIOTICS';
+    ALTER TYPE "public"."enum_Activity_supplement_type" ADD VALUE IF NOT EXISTS 'PREBIOTICS';
     ALTER TABLE "DailyStat" ADD COLUMN IF NOT EXISTS "supplement_probiotics_count" numeric DEFAULT 0 NOT NULL;
     ALTER TABLE "DailyStat" ADD COLUMN IF NOT EXISTS "supplement_prebiotics_count" numeric DEFAULT 0 NOT NULL;
   `)
