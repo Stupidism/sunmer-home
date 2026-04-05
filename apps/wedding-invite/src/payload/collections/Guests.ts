@@ -1,5 +1,6 @@
 import type { CollectionConfig } from "payload";
 import { revalidatePath } from "next/cache";
+import { randomBytes } from "node:crypto";
 import { isCMSAdmin } from "../access/isCMSAdmin";
 
 function makeInviteCode(name: string): string {
@@ -10,13 +11,8 @@ function makeInviteCode(name: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 24);
 
-  const suffix = Math.random().toString(36).slice(2, 8);
+  const suffix = randomBytes(6).toString("base64url");
   return `${normalized || "guest"}-${suffix}`;
-}
-
-function buildShareLink(inviteCode: string): string {
-  const site = process.env.WEDDING_INVITE_SITE_URL || "https://wedding.sunmer.xyz";
-  return `${site.replace(/\/$/, "")}/invite/${encodeURIComponent(inviteCode)}`;
 }
 
 export const Guests: CollectionConfig = {
@@ -42,19 +38,20 @@ export const Guests: CollectionConfig = {
   },
   hooks: {
     beforeValidate: [
-      async ({ data }) => {
+      async ({ data, operation, originalDoc }) => {
         if (!data) {
           return data;
         }
 
-        if (!data.inviteCode) {
+        const existingCode =
+          typeof originalDoc?.inviteCode === "string" ? originalDoc.inviteCode.trim() : "";
+
+        if (operation === "create" && !data.inviteCode) {
           const guestName =
             typeof data.name === "string" && data.name.trim() ? data.name : "guest";
           data.inviteCode = makeInviteCode(guestName);
-        }
-
-        if (typeof data.inviteCode === "string" && data.inviteCode.trim()) {
-          data.shareLink = buildShareLink(data.inviteCode.trim());
+        } else if (!data.inviteCode && existingCode) {
+          data.inviteCode = existingCode;
         }
 
         return data;

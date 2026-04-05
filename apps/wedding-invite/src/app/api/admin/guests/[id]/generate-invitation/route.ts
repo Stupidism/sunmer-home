@@ -10,27 +10,6 @@ function makeDeterministicInviteCode(guestRelationID: string | number): string {
     .replace(/^-+|-+$/g, "")}`;
 }
 
-function resolvePublicSiteURL(request: Request): string {
-  const envSite = (process.env.WEDDING_INVITE_SITE_URL || "").trim();
-  const isLocalEnv = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(envSite);
-
-  if (envSite && !isLocalEnv) {
-    return envSite.replace(/\/$/, "");
-  }
-
-  const requestOrigin = new URL(request.url).origin;
-  const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
-  if (!isLocalOrigin) {
-    return requestOrigin;
-  }
-
-  return "https://wedding.sunmer.xyz";
-}
-
-function buildShareLink(inviteCode: string, siteURL: string): string {
-  return `${siteURL.replace(/\/$/, "")}/invite/${encodeURIComponent(inviteCode)}`;
-}
-
 function estimateMaxGuestCount(guest: Record<string, unknown>): number {
   const isSingle = Boolean(guest.isSingle);
   const hasChildren = Boolean(guest.hasChildren);
@@ -91,7 +70,6 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const siteURL = resolvePublicSiteURL(request);
     const payload = await getPayloadClient();
 
     const authResult = await payload.auth({ headers: await headers() });
@@ -143,7 +121,6 @@ export async function POST(
         inviteCode,
         maxGuestCount: Math.min(10, estimateMaxGuestCount(guest)),
         status: newStatus,
-        shareLink: buildShareLink(inviteCode, siteURL),
       },
       overrideAccess: true,
     });
@@ -153,7 +130,6 @@ export async function POST(
       aiUsed,
       guestName,
       inviteCode,
-      shareLink: buildShareLink(inviteCode, siteURL),
       invitationCopy,
     });
   } catch (error) {

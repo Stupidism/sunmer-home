@@ -60,20 +60,12 @@ export async function GET(
     // If no inviteCode yet, generate one and persist it
     if (!inviteCode) {
       inviteCode = makeDeterministicInviteCode(guest.id ?? id);
-      const shareLink = buildShareLink(inviteCode, siteURL);
 
       await payload.update({
         collection: "guests",
         id,
-        data: { inviteCode, shareLink },
+        data: { inviteCode },
         overrideAccess: true,
-      });
-
-      return NextResponse.json({
-        success: true,
-        exists: true,
-        inviteCode,
-        shareLink,
       });
     }
 

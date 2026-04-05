@@ -61,40 +61,15 @@ function resolveGuestID(): string | null {
 export function PolishInvitationButton() {
   const [guestID, setGuestID] = useState<string | null>(null);
   const invitationCopyField = useField<string>({ path: "invitationCopy" });
+  const inviteCodeField = useField<string>({ path: "inviteCode" });
   const [loading, setLoading] = useState(false);
-  const [loadingLink, setLoadingLink] = useState(false);
-  const [shareLink, setShareLink] = useState("");
   const [message, setMessage] = useState("");
 
-  const loadLink = async () => {
-    if (!guestID) {
-      setShareLink("");
-      return;
-    }
-
-    setLoadingLink(true);
-    try {
-      const response = await fetch(
-        `/api/admin/guests/${encodeURIComponent(guestID)}/invitation-link`,
-        { method: "GET" },
-      );
-
-      const payload = (await response.json()) as {
-        success?: boolean;
-        shareLink?: string | null;
-      };
-
-      if (response.ok && payload.success && payload.shareLink) {
-        setShareLink(payload.shareLink);
-      } else {
-        setShareLink("");
-      }
-    } catch {
-      setShareLink("");
-    } finally {
-      setLoadingLink(false);
-    }
-  };
+  const inviteCode = inviteCodeField.value;
+  const shareLink =
+    typeof inviteCode === "string" && inviteCode.trim()
+      ? `${window.location.origin}/invite/${encodeURIComponent(inviteCode.trim())}`
+      : "";
 
   useEffect(() => {
     const updateGuestID = () => {
@@ -111,10 +86,6 @@ export function PolishInvitationButton() {
       window.clearInterval(timer);
     };
   }, []);
-
-  useEffect(() => {
-    void loadLink();
-  }, [guestID]);
 
   const handlePolish = async () => {
     if (!guestID) {
@@ -134,7 +105,6 @@ export function PolishInvitationButton() {
       const payload = (await response.json()) as {
         success?: boolean;
         aiUsed?: boolean;
-        shareLink?: string;
         invitationCopy?: string;
         error?: string;
       };
@@ -145,12 +115,6 @@ export function PolishInvitationButton() {
 
       if (payload.invitationCopy) {
         invitationCopyField.setValue(payload.invitationCopy);
-      }
-
-      if (payload.shareLink) {
-        setShareLink(payload.shareLink);
-      } else {
-        await loadLink();
       }
 
       setMessage(payload.aiUsed ? "邀请词已 AI 润色并保存" : "邀请词已生成并保存");
@@ -202,14 +166,14 @@ export function PolishInvitationButton() {
       <button
         type="button"
         onClick={handleOpen}
-        disabled={!shareLink || loadingLink}
+        disabled={!shareLink}
         style={{
           border: "1px solid var(--theme-elevation-300)",
           borderRadius: 8,
           padding: "8px 12px",
           background: "var(--theme-bg)",
-          cursor: !shareLink || loadingLink ? "not-allowed" : "pointer",
-          opacity: !shareLink || loadingLink ? 0.6 : 1,
+          cursor: !shareLink ? "not-allowed" : "pointer",
+          opacity: !shareLink ? 0.6 : 1,
         }}
       >
         打开邀请链接
@@ -217,21 +181,21 @@ export function PolishInvitationButton() {
       <button
         type="button"
         onClick={handleCopy}
-        disabled={!shareLink || loadingLink}
+        disabled={!shareLink}
         style={{
           border: "1px solid var(--theme-elevation-300)",
           borderRadius: 8,
           padding: "8px 12px",
           background: "var(--theme-bg)",
-          cursor: !shareLink || loadingLink ? "not-allowed" : "pointer",
-          opacity: !shareLink || loadingLink ? 0.6 : 1,
+          cursor: !shareLink ? "not-allowed" : "pointer",
+          opacity: !shareLink ? 0.6 : 1,
         }}
       >
         复制邀请链接
       </button>
       {!guestID ? <p style={{ margin: 0, fontSize: 12 }}>请先保存宾客，再生成邀请词。</p> : null}
       {guestID && !shareLink ? (
-        <p style={{ margin: 0, fontSize: 12 }}>正在准备邀请链接，通常保存后即可直接打开或复制。</p>
+        <p style={{ margin: 0, fontSize: 12 }}>保存宾客后，邀请码会自动生成邀请链接。</p>
       ) : null}
       {shareLink ? (
         <p style={{ margin: 0, fontSize: 12, wordBreak: "break-all" }}>{shareLink}</p>
