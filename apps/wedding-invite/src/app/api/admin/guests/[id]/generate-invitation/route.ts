@@ -107,7 +107,7 @@ export async function POST(
 
     const inviteCode =
       (typeof guest.inviteCode === "string" && guest.inviteCode) ||
-      makeDeterministicInviteCode(guest.id ?? id);
+      makeDeterministicInviteCode(String(guest.id ?? id));
 
     // Preserve "responded" status – only advance to "sent" from "draft"
     const currentStatus = typeof guest.status === "string" ? guest.status : "draft";
