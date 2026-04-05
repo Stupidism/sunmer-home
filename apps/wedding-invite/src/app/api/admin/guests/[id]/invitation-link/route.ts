@@ -59,7 +59,7 @@ export async function GET(
 
     // If no inviteCode yet, generate one and persist it
     if (!inviteCode) {
-      inviteCode = makeDeterministicInviteCode(guest.id ?? id);
+      inviteCode = makeDeterministicInviteCode(String(guest.id ?? id));
 
       await payload.update({
         collection: "guests",

@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const guestId = guest.id;
+    const guestId = guest.id as string | number;
     if (guestId === undefined || guestId === null || guestId === "") {
       return NextResponse.json(
         { success: false, error: "Invalid guest" },
