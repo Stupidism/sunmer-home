@@ -45,8 +45,91 @@ async function cleanupLegacyRsvpTable() {
   }
 }
 
+/**
+ * Ensure the merged-from-Invitations columns exist on guests. Payload's
+ * interactive schema push sometimes fails to add them in CI, so we add them
+ * explicitly here using raw SQL. Idempotent.
+ */
+async function ensureGuestInvitationColumns() {
+  const client = new Client({ connectionString: databaseURL });
+  await client.connect();
+
+  try {
+    // Check if guests table exists first (it should)
+    const tableCheck = await client.query<{ exists: boolean }>(
+      "select exists (select 1 from information_schema.tables where table_schema = $1 and table_name = $2) as exists",
+      ["public", "guests"],
+    );
+    if (!tableCheck.rows[0]?.exists) {
+      console.log("[db:push] guests table does not exist yet, skipping column ensure");
+      return;
+    }
+
+    // Create enum type for status if not exists
+    await client.query(`
+      DO $$ BEGIN
+        CREATE TYPE enum_guests_status AS ENUM ('draft', 'sent', 'responded');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `);
+
+    // Add columns if they don't exist. Use nullable to allow existing rows,
+    // then backfill, then tighten constraints.
+    await client.query(`
+      ALTER TABLE guests
+        ADD COLUMN IF NOT EXISTS invite_code varchar,
+        ADD COLUMN IF NOT EXISTS share_link varchar,
+        ADD COLUMN IF NOT EXISTS max_guest_count numeric DEFAULT 1,
+        ADD COLUMN IF NOT EXISTS status enum_guests_status DEFAULT 'draft'
+    `);
+
+    // Backfill invite_code from legacy invitations table if it still exists
+    const legacyInv = await client.query<{ exists: boolean }>(
+      "select exists (select 1 from information_schema.tables where table_schema = $1 and table_name = $2) as exists",
+      ["public", "invitations"],
+    );
+    if (legacyInv.rows[0]?.exists) {
+      const copyResult = await client.query(`
+        UPDATE guests g SET
+          invite_code = COALESCE(g.invite_code, i.invite_code),
+          share_link = COALESCE(g.share_link, i.share_link),
+          max_guest_count = COALESCE(g.max_guest_count, i.max_guest_count, 1),
+          status = COALESCE(g.status, i.status::text::enum_guests_status, 'draft'),
+          invitation_copy = COALESCE(g.invitation_copy, i.custom_opening)
+        FROM invitations i
+        WHERE i.guest_id = g.id
+      `);
+      console.log(`[db:push] backfilled ${copyResult.rowCount} guest(s) from invitations`);
+    }
+
+    // For any remaining guests still missing invite_code, generate one from the name
+    await client.query(`
+      UPDATE guests
+      SET invite_code = lower(regexp_replace(coalesce(name, 'guest'), '[^a-zA-Z0-9\u4e00-\u9fa5]+', '-', 'g')) || '-' || substr(md5(random()::text || id::text), 1, 8)
+      WHERE invite_code IS NULL OR invite_code = ''
+    `);
+
+    // Now make invite_code NOT NULL + UNIQUE
+    await client.query(`
+      ALTER TABLE guests
+        ALTER COLUMN invite_code SET NOT NULL,
+        ALTER COLUMN max_guest_count SET NOT NULL,
+        ALTER COLUMN status SET NOT NULL
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS guests_invite_code_unique ON guests (invite_code)
+    `);
+
+    console.log("[db:push] guests invitation columns ensured");
+  } finally {
+    await client.end();
+  }
+}
+
 async function main() {
   await cleanupLegacyRsvpTable();
+  await ensureGuestInvitationColumns();
   const { default: config } = await import("../payload.config");
   const payload = await getPayload({ config });
   try {
