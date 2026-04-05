@@ -42,8 +42,20 @@ jobs:
       - name: Lint
         run: pnpm -C apps/bubu-log lint
 
-      - name: Type check
+      - name: Type check (bubu-log)
         run: pnpm -C apps/bubu-log exec tsc --noEmit
+
+      - name: Type check (wedding-invite)
+        run: pnpm -C apps/wedding-invite exec tsc --noEmit
+
+      - name: Type check (nunu-island)
+        run: pnpm -C apps/nunu-island exec tsc --noEmit
+
+      - name: Type check (nunu-log)
+        run: pnpm -C apps/nunu-log exec tsc --noEmit
+
+      - name: Type check (weekly-menu)
+        run: pnpm -C apps/weekly-menu exec tsc --noEmit
 
       - name: Unit tests
         run: pnpm -r test --if-present
