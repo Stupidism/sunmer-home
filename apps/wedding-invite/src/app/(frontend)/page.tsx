@@ -921,7 +921,7 @@ function RSVPSection({
                       </SelectTrigger>
                       <SelectContent>
                         {Array.from(
-                          { length: Math.max(inviteData?.maxGuestCount || 5, 1) },
+                          { length: 10 },
                           (_, i) => i + 1
                         ).map((num) => (
                           <SelectItem key={num} value={String(num)}>
