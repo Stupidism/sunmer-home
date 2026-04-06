@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authFailureResponse, getRequestedBabyId, requireAuth } from '@/lib/auth/get-current-baby'
 import { batchParseWithAI, type BatchEntry, type BatchParsedItem } from '@/lib/batch-parse/process'
-import { ActivityType } from '@/types/activity'
+import { ActivityType, type MilkSource, type PoopColor, type PeeAmount, type SpitUpType, type SupplementType } from '@/types/activity'
 import { getPayloadClient } from '@/lib/payload/client'
 import { createAuditLog } from '@/lib/payload/audit'
 import type { ActivityDoc } from '@/lib/payload/models'
@@ -73,18 +73,18 @@ export async function POST(request: NextRequest) {
 // Confirmed item sent by frontend
 interface ConfirmedItem {
   action: 'create' | 'update' | 'skip'
-  type: string
+  type: ActivityType
   startTime: string
   endTime?: string | null
   existingActivityId?: string | null
   milkAmount?: number | null
-  milkSource?: string | null
+  milkSource?: MilkSource | null
   hasPoop?: boolean | null
   hasPee?: boolean | null
-  poopColor?: string | null
-  peeAmount?: string | null
-  spitUpType?: string | null
-  supplementType?: string | null
+  poopColor?: PoopColor | null
+  peeAmount?: PeeAmount | null
+  spitUpType?: SpitUpType | null
+  supplementType?: SupplementType | null
   count?: number | null
   notes?: string | null
   originalTexts?: string[]

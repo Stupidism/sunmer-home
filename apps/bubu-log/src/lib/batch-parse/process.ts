@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type { ActivityType, MilkSource, PoopColor, PeeAmount, SpitUpType, SupplementType } from '@/types/activity'
 
 // Deepseek API configuration
@@ -109,6 +110,12 @@ const SYSTEM_PROMPT = `你是一个宝宝活动记录助手。用户会粘贴一
   "originalTexts": ["原始消息1", "原始消息2"]
 }
 
+## 未配对活动处理
+- 需要开始和结束配对的活动类型：SLEEP、BREASTFEED、BOTTLE、PUMP、HEAD_LIFT、PASSIVE_EXERCISE、GAS_EXERCISE、OUTDOOR、EARLY_EDUCATION
+- 如果只有结束没有开始（如"只有睡醒没有睡着"），且不是 update 场景（即没有系统中可更新的记录），则 action 设为 skip，skipReason 说明原因（如"只有睡醒记录，缺少对应的入睡记录"）
+- 如果只有开始没有结束（如"只有开始吃奶没有结束吃奶"），对于 BREASTFEED 必须有时长或结束时间才能创建，否则 skip；SLEEP 可以只有开始（表示正在睡觉）
+- 单独的"醒了"仍然可以作为 update（更新未关闭的睡眠记录的 endTime）
+
 ## 重要
 - 只返回 JSON 数组，不要其他内容
 - originalTexts 包含这条结果对应的所有原始消息文本
@@ -128,10 +135,49 @@ interface DeepseekResponse {
   }>
 }
 
+// Zod schema for validating individual AI response items
+const batchParsedItemSchema = z.object({
+  action: z.enum(['create', 'update', 'skip']),
+  type: z.string(),
+  startTime: z.string(),
+  endTime: z.string().nullable().optional().default(null),
+  milkAmount: z.number().nullable().optional().default(null),
+  milkSource: z.string().nullable().optional().default(null),
+  duration: z.number().nullable().optional().default(null),
+  hasPoop: z.boolean().nullable().optional().default(null),
+  hasPee: z.boolean().nullable().optional().default(null),
+  poopColor: z.string().nullable().optional().default(null),
+  peeAmount: z.string().nullable().optional().default(null),
+  spitUpType: z.string().nullable().optional().default(null),
+  supplementType: z.string().nullable().optional().default(null),
+  count: z.number().nullable().optional().default(null),
+  notes: z.string().nullable().optional().default(null),
+  skipReason: z.string().nullable().optional().default(null),
+  originalTexts: z.array(z.string()),
+})
+
+const batchParsedResponseSchema = z.array(batchParsedItemSchema)
+
 /**
  * Send all entries to Deepseek in a single request for holistic parsing.
  */
 export async function batchParseWithAI(entries: BatchEntry[]): Promise<BatchParsedItem[]> {
+  // Input validation
+  if (!entries || entries.length === 0) {
+    throw new Error('entries must be a non-empty array')
+  }
+  if (entries.length > 50) {
+    throw new Error('entries must not exceed 50 items')
+  }
+  for (const entry of entries) {
+    if (!entry.text || typeof entry.text !== 'string' || entry.text.trim().length === 0) {
+      throw new Error('Each entry must have a non-empty text field')
+    }
+    if (!entry.localTime || typeof entry.localTime !== 'string') {
+      throw new Error('Each entry must have a localTime field')
+    }
+  }
+
   const apiKey = process.env.DEEPSEEK_API_KEY
   if (!apiKey) {
     throw new Error('DEEPSEEK_API_KEY environment variable is not set')
@@ -198,5 +244,11 @@ export async function batchParseWithAI(entries: BatchEntry[]): Promise<BatchPars
     throw new Error('AI response is not an array')
   }
 
-  return parsed as BatchParsedItem[]
+  const validated = batchParsedResponseSchema.safeParse(parsed)
+  if (!validated.success) {
+    console.error('AI response validation failed:', validated.error.format())
+    throw new Error(`AI response validation failed: ${validated.error.issues.map((i) => i.message).join(', ')}`)
+  }
+
+  return validated.data as BatchParsedItem[]
 }

@@ -512,6 +512,8 @@ export default function BatchImportPage() {
                 {submitResult.created > 0 && `新建 ${submitResult.created} 条`}
                 {submitResult.created > 0 && submitResult.updated > 0 && '，'}
                 {submitResult.updated > 0 && `更新 ${submitResult.updated} 条`}
+                {(submitResult.created > 0 || submitResult.updated > 0) && submitResult.skipped > 0 && '，'}
+                {submitResult.skipped > 0 && `跳过 ${submitResult.skipped} 条`}
                 {submitResult.errors > 0 && `，${submitResult.errors} 条失败`}
               </p>
             </div>
