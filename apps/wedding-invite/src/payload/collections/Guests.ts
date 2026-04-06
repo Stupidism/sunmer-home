@@ -1,6 +1,19 @@
 import type { CollectionConfig } from "payload";
 import { revalidatePath } from "next/cache";
+import { randomBytes } from "node:crypto";
 import { isCMSAdmin } from "../access/isCMSAdmin";
+
+function makeInviteCode(name: string): string {
+  const normalized = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+
+  const suffix = randomBytes(6).toString("base64url");
+  return `${normalized || "guest"}-${suffix}`;
+}
 
 export const Guests: CollectionConfig = {
   slug: "guests",
@@ -11,8 +24,9 @@ export const Guests: CollectionConfig = {
       "name",
       "relationshipCategory",
       "relationshipSide",
-      "isSingle",
-      "hasChildren",
+      "inviteCode",
+      "status",
+      "maxGuestCount",
       "updatedAt",
     ],
   },
@@ -23,28 +37,30 @@ export const Guests: CollectionConfig = {
     delete: isCMSAdmin,
   },
   hooks: {
+    beforeValidate: [
+      async ({ data, operation, originalDoc }) => {
+        if (!data) {
+          return data;
+        }
+
+        const existingCode =
+          typeof originalDoc?.inviteCode === "string" ? originalDoc.inviteCode.trim() : "";
+
+        if (operation === "create" && !data.inviteCode) {
+          const guestName =
+            typeof data.name === "string" && data.name.trim() ? data.name : "guest";
+          data.inviteCode = makeInviteCode(guestName);
+        } else if (!data.inviteCode && existingCode) {
+          data.inviteCode = existingCode;
+        }
+
+        return data;
+      },
+    ],
     afterChange: [
-      async ({ doc, req }) => {
-        const guestID = doc.id;
-        const guestName = doc.name;
-
-        // Revalidate the invite page for this guest
+      ({ doc }) => {
         try {
-          const invitationResult = await req.payload.find({
-            collection: "invitations",
-            where: { guest: { equals: guestID } },
-            limit: 1,
-            depth: 0,
-            overrideAccess: true,
-          });
-
-          const invitation = invitationResult.docs[0] as
-            | { inviteCode?: unknown }
-            | undefined;
-          const inviteCode =
-            invitation && typeof invitation.inviteCode === "string"
-              ? invitation.inviteCode
-              : null;
+          const inviteCode = typeof doc.inviteCode === "string" ? doc.inviteCode : null;
           if (inviteCode) {
             revalidatePath(`/invite/${inviteCode}`);
           }
@@ -52,44 +68,6 @@ export const Guests: CollectionConfig = {
         } catch (error) {
           console.warn("[Guests afterChange] revalidation failed:", error);
         }
-
-        // Auto-create invitation if none exists
-        void (async () => {
-          for (let attempt = 0; attempt < 20; attempt += 1) {
-            await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 50 : 150));
-
-            const existingInvitation = await req.payload.find({
-              collection: "invitations",
-              where: { guest: { equals: guestID } },
-              limit: 1,
-              overrideAccess: true,
-            });
-
-            if (existingInvitation.docs.length > 0) {
-              return;
-            }
-
-            try {
-              await req.payload.create({
-                collection: "invitations",
-                data: {
-                  title: `${guestName} 的邀请函`,
-                  guest: guestID,
-                  maxGuestCount: 1,
-                  status: "draft",
-                  customOpening: `亲爱的${guestName}，欢迎来参加我们的婚礼。`,
-                },
-                overrideAccess: true,
-              });
-              return;
-            } catch (error) {
-              if (attempt === 19) {
-                console.error("Failed to auto-create invitation", { guestID, error });
-              }
-            }
-          }
-        })();
-
         return doc;
       },
     ],
@@ -202,6 +180,47 @@ export const Guests: CollectionConfig = {
             },
           },
         },
+      ],
+    },
+    // --- Fields merged from Invitations collection ---
+    {
+      name: "inviteCode",
+      label: "邀请码",
+      type: "text",
+      required: true,
+      unique: true,
+      admin: {
+        description: "可用于生成个性化邀请链接 /invite/...",
+      },
+    },
+    {
+      name: "shareLink",
+      label: "分享链接",
+      type: "text",
+      admin: {
+        readOnly: true,
+        description: "将该链接分享给宾客，链接会带上唯一邀请码",
+      },
+    },
+    {
+      name: "maxGuestCount",
+      label: "最大确认人数",
+      type: "number",
+      required: true,
+      defaultValue: 1,
+      min: 1,
+      max: 10,
+    },
+    {
+      name: "status",
+      label: "邀请状态",
+      type: "select",
+      required: true,
+      defaultValue: "draft",
+      options: [
+        { label: "草稿", value: "draft" },
+        { label: "已发送", value: "sent" },
+        { label: "已回复", value: "responded" },
       ],
     },
   ],

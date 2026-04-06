@@ -3,7 +3,6 @@ import { vercelBlobStorage } from "@payloadcms/storage-vercel-blob";
 import { buildConfig } from "payload";
 import { CMSAdmins } from "./src/payload/collections/CMSAdmins";
 import { Guests } from "./src/payload/collections/Guests";
-import { Invitations } from "./src/payload/collections/Invitations";
 import { MemoryPhotos } from "./src/payload/collections/MemoryPhotos";
 import { RSVPs } from "./src/payload/collections/RSVPs";
 
@@ -33,7 +32,7 @@ export default buildConfig({
       autoGenerate: false,
     },
   },
-  collections: [CMSAdmins, Guests, Invitations, MemoryPhotos, RSVPs],
+  collections: [CMSAdmins, Guests, MemoryPhotos, RSVPs],
   plugins: [
     ...(process.env.BLOB_READ_WRITE_TOKEN
       ? [

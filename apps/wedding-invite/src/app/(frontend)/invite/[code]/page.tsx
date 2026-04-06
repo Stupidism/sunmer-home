@@ -16,7 +16,8 @@ export async function generateStaticParams(): Promise<Array<{ code: string }>> {
   try {
     const payload = await getPayloadClient();
     const result = await payload.find({
-      collection: "invitations",
+      collection: "guests",
+      where: { inviteCode: { exists: true } },
       depth: 0,
       limit: 1000,
       overrideAccess: true,

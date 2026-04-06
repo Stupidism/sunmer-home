@@ -46,33 +46,31 @@ export async function getInviteShareMeta(code: string): Promise<{ guestName: str
   try {
     const payload = await getPayloadClient();
     const result = await payload.find({
-      collection: "invitations",
+      collection: "guests",
       where: { inviteCode: { equals: decodedCode } },
-      depth: 1,
+      depth: 0,
       limit: 1,
       overrideAccess: true,
     });
 
-    const invitation = result.docs[0] as
+    const guest = result.docs[0] as
       | {
-          guest?: {
-            name?: unknown;
-            relationshipSide?: unknown;
-          };
+          name?: unknown;
+          relationshipSide?: unknown;
         }
       | undefined;
 
     const guestName =
-      invitation?.guest && typeof invitation.guest.name === "string" && invitation.guest.name.trim()
-        ? invitation.guest.name.trim()
+      guest && typeof guest.name === "string" && guest.name.trim()
+        ? guest.name.trim()
         : null;
     if (!guestName) {
       return fallback;
     }
 
     const relationshipSide =
-      invitation?.guest && typeof invitation.guest.relationshipSide === "string"
-        ? invitation.guest.relationshipSide
+      guest && typeof guest.relationshipSide === "string"
+        ? guest.relationshipSide
         : "other";
 
     return {

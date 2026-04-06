@@ -10,27 +10,6 @@ function makeDeterministicInviteCode(guestRelationID: string | number): string {
     .replace(/^-+|-+$/g, "")}`;
 }
 
-function resolvePublicSiteURL(request: Request): string {
-  const envSite = (process.env.WEDDING_INVITE_SITE_URL || "").trim();
-  const isLocalEnv = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(envSite);
-
-  if (envSite && !isLocalEnv) {
-    return envSite.replace(/\/$/, "");
-  }
-
-  const requestOrigin = new URL(request.url).origin;
-  const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
-  if (!isLocalOrigin) {
-    return requestOrigin;
-  }
-
-  return "https://wedding.sunmer.xyz";
-}
-
-function buildShareLink(inviteCode: string, siteURL: string): string {
-  return `${siteURL.replace(/\/$/, "")}/invite/${encodeURIComponent(inviteCode)}`;
-}
-
 function estimateMaxGuestCount(guest: Record<string, unknown>): number {
   const isSingle = Boolean(guest.isSingle);
   const hasChildren = Boolean(guest.hasChildren);
@@ -38,18 +17,6 @@ function estimateMaxGuestCount(guest: Record<string, unknown>): number {
   const spouseCount = isSingle ? 0 : 1;
   const childCount = hasChildren ? Math.max(0, childrenCount) : 0;
   return Math.max(1, 1 + spouseCount + childCount);
-}
-
-function normalizeRelationID(value: unknown): string | number {
-  if (typeof value === "number") {
-    return value;
-  }
-
-  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
-    return Number(value);
-  }
-
-  return String(value);
 }
 
 async function generateInvitationCopyWithDeepSeek(input: {
@@ -63,7 +30,7 @@ async function generateInvitationCopyWithDeepSeek(input: {
   }
 
   const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
-  const prompt = `背景：\n1) 这是我和伴侣给宾客发送的婚礼邀请词，不是第三方旁白，也不是获奖感言。\n2) 下方“共同回忆”是素材池，里面可能包含碎碎念、近况问候、以及对对方未来的祝福。\n3) 你的任务不是逐句润色原文，而是基于这些素材重新写一段适合邀请函首页的邀请词。\n\n请基于下面信息生成邀请词，要求：\n- 使用第一人称邀请口吻（如“我们诚挚邀请你/您”）；\n- 必须包含宾客称呼与邀请意图，重点突出“邀请来参加婚礼”；\n- 可以引用共同回忆中的细节，但“近况问候/未来祝福”内容占比不要太大（建议不超过 30%）；\n- 语气真诚自然，不浮夸，不说教；\n- 严禁第三人称祝福句式（例如“祝他们幸福美满、携手到老”）；\n- 严禁把新人写成“他/她/他们”；\n- 输出 60~130 字，纯中文纯文本，不要加引号。\n\n宾客：${input.guestName}\n关系：${input.relationshipNote || "朋友"}\n共同回忆素材：${input.memorySnippet}`;
+  const prompt = `背景：\n1) 这是我和伴侣给宾客发送的婚礼邀请词，不是第三方旁白，也不是获奖感言。\n2) 下方"共同回忆"是素材池，里面可能包含碎碎念、近况问候、以及对对方未来的祝福。\n3) 你的任务不是逐句润色原文，而是基于这些素材重新写一段适合邀请函首页的邀请词。\n\n请基于下面信息生成邀请词，要求：\n- 使用第一人称邀请口吻（如"我们诚挚邀请你/您"）；\n- 必须包含宾客称呼与邀请意图，重点突出"邀请来参加婚礼"；\n- 可以引用共同回忆中的细节，但"近况问候/未来祝福"内容占比不要太大（建议不超过 30%）；\n- 语气真诚自然，不浮夸，不说教；\n- 严禁第三人称祝福句式（例如"祝他们幸福美满、携手到老"）；\n- 严禁把新人写成"他/她/他们"；\n- 输出 60~130 字，纯中文纯文本，不要加引号。\n\n宾客：${input.guestName}\n关系：${input.relationshipNote || "朋友"}\n共同回忆素材：${input.memorySnippet}`;
 
   const response = await fetch("https://api.deepseek.com/chat/completions", {
     method: "POST",
@@ -103,7 +70,6 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const siteURL = resolvePublicSiteURL(request);
     const payload = await getPayloadClient();
 
     const authResult = await payload.auth({ headers: await headers() });
@@ -117,7 +83,6 @@ export async function POST(
       depth: 0,
       overrideAccess: true,
     })) as Record<string, unknown>;
-    const guestRelationID = normalizeRelationID(guest.id ?? id);
 
     const guestName = typeof guest.name === "string" ? guest.name : "贵宾";
     const relationshipNote = typeof guest.relationshipNote === "string" ? guest.relationshipNote : "";
@@ -125,8 +90,8 @@ export async function POST(
     const memoryInput = rawMemory || `和${guestName}一路走来，有很多值得珍藏的回忆。`;
 
     let invitationCopy =
-      typeof guest.invitationCopy === "string" && guest.invitationCopy.trim()
-        ? guest.invitationCopy.trim()
+      typeof guest.invitationCopy === "string" && (guest.invitationCopy as string).trim()
+        ? (guest.invitationCopy as string).trim()
         : `亲爱的${guestName}，${memoryInput}`;
     let aiUsed = false;
     try {
@@ -140,56 +105,31 @@ export async function POST(
       console.warn("[generate-invitation] DeepSeek polishing skipped:", error);
     }
 
+    const inviteCode =
+      (typeof guest.inviteCode === "string" && guest.inviteCode) ||
+      makeDeterministicInviteCode(String(guest.id ?? id));
+
+    // Preserve "responded" status – only advance to "sent" from "draft"
+    const currentStatus = typeof guest.status === "string" ? guest.status : "draft";
+    const newStatus = currentStatus === "responded" ? "responded" : "sent";
+
     await payload.update({
       collection: "guests",
       id,
       data: {
         invitationCopy,
+        inviteCode,
+        maxGuestCount: Math.min(10, estimateMaxGuestCount(guest)),
+        status: newStatus,
       },
       overrideAccess: true,
     });
-
-    const existing = await payload.find({
-      collection: "invitations",
-      where: { guest: { equals: guestRelationID } },
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    });
-
-    const inviteCode =
-      (typeof existing.docs[0]?.inviteCode === "string" && existing.docs[0].inviteCode) ||
-      makeDeterministicInviteCode(guestRelationID);
-
-    const invitationData = {
-      title: `${guestName} 的邀请函`,
-      guest: guestRelationID,
-      inviteCode,
-      maxGuestCount: estimateMaxGuestCount(guest),
-      status: "sent" as const,
-      customOpening: invitationCopy,
-      shareLink: buildShareLink(inviteCode, siteURL),
-    };
-
-    const invitation = existing.docs[0]
-      ? await payload.update({
-          collection: "invitations",
-          id: existing.docs[0].id,
-          data: invitationData,
-          overrideAccess: true,
-        })
-      : await payload.create({
-          collection: "invitations",
-          data: invitationData,
-          overrideAccess: true,
-        });
 
     return NextResponse.json({
       success: true,
       aiUsed,
       guestName,
       inviteCode,
-      shareLink: buildShareLink(inviteCode, siteURL),
       invitationCopy,
     });
   } catch (error) {
