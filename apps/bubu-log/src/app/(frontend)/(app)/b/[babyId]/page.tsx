@@ -17,7 +17,7 @@ import { useActivities, type Activity } from '@/lib/api/hooks'
 import { PreviousEveningSummary } from '@/components/PreviousEveningSummary'
 import { StatsCardList, type DaySummary, type StatFilter } from '@/components/StatsCardList'
 import { ActivityPicker } from '@/components/ActivityPicker'
-import { ActivityType } from '@/types/activity'
+import { ActivityType, SupplementType } from '@/types/activity'
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { DateNavigator } from '@bubu-log/log-ui'
 import { buildBabyScopedPath, withCurrentBabyIdOnApiPath } from '@/lib/baby-scope'
@@ -371,7 +371,7 @@ function HomeContent({ authContext }: { authContext: AuthContextPayload }) {
   }, [openModal, pickerDefaultTime])
 
   // 活动选择器选择补剂
-  const handlePickerSupplementSelect = useCallback((supplementType: 'AD' | 'D3') => {
+  const handlePickerSupplementSelect = useCallback((supplementType: SupplementType) => {
     const params: Record<string, string> = {
       supplementType,
     }

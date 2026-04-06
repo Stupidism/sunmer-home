@@ -211,7 +211,7 @@ export interface components {
         /** @enum {string} */
         BreastFirmness: "SOFT" | "ELASTIC" | "HARD";
         /** @enum {string} */
-        SupplementType: "AD" | "D3";
+        SupplementType: "AD" | "D3" | "PROBIOTICS" | "PREBIOTICS";
         /** @enum {string} */
         SpitUpType: "NORMAL" | "PROJECTILE";
         /** @enum {string} */
@@ -403,6 +403,10 @@ export interface components {
             supplementADCount?: number;
             /** @description D3补剂次数 */
             supplementD3Count?: number;
+            /** @description 益生菌次数 */
+            supplementProbioticsCount?: number;
+            /** @description 益生元次数 */
+            supplementPrebioticsCount?: number;
             /** @description 吐奶次数 */
             spitUpCount?: number;
             /** @description 喷射性吐奶次数 */

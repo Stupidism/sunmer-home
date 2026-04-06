@@ -35,7 +35,7 @@ export enum PeeAmount {
 export type BreastFirmness = 'SOFT' | 'ELASTIC' | 'HARD'
 
 // 补剂类型
-export type SupplementType = 'AD' | 'D3'
+export type SupplementType = 'AD' | 'D3' | 'PROBIOTICS' | 'PREBIOTICS'
 
 // 吐奶类型
 export type SpitUpType = 'NORMAL' | 'PROJECTILE'
@@ -115,6 +115,8 @@ export const BreastFirmnessLabels: Record<BreastFirmness, string> = {
 export const SupplementTypeLabels: Record<SupplementType, string> = {
   AD: 'AD',
   D3: 'D3',
+  PROBIOTICS: '益生菌',
+  PREBIOTICS: '益生元',
 }
 
 export const SpitUpTypeLabels: Record<SpitUpType, string> = {

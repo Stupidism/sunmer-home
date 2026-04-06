@@ -688,8 +688,10 @@ components:
     SupplementType:
       type: string
       enum:
-        - AD    # 维生素AD
-        - D3    # 维生素D3
+        - AD          # 维生素AD
+        - D3          # 维生素D3
+        - PROBIOTICS  # 益生菌
+        - PREBIOTICS  # 益生元
 
     SpitUpType:
       type: string
@@ -1042,6 +1044,12 @@ components:
         supplementD3Count:
           type: integer
           description: D3补剂次数
+        supplementProbioticsCount:
+          type: integer
+          description: 益生菌次数
+        supplementPrebioticsCount:
+          type: integer
+          description: 益生元次数
         spitUpCount:
           type: integer
           description: 吐奶次数

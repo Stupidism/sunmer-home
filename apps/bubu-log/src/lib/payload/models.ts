@@ -68,6 +68,8 @@ export type DailyStatDoc = {
   totalHeadLiftMinutes: number
   supplementADCount: number
   supplementD3Count: number
+  supplementProbioticsCount: number
+  supplementPrebioticsCount: number
   spitUpCount: number
   projectileSpitUpCount: number
   createdAt?: string | null

@@ -208,6 +208,28 @@ export function ActivityPicker({
                 <Pill size={24} />
                 <span className="font-medium">D3</span>
               </button>
+              <button
+                onClick={() => {
+                  onSupplementSelect('PROBIOTICS')
+                  onClose()
+                }}
+                className="flex items-center gap-3 p-3 rounded-xl bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                data-testid="picker-supplement-probiotics"
+              >
+                <Pill size={24} />
+                <span className="font-medium">益生菌</span>
+              </button>
+              <button
+                onClick={() => {
+                  onSupplementSelect('PREBIOTICS')
+                  onClose()
+                }}
+                className="flex items-center gap-3 p-3 rounded-xl bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
+                data-testid="picker-supplement-prebiotics"
+              >
+                <Pill size={24} />
+                <span className="font-medium">益生元</span>
+              </button>
             </div>
           </section>
 
