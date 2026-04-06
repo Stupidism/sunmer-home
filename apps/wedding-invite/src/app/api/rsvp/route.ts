@@ -158,17 +158,6 @@ export async function POST(request: NextRequest) {
     const guestNameFromRecord =
       typeof guest.name === "string" && guest.name.trim() ? guest.name : guestName;
 
-    const maxGuestCount = Number(guest.maxGuestCount ?? 1);
-    if (guestCount > maxGuestCount) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Guest count exceeds limit (${maxGuestCount})`,
-        },
-        { status: 400 },
-      );
-    }
-
     const existingRSVPResult = await payload.find({
       collection: "rsvps",
       limit: 1,
