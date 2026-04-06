@@ -103,10 +103,18 @@ async function ensureGuestInvitationColumns() {
       console.log(`[db:push] backfilled ${copyResult.rowCount} guest(s) from invitations`);
     }
 
-    // For any remaining guests still missing invite_code, generate one from the name
+    // Regenerate invite codes that contain non-ASCII characters (e.g. Chinese)
+    // because Next.js x-next-cache-tags header doesn't support non-ASCII
     await client.query(`
       UPDATE guests
-      SET invite_code = lower(regexp_replace(coalesce(name, 'guest'), '[^a-zA-Z0-9\u4e00-\u9fa5]+', '-', 'g')) || '-' || substr(md5(random()::text || id::text), 1, 8)
+      SET invite_code = 'guest-' || substr(md5(random()::text || id::text), 1, 12)
+      WHERE invite_code ~ '[^\x20-\x7E]'
+    `);
+
+    // For any remaining guests still missing invite_code, generate one
+    await client.query(`
+      UPDATE guests
+      SET invite_code = lower(regexp_replace(coalesce(name, 'guest'), '[^a-zA-Z0-9]+', '-', 'g')) || '-' || substr(md5(random()::text || id::text), 1, 8)
       WHERE invite_code IS NULL OR invite_code = ''
     `);
 
