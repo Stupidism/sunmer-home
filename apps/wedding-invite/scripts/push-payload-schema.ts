@@ -129,6 +129,11 @@ async function ensureGuestInvitationColumns() {
       CREATE UNIQUE INDEX IF NOT EXISTS guests_invite_code_unique ON guests (invite_code)
     `);
 
+    // Drop legacy invitation_id column from rsvps if it still exists
+    await client.query(`
+      ALTER TABLE rsvps DROP COLUMN IF EXISTS invitation_id
+    `);
+
     console.log("[db:push] guests invitation columns ensured");
   } finally {
     await client.end();
