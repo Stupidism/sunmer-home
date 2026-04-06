@@ -99,6 +99,20 @@ export async function GET(request: NextRequest) {
     const category =
       typeof guest.relationshipCategory === "string" ? guest.relationshipCategory : "other";
 
+    const guestId = guest.id as string | number;
+
+    // Look up existing RSVP for this guest
+    let rsvp: Record<string, unknown> | undefined;
+    if (guestId !== undefined && guestId !== null && guestId !== "") {
+      const rsvpResult = await payload.find({
+        collection: "rsvps",
+        limit: 1,
+        where: { guest: { equals: guestId } },
+        overrideAccess: true,
+      });
+      rsvp = rsvpResult.docs[0] as Record<string, unknown> | undefined;
+    }
+
     return NextResponse.json(
       {
         success: true,
@@ -114,6 +128,21 @@ export async function GET(request: NextRequest) {
             typeof guest.invitationCopy === "string" ? guest.invitationCopy : "",
           maxGuestCount:
             typeof guest.maxGuestCount === "number" ? guest.maxGuestCount : 1,
+          ...(rsvp
+            ? {
+                rsvp: {
+                  status: rsvp.status,
+                  confirmedGuestCount: rsvp.confirmedGuestCount,
+                  phone: rsvp.phone || "",
+                  message: rsvp.message || "",
+                  arrivalPlan: rsvp.arrivalPlan || "same_day",
+                  needsHotel: Boolean(rsvp.needsHotel),
+                  hotelNights: rsvp.hotelNights || "none",
+                  transportPreference: rsvp.transportPreference || "near_rideshare_hsr",
+                  respondedAt: rsvp.respondedAt || "",
+                },
+              }
+            : {}),
         },
       },
       { headers: { "Cache-Control": "no-store" } },

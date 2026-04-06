@@ -17,6 +17,7 @@ import {
   Users,
   MessageCircle,
   Sparkles,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,6 +131,18 @@ interface SectionTitleProps {
   className?: string;
 }
 
+interface RsvpData {
+  status: string;
+  confirmedGuestCount: number;
+  phone: string;
+  message: string;
+  arrivalPlan: string;
+  needsHotel: boolean;
+  hotelNights: string;
+  transportPreference: string;
+  respondedAt: string;
+}
+
 interface PersonalizedInviteData {
   inviteCode: string;
   guestName: string;
@@ -139,6 +152,7 @@ interface PersonalizedInviteData {
   memorySnippet: string;
   customOpening: string;
   maxGuestCount: number;
+  rsvp?: RsvpData;
 }
 
 interface MemoryPhotoItem {
@@ -615,6 +629,20 @@ function MemoriesSection({ photos }: { photos: MemoryPhotoData }) {
 
 // ==================== RSVP Form Section ====================
 
+const arrivalPlanLabels: Record<string, string> = {
+  same_day: "婚礼当天到、当天走",
+  arrive_early: "会提前来",
+  leave_late: "会晚些走",
+  both: "提前来并晚些走",
+};
+
+const hotelNightsLabels: Record<string, string> = {
+  none: "不需要住宿",
+  before: "前一晚",
+  after: "后一晚",
+  both: "前后两晚",
+};
+
 function RSVPSection({
   inviteData,
 }: {
@@ -622,6 +650,8 @@ function RSVPSection({
 }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+
+  const existingRsvp = inviteData?.rsvp;
 
   const [formData, setFormData] = useState({
     name: "",
@@ -636,6 +666,7 @@ function RSVPSection({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const inviteCode = inviteData?.inviteCode || "";
 
   useEffect(() => {
@@ -643,6 +674,23 @@ function RSVPSection({
       setFormData((prev) => ({ ...prev, name: inviteData.guestName }));
     }
   }, [inviteData?.guestName]);
+
+  // Pre-fill form with existing RSVP data when entering edit mode
+  useEffect(() => {
+    if (existingRsvp && isEditing) {
+      setFormData((prev) => ({
+        ...prev,
+        name: inviteData?.guestName || prev.name,
+        attendance: existingRsvp.status || "attending",
+        guests: String(existingRsvp.confirmedGuestCount || ""),
+        phone: existingRsvp.phone || "",
+        arrivalPlan: existingRsvp.arrivalPlan || "same_day",
+        needsHotel: existingRsvp.needsHotel ? "yes" : "no",
+        hotelNights: existingRsvp.hotelNights || "none",
+        message: existingRsvp.message || "",
+      }));
+    }
+  }, [existingRsvp, isEditing, inviteData?.guestName]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -680,6 +728,7 @@ function RSVPSection({
 
       if (response.ok) {
         setIsSubmitted(true);
+        setIsEditing(false);
       } else {
         const result = await response.json();
         setErrors((prev) => ({
@@ -715,7 +764,93 @@ function RSVPSection({
           variants={fadeInUp}
         >
           <AnimatePresence mode="wait">
-            {!isSubmitted ? (
+            {/* Show existing RSVP summary (not editing, not just submitted, has existing data) */}
+            {!isSubmitted && !isEditing && existingRsvp ? (
+              <motion.div
+                key="rsvp-summary"
+                className="bg-white/80 dark:bg-rose-950/40 backdrop-blur-sm rounded-3xl p-8 md:p-10 shadow-xl border border-rose-100 dark:border-rose-900/30"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 mx-auto bg-gradient-to-br from-rose-400 to-pink-400 rounded-full flex items-center justify-center mb-4">
+                    <Check className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-xl md:text-2xl font-serif text-rose-900 dark:text-rose-100">
+                    您已回复
+                  </h3>
+                </div>
+
+                <div className="space-y-4 mb-8">
+                  <div className="flex items-center gap-3 py-3 border-b border-rose-100 dark:border-rose-800/30">
+                    <User className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                    <span className="text-rose-600/80 dark:text-rose-300/80 w-20 flex-shrink-0">是否出席</span>
+                    <span className="text-rose-900 dark:text-rose-100 font-medium">
+                      {existingRsvp.status === "attending" ? "会来参加" : existingRsvp.status === "not_attending" ? "不能参加" : "暂未确定"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 py-3 border-b border-rose-100 dark:border-rose-800/30">
+                    <Users className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                    <span className="text-rose-600/80 dark:text-rose-300/80 w-20 flex-shrink-0">参加人数</span>
+                    <span className="text-rose-900 dark:text-rose-100 font-medium">{existingRsvp.confirmedGuestCount} 人</span>
+                  </div>
+                  {existingRsvp.phone && (
+                    <div className="flex items-center gap-3 py-3 border-b border-rose-100 dark:border-rose-800/30">
+                      <Phone className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                      <span className="text-rose-600/80 dark:text-rose-300/80 w-20 flex-shrink-0">联系电话</span>
+                      <span className="text-rose-900 dark:text-rose-100 font-medium">{existingRsvp.phone}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 py-3 border-b border-rose-100 dark:border-rose-800/30">
+                    <MapPin className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                    <span className="text-rose-600/80 dark:text-rose-300/80 w-20 flex-shrink-0">行程安排</span>
+                    <span className="text-rose-900 dark:text-rose-100 font-medium">
+                      {arrivalPlanLabels[existingRsvp.arrivalPlan] || existingRsvp.arrivalPlan}
+                    </span>
+                  </div>
+                  {existingRsvp.needsHotel && (
+                    <div className="flex items-center gap-3 py-3 border-b border-rose-100 dark:border-rose-800/30">
+                      <Clock className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                      <span className="text-rose-600/80 dark:text-rose-300/80 w-20 flex-shrink-0">住宿安排</span>
+                      <span className="text-rose-900 dark:text-rose-100 font-medium">
+                        {hotelNightsLabels[existingRsvp.hotelNights] || existingRsvp.hotelNights}
+                      </span>
+                    </div>
+                  )}
+                  {existingRsvp.message && (
+                    <div className="flex items-start gap-3 py-3 border-b border-rose-100 dark:border-rose-800/30">
+                      <MessageCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-rose-600/80 dark:text-rose-300/80 w-20 flex-shrink-0">祝福语</span>
+                      <span className="text-rose-900 dark:text-rose-100 font-medium">{existingRsvp.message}</span>
+                    </div>
+                  )}
+                  {existingRsvp.respondedAt && (
+                    <div className="flex items-center gap-3 py-3">
+                      <Calendar className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                      <span className="text-rose-600/80 dark:text-rose-300/80 w-20 flex-shrink-0">回复时间</span>
+                      <span className="text-rose-900 dark:text-rose-100 font-medium text-sm">
+                        {new Date(existingRsvp.respondedAt).toLocaleString("zh-CN", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  onClick={() => setIsEditing(true)}
+                  className="w-full bg-rose-500 hover:bg-rose-600 text-white py-6 rounded-xl text-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  <Pencil className="w-5 h-5 mr-2" />
+                  修改回复
+                </Button>
+              </motion.div>
+            ) : !isSubmitted ? (
               <motion.form
                 key="form"
                 onSubmit={handleSubmit}
