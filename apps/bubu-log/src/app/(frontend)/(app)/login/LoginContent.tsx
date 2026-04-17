@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getProviders, signIn } from 'next-auth/react'
 import { Baby, Eye, EyeOff } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
+import { APP_BACKGROUND_GRADIENT_CLASS, APP_MAIN_LAYOUT_CLASS } from '@/lib/branding'
 
 type LoginContentProps = {
   requireConsent: boolean
@@ -86,7 +87,7 @@ export function LoginContent({ requireConsent }: LoginContentProps) {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#fefbf6] to-[#fff5e6] dark:from-[#1a1a2e] dark:to-[#16213e] flex items-center justify-center p-4">
+    <main className={`${APP_MAIN_LAYOUT_CLASS} flex items-center justify-center p-4`}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 mb-4">
@@ -177,7 +178,7 @@ export function LoginContent({ requireConsent }: LoginContentProps) {
             <div className="w-full border-t border-gray-200 dark:border-gray-700"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-gradient-to-b from-[#fefbf6] to-[#fff5e6] dark:from-[#1a1a2e] dark:to-[#16213e] text-gray-400">或使用第三方账号</span>
+            <span className={`px-2 ${APP_BACKGROUND_GRADIENT_CLASS} text-gray-400`}>或使用第三方账号</span>
           </div>
         </div>
 

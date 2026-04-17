@@ -27,6 +27,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { AppDrawerMenu } from '@/components/AppDrawerMenu'
 import { BackHomeButton } from '@/components/BackHomeButton'
 import { buildBabyScopedPath } from '@/lib/baby-scope'
+import { APP_MAIN_LAYOUT_CLASS } from '@/lib/branding'
 
 // Tab 类型
 type TabType = 'chart' | 'weekly' | 'monthly'
@@ -848,7 +849,7 @@ function DailyStatsPageContent() {
   const isLoading = activeTab === 'chart' ? chartLoading : monthlyLoading
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#fefbf6] to-[#fff5e6] dark:from-[#1a1a2e] dark:to-[#16213e] safe-area-top safe-area-bottom">
+    <main className={`${APP_MAIN_LAYOUT_CLASS} safe-area-top safe-area-bottom`}>
       {/* 顶部导航 */}
       <header className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-100 dark:border-gray-800">
         <div className="px-4 py-3 flex items-center justify-between">

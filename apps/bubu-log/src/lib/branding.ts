@@ -6,6 +6,9 @@ export const PRODUCTION_THEME_COLOR = '#FF957E'
 export const PREVIEW_THEME_COLOR = '#5A94FF'
 export const DARK_THEME_COLOR = '#1A1A2E'
 export const APP_BACKGROUND_COLOR = '#FEFBF6'
+export const APP_BACKGROUND_GRADIENT_CLASS =
+  'bg-gradient-to-b from-[#fefbf6] to-[#fff5e6] dark:from-[#1a1a2e] dark:to-[#16213e]'
+export const APP_MAIN_LAYOUT_CLASS = `min-h-screen ${APP_BACKGROUND_GRADIENT_CLASS}`
 
 export const isPreviewEnvironment = process.env.VERCEL_ENV === 'preview'
 export const themeColor = isPreviewEnvironment
