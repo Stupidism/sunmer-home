@@ -184,16 +184,20 @@ export const DayTimeline = forwardRef<DayTimelineRef, DayTimelineProps>(
       return map
     }, [activities])
 
+    const currentTime = useMemo(() => {
+      if (!showCurrentTime) return null
+      return dayjs(date).startOf('day').add(currentMinutes, 'minute')
+    }, [date, currentMinutes, showCurrentTime])
+
     // 计算距离上次睡觉/吃奶的时间（用于当前时间标记）
     const timeSinceLastSleepAndFeed = useMemo(() => {
-      if (!showCurrentTime) return null
-      const now = dayjs()
+      if (!currentTime) return null
       let lastSleepEnd: ReturnType<typeof dayjs> | null = null
       let lastFeedEnd: ReturnType<typeof dayjs> | null = null
 
       for (const a of activities) {
         const end = a.endTime ? dayjs(a.endTime) : dayjs(a.startTime)
-        if (end.isAfter(now)) continue
+        if (end.isAfter(currentTime)) continue
         if (a.type === 'SLEEP') {
           if (!lastSleepEnd || end.isAfter(lastSleepEnd)) lastSleepEnd = end
         }
@@ -203,10 +207,10 @@ export const DayTimeline = forwardRef<DayTimelineRef, DayTimelineProps>(
       }
 
       return {
-        sleep: lastSleepEnd ? now.diff(lastSleepEnd, 'minute') : null,
-        feed: lastFeedEnd ? now.diff(lastFeedEnd, 'minute') : null,
+        sleep: lastSleepEnd ? currentTime.diff(lastSleepEnd, 'minute') : null,
+        feed: lastFeedEnd ? currentTime.diff(lastFeedEnd, 'minute') : null,
       }
-    }, [activities, showCurrentTime, currentMinutes]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [activities, currentTime])
 
     const getActivityLabel = (activity: typeof positionedActivities[0]) => {
       const type = activity.type as ActivityType
