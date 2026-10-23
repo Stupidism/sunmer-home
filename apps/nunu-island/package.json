@@ -84,5 +84,8 @@
     "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.21.0",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": "^22.23.4 || ^24.22.1"
   }
 }
