@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type APIResponse } from '@playwright/test'
 
 const TEMPLATE_ID = 'gratitude-journal'
 
@@ -9,7 +9,7 @@ type RequestDebug = {
   body: string
 }
 
-async function readResponseDebug(response: Response): Promise<RequestDebug> {
+async function readResponseDebug(response: APIResponse): Promise<RequestDebug> {
   const status = response.status()
   const statusText = response.statusText()
   const ok = response.ok()
