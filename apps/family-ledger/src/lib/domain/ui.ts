@@ -1,4 +1,4 @@
-import type { LedgerRecord, LedgerScope, SafeRefundLink } from "./types";
+import type { ClassificationScheme, LedgerRecord, LedgerScope, SafeRefundLink } from "./types";
 
 export interface LedgerFilters {
   from: string;
@@ -13,6 +13,7 @@ export interface LedgerFilters {
   min: string;
   max: string;
   search: string;
+  months: string[];
 }
 
 export const EMPTY_FILTERS: LedgerFilters = {
@@ -28,6 +29,7 @@ export const EMPTY_FILTERS: LedgerFilters = {
   min: "",
   max: "",
   search: "",
+  months: [],
 };
 
 /** A small, deterministic identity for an exact UI draft/snapshot combination. */
@@ -43,6 +45,7 @@ const listKeys = {
   currency: "currencies",
   direction: "directions",
   status: "statuses",
+  month: "months",
 } as const;
 
 export function parseFilters(params: URLSearchParams): LedgerFilters {
@@ -78,6 +81,24 @@ export function serializeFilters(
   return params.toString();
 }
 
+/** Keep ledger filters between ledger pages, but never leak comparison-only state. */
+export function ledgerNavigationQuery(
+  pathname: string,
+  destination: string,
+  params: URLSearchParams,
+): string {
+  const scheme = params.get("scheme");
+  if (pathname === "/compare" || destination === "/compare") {
+    const result = new URLSearchParams();
+    if (scheme) result.set("scheme", scheme);
+    return result.toString();
+  }
+  const result = new URLSearchParams(params);
+  for (const key of [...result.keys()])
+    if (key.startsWith("compare")) result.delete(key);
+  return result.toString();
+}
+
 export function recordStatus(
   record: LedgerRecord,
 ): "identified" | "pending" | "excluded" {
@@ -98,9 +119,11 @@ export function filterLedgerRows(
     filters.max === "" ? null : Math.round(Number(filters.max) * 100);
   return rows.filter((row) => {
     const amount = Math.abs(row.cents);
+    const localDate = row.date.slice(0, 10);
     return (
-      (!filters.from || row.date >= filters.from) &&
-      (!filters.to || row.date <= filters.to) &&
+      (!filters.from || localDate >= filters.from) &&
+      (!filters.to || localDate <= filters.to) &&
+      (!filters.months.length || filters.months.includes(row.month)) &&
       (!filters.owners.length || filters.owners.includes(row.owner)) &&
       (!filters.accounts.length ||
         filters.accounts.includes(row.accountLabel)) &&
@@ -131,6 +154,152 @@ export function filterLedgerRows(
           .includes(query))
     );
   });
+}
+
+export interface ClassificationRanking {
+  scheme: ClassificationScheme;
+  mainLabel: string;
+  subLabel: string;
+  status: LedgerRecord["classifications"][ClassificationScheme]["status"];
+  cents: number;
+  count: number;
+  rows: LedgerRecord[];
+}
+
+/** Presentation-only signed rollups. Refunds remain negative and unmapped rows stay visible. */
+export function classificationRankings(
+  rows: readonly LedgerRecord[],
+  scheme: ClassificationScheme,
+): ClassificationRanking[] {
+  const groups = new Map<string, ClassificationRanking>();
+  for (const row of rows) {
+    const value = row.classifications[scheme];
+    const mainLabel = value.mainLabel ?? "未映射";
+    const subLabel = value.subLabel ?? (row.sourceCategory || "未映射");
+    const key = `${mainLabel}\0${subLabel}\0${value.status}`;
+    const current = groups.get(key) ?? {
+      scheme,
+      mainLabel,
+      subLabel,
+      status: value.status,
+      cents: 0,
+      count: 0,
+      rows: [],
+    };
+    current.cents += row.cents;
+    current.count += 1;
+    current.rows.push(row);
+    groups.set(key, current);
+  }
+  return [...groups.values()].sort(
+    (left, right) => right.cents - left.cents || left.mainLabel.localeCompare(right.mainLabel, "zh-CN"),
+  );
+}
+
+export function dailyNetSpending(rows: readonly LedgerRecord[]) {
+  const days = new Map<string, { key: string; cents: number; count: number }>();
+  for (const row of rows) {
+    const key = row.date.slice(0, 10);
+    const value = days.get(key) ?? { key, cents: 0, count: 0 };
+    value.cents += row.cents;
+    value.count += 1;
+    days.set(key, value);
+  }
+  return [...days.values()].sort((left, right) => left.key.localeCompare(right.key));
+}
+
+export function classificationPending(row: LedgerRecord, scheme: ClassificationScheme) {
+  const status = row.classifications[scheme].status;
+  return status === "pending" || status === "inferred";
+}
+
+export type TransactionSort = "date-desc" | "date-asc" | "amount-desc" | "amount-asc";
+
+export function transactionRowsForDisplay(
+  rows: readonly LedgerRecord[],
+  options: {
+    scheme: ClassificationScheme;
+    search?: string;
+    accounts?: readonly string[];
+    showExcluded?: boolean;
+    pendingOnly?: boolean;
+    sort?: TransactionSort;
+  },
+) {
+  const query = options.search?.trim().toLocaleLowerCase("zh-CN") ?? "";
+  const result = rows.filter((row) =>
+    (options.showExcluded || row.scope !== "excludedIncome") &&
+    (!options.pendingOnly || recordStatus(row) === "pending" || classificationPending(row, options.scheme)) &&
+    (!options.accounts?.length || options.accounts.includes(row.accountLabel)) &&
+    (!query || [row.merchant, row.accountLabel, row.description, row.purpose]
+      .join(" ").toLocaleLowerCase("zh-CN").includes(query)),
+  );
+  const sort = options.sort ?? "date-desc";
+  return [...result].sort((left, right) => {
+    if (sort === "amount-desc") return Math.abs(right.cents) - Math.abs(left.cents) || right.date.localeCompare(left.date);
+    if (sort === "amount-asc") return Math.abs(left.cents) - Math.abs(right.cents) || right.date.localeCompare(left.date);
+    if (sort === "date-asc") return left.date.localeCompare(right.date) || left.id.localeCompare(right.id);
+    return right.date.localeCompare(left.date) || left.id.localeCompare(right.id);
+  });
+}
+
+
+export interface ChartPoint {
+  key: string;
+  cents: number;
+  ratio: number;
+  startsSegment: boolean;
+}
+
+/** Calendar-proportional positions; daily gaps start a new line segment. */
+export function calendarChartPoints(
+  rows: readonly { key: string; cents: number }[],
+): ChartPoint[] {
+  if (!rows.length) return [];
+  const daily = rows.every((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.key));
+  const values = rows.map((row, index) =>
+    daily ? Date.parse(`${row.key}T00:00:00Z`) / 86_400_000 : index,
+  );
+  const first = values[0];
+  const range = Math.max(1, values.at(-1)! - first);
+  return rows.map((row, index) => ({
+    ...row,
+    ratio: (values[index] - first) / range,
+    startsSegment: index === 0 || (daily && values[index] - values[index - 1] > 1),
+  }));
+}
+
+export function refundAllocationRows(group: RefundGroup) {
+  const refunds = new Map(group.refunds.map((row) => [row.id, row]));
+  return group.links.map((link) => {
+    const refund = refunds.get(link.refundTransactionId);
+    const validAllocation = Number.isFinite(link.allocationCents) && link.allocationCents > 0;
+    const compatible = validAllocation && Boolean(refund) && refund!.currency === link.currency && group.expense.currency === link.currency && refund!.scope === group.expense.scope;
+    const compatibilityReason = !validAllocation
+      ? "分配金额无效，未计入"
+      : !refund
+        ? "关联退款记录不在当前快照，未计入"
+        : refund.currency !== link.currency || group.expense.currency !== link.currency
+          ? "币种边界不一致，未计入"
+          : refund.scope !== group.expense.scope
+            ? "账本范围不一致，未计入"
+            : null;
+    return {
+      link,
+      refund: refund ?? null,
+      compatible,
+      compatibilityReason,
+      appliedCents: compatible ? link.allocationCents : null,
+    };
+  });
+}
+
+export function refundGroupResidual(group: RefundGroup) {
+  const confirmedCents = refundAllocationRows(group).reduce(
+    (total, item) => total + (item.compatible && item.link.status === "confirmed" ? item.link.allocationCents : 0),
+    0,
+  );
+  return { confirmedCents, residualCents: Math.max(0, group.expense.cents - confirmedCents) };
 }
 
 export function trendFromFilteredRows(rows: readonly LedgerRecord[]) {
@@ -190,10 +359,11 @@ export type RefundAssociationStatus =
 export function refundGroupStatus(
   group: RefundGroup,
 ): Exclude<RefundAssociationStatus, "all" | "unallocated"> {
-  const confirmed = group.links
-    .filter((link) => link.status === "confirmed")
-    .reduce((total, link) => total + link.allocationCents, 0);
-  if (group.links.some((link) => link.status === "pending")) return "pending";
+  const allocations = refundAllocationRows(group);
+  const confirmed = allocations
+    .filter((item) => item.compatible && item.link.status === "confirmed")
+    .reduce((total, item) => total + item.link.allocationCents, 0);
+  if (allocations.some((item) => item.compatible && item.link.status === "pending")) return "pending";
   return confirmed >= group.expense.cents ? "full" : "partial";
 }
 
@@ -217,12 +387,13 @@ export function refundAccountingForDisplay(
     }
   >();
   for (const group of groups) {
-    const confirmedCents = group.links
-      .filter((link) => link.status === "confirmed")
-      .reduce((total, link) => total + link.allocationCents, 0);
-    const pendingCents = group.links
-      .filter((link) => link.status === "pending")
-      .reduce((total, link) => total + link.allocationCents, 0);
+    const allocations = refundAllocationRows(group);
+    const confirmedCents = allocations
+      .filter((item) => item.compatible && item.link.status === "confirmed")
+      .reduce((total, item) => total + item.link.allocationCents, 0);
+    const pendingCents = allocations
+      .filter((item) => item.compatible && item.link.status === "pending")
+      .reduce((total, item) => total + item.link.allocationCents, 0);
     const key = `${group.expense.scope}\0${group.expense.currency}`;
     const total = byScopeCurrency.get(key) ?? {
       scope: group.expense.scope,
@@ -285,7 +456,7 @@ export function refundRemainders(
     .filter((row) => row.cents < 0)
     .map((record) => {
       const allocatedCents = links
-        .filter((link) => link.refundTransactionId === record.id)
+        .filter((link) => link.refundTransactionId === record.id && Number.isFinite(link.allocationCents) && link.allocationCents > 0 && link.currency === record.currency)
         .reduce((total, link) => total + link.allocationCents, 0);
       return {
         record,

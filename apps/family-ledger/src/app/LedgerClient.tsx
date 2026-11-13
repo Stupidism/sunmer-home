@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { signOut } from "next-auth/react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
@@ -18,6 +17,9 @@ import {
 } from "@/lib/domain/refunds";
 import {
   comparisonCell,
+  classificationRankings,
+  calendarChartPoints,
+  dailyNetSpending,
   currencyTotalsAndAverages,
   EMPTY_FILTERS,
   filterLedgerRows,
@@ -26,9 +28,12 @@ import {
   parseFilters,
   recordStatus,
   refundAccountingForDisplay,
+  refundAllocationRows,
+  refundGroupResidual,
   refundGroupsForFilters,
   refundRemainders,
   serializeFilters,
+  transactionRowsForDisplay,
   trendFromFilteredRows,
   type LedgerFilters,
   type RefundAssociationStatus,
@@ -74,15 +79,6 @@ type RefundData = {
     }>
   >;
 };
-const NAV: Array<[LedgerView, string, string]> = [
-  ["overview", "/", "总览"],
-  ["income", "/income", "收入"],
-  ["transactions", "/transactions", "交易"],
-  ["compare", "/compare", "月份对比"],
-  ["company", "/company", "公司"],
-  ["refunds", "/refunds", "退款与冲抵"],
-  ["reconcile", "/reconcile", "账单与对账"],
-];
 const TITLES: Record<LedgerView, [string, string]> = {
   overview: ["家庭总览", "现金发生月口径；退款关联只用于解释与大额消费净额。"],
   income: [
@@ -121,7 +117,7 @@ export default function LedgerClient({
   refunds,
   purposeHistory,
   role,
-  username,
+  username: _username,
 }: {
   view: LedgerView;
   payload: DashboardPayload;
@@ -149,15 +145,22 @@ export default function LedgerClient({
     [records],
   );
   const [filters, setFilters] = useState<LedgerFilters>(EMPTY_FILTERS);
-  const [detailIds, setDetailIds] = useState<string[] | null>(null);
+  const [showExcluded, setShowExcluded] = useState(false);
+  const [pendingOnly, setPendingOnly] = useState(false);
+  const [transactionSort, setTransactionSort] = useState<"date-desc" | "date-asc" | "amount-desc" | "amount-asc">("date-desc");
+  const [detailSelection, setDetailSelection] = useState<{ ids: string[]; scheme: ClassificationScheme } | null>(null);
   const filtered = useMemo(
     () => filterLedgerRows(records, filters),
     [records, filters],
   );
   const detail =
-    detailIds?.flatMap((id) => records.find((row) => row.id === id) ?? []) ??
+    detailSelection?.ids.flatMap((id) => records.find((row) => row.id === id) ?? []) ??
     null;
-  const query = serializeFilters(filters, new URLSearchParams({ scheme }));
+  const queryExtras = new URLSearchParams({ scheme });
+  if (showExcluded) queryExtras.set("showExcluded", "1");
+  if (pendingOnly) queryExtras.set("pendingOnly", "1");
+  if (transactionSort !== "date-desc") queryExtras.set("sort", transactionSort);
+  const query = serializeFilters(filters, queryExtras);
   const selectScheme = (nextScheme: ClassificationScheme) => {
     const nextFilters = { ...filters, categories: [] };
     setScheme(nextScheme);
@@ -174,6 +177,10 @@ export default function LedgerClient({
       const nextScheme = params.get("scheme");
       setScheme(nextScheme === "QS" || nextScheme === "ZFB" ? nextScheme : "GB");
       setFilters(parseFilters(params));
+      setShowExcluded(params.get("showExcluded") === "1");
+      setPendingOnly(params.get("pendingOnly") === "1");
+      const sort = params.get("sort");
+      setTransactionSort(sort === "date-asc" || sort === "amount-desc" || sort === "amount-asc" ? sort : "date-desc");
       setQueryReady(true);
     };
     sync();
@@ -186,6 +193,10 @@ export default function LedgerClient({
     const nextScheme = params.get("scheme");
     setScheme(nextScheme === "QS" || nextScheme === "ZFB" ? nextScheme : "GB");
     setFilters(parseFilters(params));
+    setShowExcluded(params.get("showExcluded") === "1");
+    setPendingOnly(params.get("pendingOnly") === "1");
+    const sort = params.get("sort");
+    setTransactionSort(sort === "date-asc" || sort === "amount-desc" || sort === "amount-asc" ? sort : "date-desc");
     setQueryReady(true);
   }, [searchParamsKey]);
   useEffect(() => {
@@ -193,42 +204,10 @@ export default function LedgerClient({
     const next = `${pathname}${query ? `?${query}` : ""}`;
     if (`${window.location.pathname}${window.location.search}` !== next) window.history.replaceState(window.history.state, "", next);
   }, [pathname, query, queryReady, view]);
-  const open = (rows: LedgerRecord[]) =>
-    setDetailIds(rows.map((row) => row.id));
+  const open = (rows: LedgerRecord[], detailScheme: ClassificationScheme = scheme) =>
+    setDetailSelection({ ids: rows.map((row) => row.id), scheme: detailScheme });
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <Link href={query ? `/?${query}` : "/"} className="brand">
-          <span>FL</span>
-          <strong>家庭账本</strong>
-        </Link>
-        <nav aria-label="主要导航">
-          {NAV.map(([key, href, label]) => (
-            <Link
-              key={key}
-              href={query && key !== "compare" ? `${href}?${query}` : href}
-              aria-current={view === key ? "page" : undefined}
-            >
-              {label}
-            </Link>
-          ))}
-          <Link href={`/categories?scheme=${scheme}`}>分类管理</Link>
-        </nav>
-        <div className="account-panel">
-          <strong>{username}</strong>
-          <small>{role === "admin" ? "管理员" : "只读"}</small>
-          <button
-            onClick={() => {
-              setFilters(EMPTY_FILTERS);
-              setDetailIds(null);
-              void signOut({ redirectTo: "/login" });
-            }}
-          >
-            退出登录
-          </button>
-        </div>
-      </aside>
-      <main className="content">
+    <>
         <header className="page-head">
           <div>
             <p className="eyebrow">Family Ledger</p>
@@ -237,7 +216,7 @@ export default function LedgerClient({
           </div>
           <div className="snapshot-tools">
             <div className="scheme-tabs" aria-label="分类体系">
-              {(["GB", "QS", "ZFB"] as const).map((item) => <button key={item} className={scheme === item ? "active" : ""} onClick={() => selectScheme(item)}>{item}</button>)}
+              {(["GB", "QS", "ZFB"] as const).map((item) => <button key={item} aria-pressed={scheme === item} className={scheme === item ? "active" : ""} onClick={() => selectScheme(item)}>{item}</button>)}
             </div>
             <small>发布于 {new Date(snapshot.publishedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}</small>
             <button onClick={() => void refresh()} disabled={refreshing}>{refreshing ? "刷新中…" : "刷新快照"}</button>
@@ -245,11 +224,13 @@ export default function LedgerClient({
           </div>
         </header>
         {refreshError ? <p role="alert" className="notice">{refreshError}</p> : null}
+        {view === "overview" ? <QuickFilters filters={filters} setFilters={setFilters} months={activePayload.months.map((month) => month.month)} owners={values.owners} /> : null}
         {view !== "compare" && view !== "reconcile" ? (
           <FilterBar
             filters={filters}
             setFilters={setFilters}
             values={values}
+            collapsible={view === "overview"}
           />
         ) : null}
         {view === "overview" ? (
@@ -270,7 +251,7 @@ export default function LedgerClient({
           />
         ) : null}
         {view === "transactions" ? (
-          <Transactions rows={filtered} open={open} />
+          <Transactions rows={filtered} accountValues={values.accounts} scheme={scheme} open={open} filters={filters} setFilters={setFilters} showExcluded={showExcluded} setShowExcluded={setShowExcluded} pendingOnly={pendingOnly} setPendingOnly={setPendingOnly} sort={transactionSort} setSort={setTransactionSort} />
         ) : null}
         {view === "compare" ? (
           <ComparisonView payload={projectedPayload} open={open} />
@@ -292,18 +273,18 @@ export default function LedgerClient({
             open={open}
           />
         ) : null}
-        {view === "reconcile" ? <Reconcile payload={projectedPayload} /> : null}
-      </main>
+        {view === "reconcile" ? <Reconcile payload={projectedPayload} allRows={records} links={(snapshot.refunds ?? refunds).links} open={open} /> : null}
       {detail ? (
         <DetailDialog
           key={detail.map((row) => row.id).join("|")}
           rows={detail}
           history={snapshot.purposeHistory ?? purposeHistory}
           role={role}
-          onClose={() => setDetailIds(null)}
+          scheme={detailSelection?.scheme ?? scheme}
+          onClose={() => setDetailSelection(null)}
         />
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -311,6 +292,7 @@ function FilterBar({
   filters,
   setFilters,
   values,
+  collapsible = false,
 }: {
   filters: LedgerFilters;
   setFilters: React.Dispatch<React.SetStateAction<LedgerFilters>>;
@@ -320,6 +302,7 @@ function FilterBar({
     categories: string[];
     currencies: string[];
   };
+  collapsible?: boolean;
 }) {
   const update = <K extends keyof LedgerFilters>(
     key: K,
@@ -330,7 +313,7 @@ function FilterBar({
       total + (Array.isArray(value) ? value.length : Number(Boolean(value))),
     0,
   );
-  return (
+  const content = (
     <section className="filters" aria-label="账本筛选">
       <label>
         从
@@ -366,6 +349,7 @@ function FilterBar({
         selected={filters.categories}
         onChange={(value) => update("categories", value)}
       />
+      {filters.categories.length ? <button className="quiet" onClick={() => update("categories", [])}>清除分类</button> : null}
       <MultiFilter
         label="范围"
         values={Object.keys(SCOPE_LABELS)}
@@ -421,7 +405,7 @@ function FilterBar({
         搜索
         <input
           type="search"
-          placeholder="商户、说明、ID"
+          placeholder="商户、账户、备注或 ID"
           value={filters.search}
           onChange={(event) => update("search", event.target.value)}
         />
@@ -433,6 +417,23 @@ function FilterBar({
       ) : null}
     </section>
   );
+  return collapsible ? <details className="advanced-filters"><summary>高级筛选{count ? `（${count} 项）` : ""}</summary>{content}</details> : content;
+}
+
+function QuickFilters({ filters, setFilters, months, owners }: {
+  filters: LedgerFilters;
+  setFilters: React.Dispatch<React.SetStateAction<LedgerFilters>>;
+  months: string[];
+  owners: string[];
+}) {
+  const toggle = (key: "months" | "owners", value: string) => setFilters((current) => ({
+    ...current,
+    [key]: current[key].includes(value) ? current[key].filter((item) => item !== value) : [...current[key], value],
+  }));
+  return <section className="quick-filters" aria-label="常用筛选">
+    <div><strong>月份</strong><button aria-pressed={!filters.months.length} className={!filters.months.length ? "active" : ""} onClick={() => setFilters((v) => ({ ...v, months: [] }))}>全部</button>{months.map((month) => <button key={month} className={filters.months.includes(month) ? "active" : ""} aria-pressed={filters.months.includes(month)} onClick={() => toggle("months", month)}>{month}</button>)}</div>
+    <div><strong>成员</strong><button aria-pressed={!filters.owners.length} className={!filters.owners.length ? "active" : ""} onClick={() => setFilters((v) => ({ ...v, owners: [] }))}>全部</button>{owners.map((owner) => <button key={owner} className={filters.owners.includes(owner) ? "active" : ""} aria-pressed={filters.owners.includes(owner)} onClick={() => toggle("owners", owner)}>{owner}</button>)}</div>
+  </section>;
 }
 
 function MultiFilter({
@@ -500,28 +501,34 @@ function Overview({
   refunds: RefundData;
   open: (rows: LedgerRecord[]) => void;
 }) {
-  const expenses = rows.filter(
+  const [monthlyMode, setMonthlyMode] = useState<"bar" | "line">("bar");
+  const [dailyMode, setDailyMode] = useState<"bar" | "line">("line");
+  const [dailyMonth, setDailyMonth] = useState("");
+  const [detailScheme, setDetailScheme] = useState<ClassificationScheme>("GB");
+  const [detailMain, setDetailMain] = useState("");
+  const [detailSub, setDetailSub] = useState("");
+  const expenses = useMemo(() => rows.filter(
     (row) =>
       row.scope === "household" && row.currency === "CNY" && !isMortgage(row),
-  );
-  const incomes = rows.filter(
+  ), [rows]);
+  const incomes = useMemo(() => rows.filter(
     (row) => row.scope === "income" && row.currency === "CNY",
-  );
-  const foreign = rows.filter(
+  ), [rows]);
+  const foreign = useMemo(() => rows.filter(
     (row) =>
       row.scope === "foreignHousehold" ||
       (row.scope === "income" && row.currency !== "CNY"),
-  );
-  const categories = groupSum(expenses, (row) => row.category).sort(
-    (a, b) => Math.abs(b.cents) - Math.abs(a.cents),
-  );
-  const max = Math.max(1, ...categories.map((item) => Math.abs(item.cents)));
-  const ranked = rankExpensesAfterConfirmedRefunds(expenses, refunds.links);
+  ), [rows]);
+  const monthly = useMemo(() => trendFromFilteredRows(expenses), [expenses]);
+  const dailyMonths = useMemo(() => unique(expenses.map((row) => row.month)), [expenses]);
+  const effectiveDailyMonth = dailyMonths.includes(dailyMonth) ? dailyMonth : (dailyMonths.at(-1) ?? "");
+  const daily = useMemo(() => dailyNetSpending(expenses.filter((row) => row.month === effectiveDailyMonth)), [expenses, effectiveDailyMonth]);
+  const ranked = useMemo(() => rankExpensesAfterConfirmedRefunds(expenses, refunds.links), [expenses, refunds.links]);
   const selectedMonthNames = monthsOverlappingDateRange(
     payload.months.map((month) => month.month),
     filters.from,
     filters.to,
-  );
+  ).filter((month) => !filters.months.length || filters.months.includes(month));
   const selectedMonths = payload.months.filter((month) =>
     selectedMonthNames.includes(month.month),
   );
@@ -601,30 +608,18 @@ function Overview({
         },
       )}
       <div className="two-col">
-        <Card
-          title="月度净开支趋势"
-          hint="与当前筛选后的家庭人民币记录完全一致；退款按到账月计入。"
-        >
-          <Bars rows={trendFromFilteredRows(expenses)} />
+        <Card title="月度净开支趋势" hint="退款按到账月保留负值；资料覆盖不明时只显示已知流水。" action={<ModeToggle value={monthlyMode} onChange={setMonthlyMode} />}>
+          <SignedChart rows={monthly} mode={monthlyMode} label="月度净开支" />
         </Card>
-        <Card title="分类支出" hint="点击分类打开可浏览明细表">
-          {categories.slice(0, 10).map((item) => (
-            <button
-              className="bar-row"
-              key={item.key}
-              onClick={() => open(item.rows)}
-            >
-              <span>{item.key}</span>
-              <i
-                style={{
-                  width: `${Math.max(3, (Math.abs(item.cents) / max) * 100)}%`,
-                }}
-              />
-              <strong>{money(item.cents)}</strong>
-            </button>
-          ))}
+        <Card title={`每日净开支 · ${effectiveDailyMonth || "无月份"}`} hint="按账单交易日期汇总；缺少记录的日期不补零。" action={<ModeToggle value={dailyMode} onChange={setDailyMode} />}>
+          <div className="mini-chips">{dailyMonths.map((month) => <button key={month} className={effectiveDailyMonth === month ? "active" : ""} onClick={() => setDailyMonth(month)}>{month}</button>)}</div>
+          <SignedChart rows={daily} mode={dailyMode} label="每日净开支" />
         </Card>
       </div>
+      <div className="three-col classification-standards">
+        {(["GB", "QS", "ZFB"] as const).map((item) => <ClassificationCard key={item} scheme={item} rows={expenses} open={open} />)}
+      </div>
+      <MonthlyCategoryDetails rows={expenses} scheme={detailScheme} setScheme={(value) => { setDetailScheme(value); setDetailMain(""); setDetailSub(""); }} main={detailMain} setMain={setDetailMain} sub={detailSub} setSub={setDetailSub} open={open} />
       <Card
         title="大额消费（已确认退款后的剩余金额）"
         hint="关联只解释剩余成本，不改写月度现金流。"
@@ -645,7 +640,9 @@ function Overview({
                 <tr
                   className="clickable"
                   key={record.id}
+                  tabIndex={0}
                   onClick={() => open([record])}
+                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open([record]); } }}
                 >
                   <td>{record.date}</td>
                   <td>
@@ -672,6 +669,83 @@ function Overview({
   );
 }
 
+const CHART_COLORS = ["#32735b", "#d49a42", "#587eaa", "#a95f5f", "#6f6aa8", "#739c62", "#b36f9a", "#597b75"];
+const SCHEME_NAMES: Record<ClassificationScheme, string> = { GB: "统计局八大类＋扩展", QS: "记账软件风格", ZFB: "支付宝风格" };
+
+function ModeToggle({ value, onChange }: { value: "bar" | "line"; onChange: (value: "bar" | "line") => void }) {
+  return <div className="mode-toggle" aria-label="图表类型"><button aria-pressed={value === "bar"} className={value === "bar" ? "active" : ""} onClick={() => onChange("bar")}>柱状</button><button aria-pressed={value === "line"} className={value === "line" ? "active" : ""} onClick={() => onChange("line")}>折线</button></div>;
+}
+
+function SignedChart({ rows, mode, label }: { rows: Array<{ key: string; cents: number }>; mode: "bar" | "line"; label: string }) {
+  if (!rows.length) return <Empty text="当前筛选没有已知流水；未显示为 0。" />;
+  const width = 720, height = 300, left = 118, right = 30, top = 32, bottom = 58;
+  const max = Math.max(0, ...rows.map((row) => row.cents));
+  const min = Math.min(0, ...rows.map((row) => row.cents));
+  const range = Math.max(1, max - min);
+  const y = (value: number) => top + ((max - value) / range) * (height - top - bottom);
+  const points = calendarChartPoints(rows);
+  const x = (ratio: number) => left + ratio * (width - left - right);
+  const zero = y(0);
+  const segments = points.reduce<Array<typeof points>>((result, point) => {
+    if (point.startsSegment) result.push([]);
+    result.at(-1)!.push(point);
+    return result;
+  }, []);
+  const yTicks = [max, max - range / 2, min];
+  const xTicks = points.filter((_, index) => index === 0 || index === points.length - 1 || index % Math.max(1, Math.ceil(points.length / 4)) === 0);
+  return <div className="signed-chart">
+    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label}，${rows.length} 个已知数据点`}>
+      <title>{`${label}；负值表示退款或冲抵，不对缺失日期补零`}</title>
+      <text x="12" y="22" className="chart-currency">人民币（¥）</text>
+      {yTicks.map((tick, index) => <g key={index}><line x1={left} x2={width - right} y1={y(tick)} y2={y(tick)} className="chart-grid" /><text x={left - 12} y={y(tick) + 7} textAnchor="end" className="chart-tick chart-y-tick">{compactChartAmount(tick)}</text></g>)}
+      <line x1={left} x2={width - right} y1={zero} y2={zero} className="axis" />
+      {xTicks.map((point) => <text key={point.key} x={x(point.ratio)} y={height - 18} textAnchor="middle" className="chart-tick chart-x-tick">{point.key.slice(5)}</text>)}
+      {mode === "line" ? segments.filter((segment) => segment.length > 1).map((segment, index) => <polyline key={index} points={segment.map((point) => `${x(point.ratio)},${y(point.cents)}`).join(" ")} className="chart-line" />) : points.map((point) => { const barTop = Math.min(zero, y(point.cents)); return <rect key={point.key} x={x(point.ratio) - 8} y={barTop} width="16" height={Math.abs(zero - y(point.cents))} className={point.cents < 0 ? "negative-bar" : "positive-bar"}><title>{`${point.key}：${money(point.cents)}`}</title></rect>; })}
+      {mode === "line" ? points.map((point) => <circle key={point.key} cx={x(point.ratio)} cy={y(point.cents)} r="4"><title>{`${point.key}：${money(point.cents)}`}</title></circle>) : null}
+    </svg>
+    <details className="chart-data"><summary>查看数据表（{rows.length} 项）</summary><table><thead><tr><th>日期</th><th>净额</th></tr></thead><tbody>{rows.map((row) => <tr key={row.key}><td>{row.key}</td><td className={row.cents < 0 ? "negative" : ""}>{money(row.cents)}</td></tr>)}</tbody></table></details>
+  </div>;
+}
+
+function ClassificationCard({ scheme, rows, open }: { scheme: ClassificationScheme; rows: LedgerRecord[]; open: (rows: LedgerRecord[]) => void }) {
+  const [mode, setMode] = useState<"donut" | "bar">("donut");
+  const rankings = useMemo(() => classificationRankings(rows, scheme), [rows, scheme]);
+  const byMain = useMemo(() => [...rankings.reduce((map, item) => {
+    const current = map.get(item.mainLabel) ?? { key: item.mainLabel, cents: 0, rows: [] as LedgerRecord[] };
+    current.cents += item.cents; current.rows.push(...item.rows); map.set(item.mainLabel, current); return map;
+  }, new Map<string, { key: string; cents: number; rows: LedgerRecord[] }>()).values()].sort((a, b) => b.cents - a.cents), [rankings]);
+  const positive = byMain.filter((item) => item.cents > 0);
+  const positiveTotal = positive.reduce((total, item) => total + item.cents, 0);
+  let offset = 0;
+  const colors = new Map(byMain.map((item, index) => [item.key, CHART_COLORS[index % CHART_COLORS.length]]));
+  return <Card title={`${scheme} · ${SCHEME_NAMES[scheme]}`} hint="按净额排序，退款保留负值。" action={<div className="mode-toggle"><button aria-pressed={mode === "donut"} className={mode === "donut" ? "active" : ""} onClick={() => setMode("donut")}>环图</button><button aria-pressed={mode === "bar"} className={mode === "bar" ? "active" : ""} onClick={() => setMode("bar")}>条形</button></div>}>
+    <p className="classification-total">家庭人民币净额 <strong>{money(sum(rows))}</strong></p>
+    {!byMain.length ? <Empty text="当前筛选没有分类数据。" /> : mode === "donut" ? <><svg className="donut" viewBox="0 0 120 120" role="img" aria-label={`${scheme} 正净额分类环图`}><title>{`环图只绘制正净额分类`}</title><circle cx="60" cy="60" r="42" className="donut-base" />{positive.map((item) => { const length = positiveTotal ? item.cents / positiveTotal * 263.89 : 0; const node = <circle key={item.key} cx="60" cy="60" r="42" className="donut-segment" stroke={colors.get(item.key)} strokeDasharray={`${length} ${263.89 - length}`} strokeDashoffset={-offset}><title>{`${item.key}：${money(item.cents)}`}</title></circle>; offset += length; return node; })}</svg><p className="muted">环图只包含正净额分类；退款造成的负净额仍完整列在下方。</p></> : null}
+    <div className="ranking-list">{byMain.map((item) => <button key={item.key} onClick={() => open(item.rows)}><i style={{ background: colors.get(item.key) }} /><span>{item.key}</span><strong className={item.cents < 0 ? "negative" : ""}>{money(item.cents)}</strong>{mode === "bar" ? <em style={{ width: `${Math.max(2, Math.abs(item.cents) / Math.max(1, ...byMain.map((value) => Math.abs(value.cents))) * 100)}%` }} /> : null}</button>)}</div>
+  </Card>;
+}
+
+function MonthlyCategoryDetails({ rows, scheme, setScheme, main, setMain, sub, setSub, open }: { rows: LedgerRecord[]; scheme: ClassificationScheme; setScheme: (value: ClassificationScheme) => void; main: string; setMain: (value: string) => void; sub: string; setSub: (value: string) => void; open: (rows: LedgerRecord[], scheme?: ClassificationScheme) => void }) {
+  const ranking = useMemo(() => classificationRankings(rows, scheme), [rows, scheme]);
+  const mains = useMemo(() => unique(ranking.map((item) => item.mainLabel)), [ranking]);
+  const subs = useMemo(() => unique(ranking.filter((item) => !main || item.mainLabel === main).map((item) => item.subLabel)), [ranking, main]);
+  const selected = useMemo(() => ranking.filter((item) => (!main || item.mainLabel === main) && (!sub || item.subLabel === sub)).flatMap((item) => item.rows), [ranking, main, sub]);
+  const months = useMemo(() => unique(selected.map((row) => row.month)), [selected]);
+  return <Card title="月度分类明细" hint="点击月份展开明细。" action={<div className="scheme-tabs">{(["GB", "QS", "ZFB"] as const).map((item) => <button key={item} aria-pressed={scheme === item} className={scheme === item ? "active" : ""} onClick={() => setScheme(item)}>{item}</button>)}</div>}>
+    <div className="mini-chips"><button aria-pressed={!main && !sub} className={!main && !sub ? "active" : ""} onClick={() => { setMain(""); setSub(""); }}>全部 / 重置</button>{mains.map((item) => <button key={item} aria-pressed={main === item} className={main === item ? "active" : ""} onClick={() => { setMain(item); setSub(""); }}>{item}</button>)}</div>
+    {main ? <div className="mini-chips"><button aria-pressed={!sub} className={!sub ? "active" : ""} onClick={() => setSub("")}>全部子类</button>{subs.map((item) => <button key={item} aria-pressed={sub === item} className={sub === item ? "active" : ""} onClick={() => setSub(item)}>{item}</button>)}</div> : null}
+    {months.map((month) => <MonthCategoryGroup key={`${scheme}:${main}:${sub}:${month}`} month={month} rows={selected.filter((row) => row.month === month)} scheme={scheme} open={(selectedRows) => open(selectedRows, scheme)} />)}
+    {!months.length ? <Empty /> : null}
+  </Card>;
+}
+
+function MonthCategoryGroup({ month, rows, scheme, open }: { month: string; rows: LedgerRecord[]; scheme: ClassificationScheme; open: (rows: LedgerRecord[]) => void }) {
+  const [page, setPage] = useState(0); const [opened, setOpened] = useState(false); const pageSize = 20; const pages = Math.max(1, Math.ceil(rows.length / pageSize)); const safe = Math.min(page, pages - 1);
+  const rowIds = rows.map((row) => row.id).join("|");
+  useEffect(() => setPage(0), [rowIds]);
+  return <details className="month-detail" onToggle={(event) => setOpened(event.currentTarget.open)}><summary><strong>{month}</strong><span>{rows.length} 笔 · {money(sum(rows))}</span></summary>{opened ? <><RowTable rows={rows.slice(safe * pageSize, safe * pageSize + pageSize)} scheme={scheme} open={open} />{pages > 1 ? <div className="pager"><button disabled={!safe} onClick={() => setPage(safe - 1)}>上一页</button><span>{safe + 1} / {pages}</span><button disabled={safe + 1 >= pages} onClick={() => setPage(safe + 1)}>下一页</button></div> : null}</> : null}</details>;
+}
+
 function Income({
   rows,
   filters,
@@ -690,7 +764,7 @@ function Income({
     payload.months.map((month) => month.month),
     filters.from,
     filters.to,
-  );
+  ).filter((month) => !filters.months.length || filters.months.includes(month));
   const summaries = currencyTotalsAndAverages(ordinary, selectedMonths);
   const incomeCoverageKnown =
     selectedMonths.length > 0 &&
@@ -752,36 +826,80 @@ function Income({
   );
 }
 
+function transactionPendingReason(row: LedgerRecord, scheme: ClassificationScheme) {
+  const reasons: string[] = [];
+  if (recordStatus(row) === "pending") reasons.push("流水状态待确认");
+  const status = row.classifications[scheme].status;
+  if (status === "pending") reasons.push("分类待确认");
+  if (status === "inferred") reasons.push("分类为推断结果");
+  return reasons.join("；");
+}
+
+function TransactionTable({ rows, scheme, open }: { rows: LedgerRecord[]; scheme: ClassificationScheme; open: (rows: LedgerRecord[]) => void }) {
+  if (!rows.length) return <Empty text="当前条件下没有记录" />;
+  return <div className="table-wrap"><table className="transaction-table"><thead><tr><th>日期</th><th>归属 / 账户</th><th>商户 / 说明</th><th>{scheme} 分类 / 状态</th><th>金额</th><th>范围 / 纳入 / 审核</th><th>对账 / 来源操作</th></tr></thead><tbody>{rows.map((row) => { const classification = row.classifications[scheme]; const pendingReason = transactionPendingReason(row, scheme); return <tr key={row.id} className="clickable" tabIndex={0} onClick={() => open([row])} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open([row]); } }}><td>{row.date.slice(0, 10)}</td><td>{row.owner || "未注明"}<small>{row.accountLabel || "未注明"}</small></td><td>{row.merchant || "未注明"}<small>{row.description || row.purpose || "无说明"}</small></td><td>{classification.mainLabel ?? "未映射"} / {classification.subLabel ?? row.sourceCategory}<small>{pendingReason || "已确认"}</small></td><td className={row.cents < 0 ? "negative" : ""}>{money(row.cents, row.currency)}</td><td>{scopeName(row.scope)} · {row.scope === "excludedIncome" ? "已排除" : "已纳入"}<small>{statusName(recordStatus(row))}</small></td><td>{row.direction === "refund" ? "退款流水（关联见退款页）" : "仅显示已导入证据"}<small>{row.source.label}</small></td></tr>; })}</tbody></table></div>;
+}
+
 function Transactions({
   rows,
+  accountValues,
+  scheme,
   open,
+  filters,
+  setFilters,
+  showExcluded,
+  setShowExcluded,
+  pendingOnly,
+  setPendingOnly,
+  sort,
+  setSort,
 }: {
   rows: LedgerRecord[];
+  accountValues: string[];
+  scheme: ClassificationScheme;
   open: (rows: LedgerRecord[]) => void;
+  filters: LedgerFilters;
+  setFilters: React.Dispatch<React.SetStateAction<LedgerFilters>>;
+  showExcluded: boolean;
+  setShowExcluded: (value: boolean) => void;
+  pendingOnly: boolean;
+  setPendingOnly: (value: boolean) => void;
+  sort: "date-desc" | "date-asc" | "amount-desc" | "amount-asc";
+  setSort: (value: "date-desc" | "date-asc" | "amount-desc" | "amount-asc") => void;
 }) {
-  const [sort, setSort] = useState("date-desc"),
-    [page, setPage] = useState(0);
-  const sorted = [...rows].sort((a, b) =>
-    sort === "amount-desc"
-      ? Math.abs(b.cents) - Math.abs(a.cents)
-      : sort === "amount-asc"
-        ? Math.abs(a.cents) - Math.abs(b.cents)
-        : sort === "date-asc"
-          ? a.date.localeCompare(b.date)
-          : b.date.localeCompare(a.date),
-  );
+  const [page, setPage] = useState(0);
+  const sorted = useMemo(() => transactionRowsForDisplay(rows, { scheme, showExcluded, pendingOnly, sort }), [rows, scheme, showExcluded, pendingOnly, sort]);
+  const stateKey = `${rows.map((row) => row.id).join("|")}:${scheme}:${showExcluded}:${pendingOnly}:${sort}`;
+  useEffect(() => setPage(0), [stateKey]);
   const pages = Math.max(1, Math.ceil(sorted.length / 40)),
     safePage = Math.min(page, pages - 1);
+  const totals = [...sorted.reduce((result, row) => {
+    const key = `${row.scope}\0${row.direction}\0${row.currency}`;
+    result.set(key, { scope: row.scope, direction: row.direction, currency: row.currency, cents: (result.get(key)?.cents ?? 0) + row.cents, count: (result.get(key)?.count ?? 0) + 1 });
+    return result;
+  }, new Map<string, { scope: LedgerScope; direction: LedgerRecord["direction"]; currency: string; cents: number; count: number }>()).values()];
+  const statusCounts = sorted.reduce((result, row) => {
+    const value = row.classifications[scheme].status;
+    result.set(value, (result.get(value) ?? 0) + 1);
+    return result;
+  }, new Map<string, number>());
   return (
+    <><section className="transaction-controls">
+      <label><input type="checkbox" checked={showExcluded} onChange={(event) => setShowExcluded(event.target.checked)} /> 显示明确排除记录</label>
+      <label><input type="checkbox" checked={pendingOnly} onChange={(event) => setPendingOnly(event.target.checked)} /> 仅待核 / 推断分类（{scheme}）</label>
+      <div className="account-chips" aria-label="账户筛选"><button aria-pressed={!filters.accounts.length} className={!filters.accounts.length ? "active" : ""} onClick={() => setFilters((current) => ({ ...current, accounts: [] }))}>全部账户</button>{accountValues.map((account) => <button key={account} aria-pressed={filters.accounts.includes(account)} className={filters.accounts.includes(account) ? "active" : ""} onClick={() => setFilters((current) => ({ ...current, accounts: current.accounts.includes(account) ? current.accounts.filter((item) => item !== account) : [...current.accounts, account] }))}>{account || "未注明账户"}</button>)}</div>
+    </section>
+    <Notice>当前快照仅含明确排除的收入记录；原始渠道重复流水尚未导入，不能在此推断或勾选显示。</Notice>
+    <div className="summary-strips">{[...statusCounts].map(([status, count]) => <span key={status}>{scheme} {status === "confirmed" || status === "override" ? "已确认" : status === "inferred" ? "推断待核" : "待分类"}：{count} 笔</span>)}{totals.map((item) => <span key={`${item.scope}-${item.direction}-${item.currency}`}>{scopeName(item.scope)} · {item.direction === "income" ? "收入" : item.direction === "refund" ? "退款" : "支出"} · {item.currency}：{item.count} 笔，{money(item.cents, item.currency)}</span>)}</div>
     <Card
-      title={`${rows.length} 笔交易`}
+      title={`${sorted.length} 笔交易`}
       action={
         <label>
           排序
           <select
             value={sort}
             onChange={(event) => {
-              setSort(event.target.value);
+              setSort(event.target.value as typeof sort);
               setPage(0);
             }}
           >
@@ -793,11 +911,7 @@ function Transactions({
         </label>
       }
     >
-      <RowTable
-        rows={sorted.slice(safePage * 40, safePage * 40 + 40)}
-        open={open}
-        showBoundary
-      />
+      <TransactionTable rows={sorted.slice(safePage * 40, safePage * 40 + 40)} scheme={scheme} open={open} />
       <div className="pager">
         <button disabled={!safePage} onClick={() => setPage(safePage - 1)}>
           上一页
@@ -812,7 +926,7 @@ function Transactions({
           下一页
         </button>
       </div>
-    </Card>
+    </Card></>
   );
 }
 
@@ -1552,11 +1666,16 @@ function RefundForm({
           return;
         }
         const form = new FormData(event.currentTarget);
+        const allocationCents = Math.round(Number(form.get("amount")) * 100);
+        if (!Number.isFinite(allocationCents) || allocationCents <= 0) {
+          setMessage("分配金额必须大于 0。");
+          return;
+        }
         start(async () => {
           const result = await createRefundLinkAction({
             expenseTransactionId: expense.id,
             refundTransactionId: refund.id,
-            allocationCents: Math.round(Number(form.get("amount")) * 100),
+            allocationCents,
             status: form.get("status"),
             evidence: { note: form.get("note"), source: form.get("source") },
           });
@@ -1629,8 +1748,19 @@ function RefundForm({
   );
 }
 
-function Reconcile({ payload }: { payload: DashboardPayload }) {
+function RefundReconcileCard({ group, open }: { group: ReturnType<typeof refundGroupsForFilters>[number]; open: (rows: LedgerRecord[]) => void }) {
+  const allocations = refundAllocationRows(group);
+  const residual = refundGroupResidual(group);
+  return <details className="reconcile-group"><summary><span>退款冲销 · {group.expense.merchant || group.expense.sourceCategory}</span><strong>{residual.residualCents === 0 ? "已全额冲抵" : `${money(residual.residualCents, group.expense.currency)} 待冲抵`}</strong></summary>
+    <div className="relation-columns"><section><h3>原支出</h3><button className="relation-transaction" onClick={() => open([group.expense])}><b>{group.expense.date.slice(0, 10)} · {group.expense.accountLabel}</b><span>{group.expense.merchant || group.expense.description}</span><strong>{money(group.expense.cents, group.expense.currency)}</strong></button></section><section><h3>退款与分配</h3>{allocations.map(({ link, refund, compatible, compatibilityReason }) => <div className="allocation" key={`${link.refundTransactionId}-${link.createdAt}`}>{refund ? <button className="relation-transaction" onClick={() => open([refund])}><b>{refund.date.slice(0, 10)} · {refund.accountLabel}</b><span>{refund.merchant || refund.description}</span><strong>{money(refund.cents, refund.currency)}</strong></button> : <p>关联退款记录不在当前快照</p>}<p>{link.status === "confirmed" ? "已确认" : "待确认"}分配：{compatible ? money(link.allocationCents, link.currency) : compatibilityReason}</p><details className="allocation-evidence"><summary>查看依据</summary><div className="muted">{evidenceText(link.evidence)}</div></details></div>)}</section></div>
+    <footer>已确认分配 {money(residual.confirmedCents, group.expense.currency)} · 原支出残余 {money(residual.residualCents, group.expense.currency)}</footer>
+  </details>;
+}
+
+type ReconcileTab = "all" | "channel-bill" | "channel-bank" | "refund" | "repayment";
+function Reconcile({ payload, allRows, links, open }: { payload: DashboardPayload; allRows: LedgerRecord[]; links: SafeRefundLink[]; open: (rows: LedgerRecord[]) => void }) {
   const [selected, setSelected] = useState(payload.months.at(-1)?.month ?? "");
+  const [tab, setTab] = useState<ReconcileTab>("all");
   const month =
     payload.months.find((item) => item.month === selected) ??
     payload.months.at(-1);
@@ -1659,6 +1789,13 @@ function Reconcile({ payload }: { payload: DashboardPayload }) {
         `${row.source.label}|${row.source.originalFileLabel ?? ""}|${row.source.sha256}`,
     ),
   );
+  const monthRows = allRows.filter((row) => row.month === month.month);
+  const refundGroups = refundGroupsForFilters(allRows, monthRows, links);
+  const missing = [
+    ["channel-bill", "渠道与账单双记"],
+    ["channel-bank", "渠道与银行双记"],
+    ["repayment", "信用卡还款"],
+  ] as const;
   return (
     <>
       <section className="filters">
@@ -1674,6 +1811,11 @@ function Reconcile({ payload }: { payload: DashboardPayload }) {
           </select>
         </label>
       </section>
+      <Card title="关联对账组" hint="只展示快照中已保存的明确关系，不按同日同额猜测。">
+        <div className="reconcile-tabs" role="tablist" aria-label="关联类型">{([ ["all", "全部"], ["channel-bill", "渠道与账单双记"], ["channel-bank", "渠道与银行双记"], ["refund", "退款冲销"], ["repayment", "信用卡还款"] ] as const).map(([key, label]) => <button role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} key={key} onClick={() => setTab(key)}>{label}</button>)}</div>
+        {(tab === "all" || tab === "refund") ? (refundGroups.length ? <div className="reconcile-groups">{refundGroups.map((group) => <RefundReconcileCard key={group.expense.id} group={group} open={open} />)}</div> : <Empty text="所选月份没有已保存的退款关联。" />) : null}
+        {missing.filter(([key]) => tab === "all" || tab === key).map(([key, label]) => <div className="unavailable-relation" key={key}><strong>{label}</strong><span>尚未导入对应关联资料</span></div>)}
+      </Card>
       <Card
         title={`${month.month} · ${monthStatusName(month.status)}`}
         hint={`${month.pending.length + month.income.pendingRecords.length} 项待核`}
@@ -1791,11 +1933,13 @@ function DetailDialog({
   rows,
   history,
   role,
+  scheme,
   onClose,
 }: {
   rows: LedgerRecord[];
   history: PurposeHistory[];
   role: "admin" | "viewer";
+  scheme: ClassificationScheme;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null),
@@ -1831,7 +1975,7 @@ function DetailDialog({
           <p className="eyebrow">
             交易 {index + 1} / {rows.length}
           </p>
-          <h2 id="detail-title">{row.category}</h2>
+          <h2 id="detail-title">{classificationDisplay(row, scheme).category}</h2>
         </div>
         <button className="icon-button" aria-label="关闭" onClick={onClose}>
           ×
@@ -1994,11 +2138,13 @@ function RowTable({
   open,
   empty = "当前条件下没有记录",
   showBoundary = false,
+  scheme,
 }: {
   rows: LedgerRecord[];
   open: (rows: LedgerRecord[]) => void;
   empty?: string;
   showBoundary?: boolean;
+  scheme?: ClassificationScheme;
 }) {
   if (!rows.length) return <Empty text={empty} />;
   return (
@@ -2032,7 +2178,7 @@ function RowTable({
             >
               <td>{row.date}</td>
               <td>
-                {row.category}
+                {scheme ? (row.classifications[scheme].mainLabel ?? "未映射") : row.category}
                 <small>{row.merchant || row.description}</small>
               </td>
               {showBoundary ? (
@@ -2126,6 +2272,15 @@ function money(cents: number, currency = "CNY"): string {
     currency,
     maximumFractionDigits: 2,
   }).format(cents / 100);
+}
+
+function compactChartAmount(cents: number): string {
+  const amount = cents / 100;
+  if (amount === 0) return "0";
+  return new Intl.NumberFormat("zh-CN", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(amount);
 }
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))].sort((a, b) =>

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { allTransactions } from "@/lib/domain/monthly";
@@ -125,8 +124,8 @@ export default function CategoriesClient() {
     if (!result.ok) { setMapPreview(null); return setMessage(`${friendly(result.error)} 请刷新快照后重新预览。`); }
     await refresh(); setMapPreview(null); setMapping(EMPTY_MAPPING); setMessage("原始标签映射已保存。");
   });
-  return <main className="category-page">
-    <header className="page-head"><div><p className="eyebrow">Family Ledger</p><h1>分类管理</h1><p>重命名、合并和逐笔拆分只改变分类，不改变日期、金额、币种或账本范围。</p></div><Link href="/">返回仪表盘</Link></header>
+  return <div className="category-page">
+    <header className="page-head"><div><p className="eyebrow">Family Ledger</p><h1>分类管理</h1><p>重命名、合并和逐笔拆分只改变分类，不改变日期、金额、币种或账本范围。</p></div></header>
     <div className="scheme-tabs">{(["GB", "QS", "ZFB"] as const).map((item) => <button key={item} disabled={pending} className={scheme === item ? "active" : ""} onClick={() => selectScheme(item)}>{SCHEME_LABELS[item]}</button>)}</div>
     <section className="category-toolbar"><input aria-label="搜索分类" placeholder="搜索主类或子类" value={search} onChange={(e) => setSearch(e.target.value)} /><label><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> 显示未使用分类</label><button onClick={() => void refresh()} disabled={refreshing || pending}>{refreshing ? "刷新中…" : "刷新快照"}</button></section>
     {refreshError ? <p role="alert" className="notice">{refreshError}</p> : null}
@@ -147,7 +146,7 @@ export default function CategoriesClient() {
     <section className="card"><h2>原始标签映射</h2>{role === "admin" ? <fieldset disabled={pending}><legend>批量确认 / 重新分配（逐笔覆盖不会被改变）</legend><label>范围<select value={mapping.scope} onChange={(e) => changeMapping({ scope: e.target.value as LedgerScope })}>{[...new Set(rows.map((r) => r.scope))].map((scope) => <option key={scope} value={scope}>{scopeLabel(scope)}</option>)}</select></label><label>原始标签<input list="source-labels" value={mapping.sourceLabel} onChange={(e) => changeMapping({ sourceLabel: e.target.value })} /><datalist id="source-labels">{[...new Set(rows.filter((r) => r.scope === mapping.scope).map((r) => r.sourceCategory))].sort().map((label) => <option key={label} value={label} />)}</datalist></label><label>目标分类<select value={mapping.destinationId} onChange={(e) => changeMapping({ destinationId: e.target.value })}><option value="">请选择</option>{snapshot.taxonomy.categories.filter((c) => c.scheme === scheme && c.state === "active").map((c) => <option key={c.id} value={c.id}>{c.mainLabel} / {c.subLabel}</option>)}</select></label><label>审核状态<select value={mapping.status} onChange={(e) => changeMapping({ status: e.target.value as "inferred" | "confirmed" })}><option value="confirmed">已确认</option><option value="inferred">待核</option></select></label><button onClick={previewMapping} disabled={!mapping.sourceLabel.trim() || !mapping.destinationId}>预览映射影响</button>{mapPreview ? <ConfirmationPanel preview={mapPreview.value} source={`原始标签：${mapping.sourceLabel}`} destination={categoryPath(snapshot.taxonomy.categories, mapping.destinationId)} onCommit={commitMapping} pending={pending} /> : null}</fieldset> : null}<div className="table-wrap"><table><thead><tr><th>范围</th><th>原始标签</th><th>目标分类</th><th>状态</th><th>操作</th></tr></thead><tbody>{snapshot.taxonomy.rules.filter((r) => r.scheme === scheme).map((rule) => { const target = snapshot.taxonomy.categories.find((c) => c.id === rule.categoryId); return <tr key={rule.id}><td>{scopeLabel(rule.scope)}</td><td>{rule.sourceLabel}</td><td>{target ? `${target.mainLabel} / ${target.subLabel}` : "已失效"}</td><td>{rule.status === "confirmed" ? "已确认" : "待核"}</td><td><button disabled={pending || !target} onClick={() => changeMapping({ scope: rule.scope, sourceLabel: rule.sourceLabel, destinationId: rule.categoryId, status: rule.status })}>载入编辑</button></td></tr>; })}</tbody></table></div></section>
     <section className="card"><h2>分类审计记录</h2><div className="table-wrap"><table><thead><tr><th>时间</th><th>操作者</th><th>操作</th><th>原值</th><th>新值</th></tr></thead><tbody>{(snapshot.taxonomy.audit ?? []).filter((item) => item.scheme === scheme).map((item) => <tr key={item.id}><td>{new Date(item.createdAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}</td><td>{item.actor}</td><td>{item.operation}</td><td>{compact(item.before)}</td><td>{compact(item.after)}</td></tr>)}</tbody></table></div></section>
     <footer className="muted">已发布：{new Date(snapshot.publishedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}</footer>
-  </main>;
+  </div>;
 }
 
 function ConfirmationPanel({ preview, source, destination, onCommit, pending }: { preview: Preview; source: string; destination: string; onCommit: () => void; pending: boolean }) {

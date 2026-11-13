@@ -3,17 +3,24 @@ import { test } from "node:test";
 import { normalizeDashboardPayload } from "../src/lib/domain/monthly";
 import {
   comparisonCell,
+  classificationRankings,
+  calendarChartPoints,
   currencyTotalsAndAverages,
+  dailyNetSpending,
   EMPTY_FILTERS,
   filterLedgerRows,
   knownAggregate,
+  ledgerNavigationQuery,
   monthsOverlappingDateRange,
   parseFilters,
   previewFingerprint,
   refundAccountingForDisplay,
+  refundAllocationRows,
+  refundGroupResidual,
   refundGroupsForFilters,
   refundRemainders,
   serializeFilters,
+  transactionRowsForDisplay,
   trendFromFilteredRows,
 } from "../src/lib/domain/ui";
 import type { LedgerRecord, SafeRefundLink } from "../src/lib/domain/types";
@@ -230,4 +237,102 @@ test("refund group accounting follows the displayed association-status subset", 
       remainingCents: 8_000,
     },
   ]);
+});
+
+test("noncontiguous month chips intersect local dates and multiple people", () => {
+  const base = rows.find((row) => row.originalId === "expense-1")!;
+  const fixture = [
+    { ...base, id: "jan-a", month: "2026-01", date: "2026-01-04", owner: "甲" },
+    { ...base, id: "feb-a", month: "2026-02", date: "2026-02-04", owner: "甲" },
+    { ...base, id: "mar-b", month: "2026-03", date: "2026-03-08", owner: "乙" },
+    { ...base, id: "mar-c", month: "2026-03", date: "2026-03-09", owner: "丙" },
+  ];
+  const result = filterLedgerRows(fixture, {
+    ...EMPTY_FILTERS,
+    months: ["2026-01", "2026-03"],
+    owners: ["甲", "乙"],
+    from: "2026-01-03",
+    to: "2026-03-08",
+  });
+  assert.deepEqual(result.map((row) => row.id), ["jan-a", "mar-b"]);
+});
+
+test("inclusive end date includes timestamps on that local bill date", () => {
+  const base = rows.find((row) => row.originalId === "expense-1")!;
+  const result = filterLedgerRows([
+    { ...base, id: "end-day", month: "2026-03", date: "2026-03-08T23:59:59+08:00", owner: "甲" },
+    { ...base, id: "next-day", month: "2026-03", date: "2026-03-09T00:00:00+08:00", owner: "甲" },
+  ], { ...EMPTY_FILTERS, months: ["2026-03"], owners: ["甲"], to: "2026-03-08" });
+  assert.deepEqual(result.map((row) => row.id), ["end-day"]);
+});
+
+test("ledger navigation isolates comparison query state", () => {
+  const compare = new URLSearchParams("scheme=QS&compareScope=company&compareMonth=2026-01");
+  assert.equal(ledgerNavigationQuery("/compare", "/", compare), "scheme=QS");
+  const ledger = new URLSearchParams("scheme=GB&owner=甲&compareScope=company");
+  assert.equal(ledgerNavigationQuery("/transactions", "/income", ledger), "scheme=GB&owner=%E7%94%B2");
+  assert.equal(ledgerNavigationQuery("/transactions", "/compare", ledger), "scheme=GB");
+});
+
+test("all three classification standards conserve signed cents and keep unmapped visible", () => {
+  const base = rows.find((row) => row.originalId === "expense-1")!;
+  const fixture: LedgerRecord[] = [
+    { ...base, id: "positive", cents: 10_000 },
+    { ...base, id: "refund", cents: -2_500, classifications: {
+      GB: { categoryId: null, mainLabel: null, subLabel: null, status: "pending", source: "unmapped" },
+      QS: { categoryId: "q", mainLabel: "退款", subLabel: "退货", status: "confirmed", source: "rule" },
+      ZFB: { categoryId: "z", mainLabel: "退款", subLabel: "商品退款", status: "confirmed", source: "rule" },
+    } },
+  ];
+  for (const scheme of ["GB", "QS", "ZFB"] as const) {
+    const ranking = classificationRankings(fixture, scheme);
+    assert.equal(ranking.reduce((total, item) => total + item.cents, 0), 7_500);
+    assert.equal(ranking.reduce((total, item) => total + item.count, 0), 2);
+  }
+  assert.ok(classificationRankings(fixture, "GB").some((item) => item.mainLabel === "未映射"));
+});
+
+test("daily net spending uses local date text and preserves negative refund days", () => {
+  const base = rows.find((row) => row.originalId === "expense-1")!;
+  assert.deepEqual(dailyNetSpending([
+    { ...base, id: "late", date: "2026-01-31T23:30:00+08:00", cents: 5_000 },
+    { ...base, id: "refund-next", date: "2026-02-01T00:10:00+08:00", cents: -1_500 },
+  ]), [
+    { key: "2026-01-31", cents: 5_000, count: 1 },
+    { key: "2026-02-01", cents: -1_500, count: 1 },
+  ]);
+});
+
+test("daily chart positions use calendar distance and split unknown gaps", () => {
+  const points = calendarChartPoints([
+    { key: "2026-01-01", cents: 100 },
+    { key: "2026-01-02", cents: 200 },
+    { key: "2026-01-11", cents: -50 },
+  ]);
+  assert.equal(points[1].ratio, 0.1);
+  assert.equal(points[1].startsSegment, false);
+  assert.equal(points[2].startsSegment, true);
+});
+
+test("refund reconciliation keeps partial allocations and rejects currency boundaries", () => {
+  const expense = { ...rows.find((row) => row.originalId === "expense-1")!, cents: 10_000 };
+  const cnyRefund = { ...rows.find((row) => row.originalId === "refund-1")!, cents: -4_000 };
+  const secondCnyRefund = { ...cnyRefund, id: "second-cny-refund", cents: -1_000 };
+  const usdRefund = { ...cnyRefund, id: "usd-refund", currency: "USD", cents: -3_000 };
+  const companyRefund = { ...cnyRefund, id: "company-refund", scope: "company" as const };
+  const common: SafeRefundLink = { expenseTransactionId: expense.id, refundTransactionId: cnyRefund.id, allocationCents: 4_000, currency: "CNY", status: "confirmed", evidence: { source: "fixture" }, createdBy: "test", createdAt: "2026-02-01T00:00:00Z" };
+  const group = { expense, refunds: [cnyRefund, secondCnyRefund, usdRefund, companyRefund], links: [common, { ...common, refundTransactionId: secondCnyRefund.id, allocationCents: 1_000 }, { ...common, refundTransactionId: usdRefund.id, allocationCents: 3_000 }, { ...common, refundTransactionId: companyRefund.id, allocationCents: 1_000 }, { ...common, refundTransactionId: cnyRefund.id, allocationCents: 0 }] };
+  assert.deepEqual(refundAllocationRows(group).map((item) => item.compatible), [true, true, false, false, false]);
+  assert.deepEqual(refundGroupResidual(group), { confirmedCents: 5_000, residualCents: 5_000 });
+});
+
+test("transaction view searches note fields, applies scheme status, exclusions, accounts, and stable amount sort", () => {
+  const base = rows.find((row) => row.originalId === "expense-1")!;
+  const pending = { ...base, id: "pending", cents: 500, accountLabel: "卡一", purpose: "生日礼物", classifications: { ...base.classifications, QS: { ...base.classifications.QS, status: "inferred" as const } } };
+  const confirmed = { ...base, id: "confirmed", cents: 2_000, accountLabel: "卡一", merchant: "书店", classifications: { ...base.classifications, QS: { ...base.classifications.QS, status: "confirmed" as const } } };
+  const excluded = { ...base, id: "excluded", cents: 100, accountLabel: "卡二", scope: "excludedIncome" as const };
+  const sourcePending = { ...base, id: "source-pending", status: "pending" as const, classifications: { ...base.classifications, QS: { ...base.classifications.QS, status: "confirmed" as const } } };
+  assert.deepEqual(transactionRowsForDisplay([confirmed, excluded, pending], { scheme: "QS", search: "生日", accounts: ["卡一"], pendingOnly: true, sort: "amount-asc" }).map((row) => row.id), ["pending"]);
+  assert.deepEqual(transactionRowsForDisplay([pending, confirmed, excluded], { scheme: "QS", showExcluded: true, sort: "amount-desc" }).map((row) => row.id), ["confirmed", "pending", "excluded"]);
+  assert.deepEqual(transactionRowsForDisplay([confirmed, sourcePending], { scheme: "QS", pendingOnly: true }).map((row) => row.id), ["source-pending"]);
 });
