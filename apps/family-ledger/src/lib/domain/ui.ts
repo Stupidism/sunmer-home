@@ -30,6 +30,11 @@ export const EMPTY_FILTERS: LedgerFilters = {
   search: "",
 };
 
+/** A small, deterministic identity for an exact UI draft/snapshot combination. */
+export function previewFingerprint(parts: readonly unknown[]): string {
+  return JSON.stringify(parts);
+}
+
 const listKeys = {
   owner: "owners",
   account: "accounts",

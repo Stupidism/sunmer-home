@@ -5,7 +5,7 @@ import pg from 'pg'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const schemaDirectory = join(here, '../src/server/db')
-const version = '0002-alias-fingerprint'
+const version = '0003-classification-snapshots'
 
 async function main(): Promise<void> {
   const connectionString = process.env.DATABASE_URL
@@ -24,7 +24,8 @@ async function main(): Promise<void> {
       [version],
     )
     if (applied.rowCount === 0) {
-      await pool.query(schema)
+      const migration = await readFile(join(schemaDirectory, '0003-classification-snapshots.sql'), 'utf8')
+      await pool.query(migration)
       await pool.query(
         'INSERT INTO family_ledger.schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING',
         [version],

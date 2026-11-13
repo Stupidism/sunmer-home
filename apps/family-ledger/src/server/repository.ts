@@ -22,7 +22,14 @@ import {
   sanitizeLedgerJson,
   sanitizeOptionalLedgerJson,
 } from "@/lib/domain/sanitize";
+import type pg from "pg";
 import { getPool, withTransaction } from "./db/pool";
+import { emptyClassifications } from "@/lib/domain/classification";
+import { constructDashboardSnapshot } from "@/lib/domain/snapshot";
+import type { CategoryDefinition, ClassificationScheme, PublishedDashboardSnapshot, RefundOverview, SourceCategoryRule, TaxonomySnapshot, TransactionClassification } from "@/lib/domain/types";
+
+export type QueryClient = pg.Pool | pg.PoolClient;
+export const DASHBOARD_WRITE_LOCK = "family_ledger:dashboard-write";
 
 interface TransactionRow {
   stable_id: string;
@@ -133,6 +140,7 @@ function toRecord(row: TransactionRow): LedgerRecord {
     originalFileLabel: safeSourceFileLabel(raw.source),
   };
   const accountKey = safeText(row.account_key) || account;
+  const sourceCategory = safeText(raw.category) || "未分类";
   return {
     id: row.stable_id,
     originalId: row.original_id,
@@ -140,7 +148,9 @@ function toRecord(row: TransactionRow): LedgerRecord {
     date: row.transaction_date,
     cents,
     currency: row.currency,
-    category: safeText(raw.category) || "未分类",
+    category: sourceCategory,
+    sourceCategory,
+    classifications: emptyClassifications(),
     merchant: safeText(raw.merchant),
     description: safeText(raw.description),
     account,
@@ -197,8 +207,8 @@ function mortgageFor(
       `stored mortgage total is inconsistent for ${records[0]?.month ?? "unknown month"}`,
     );
   }
-  const reserve = sum(rows.filter((row) => row.category !== "房贷月供"));
-  const payment = sum(rows.filter((row) => row.category === "房贷月供"));
+  const reserve = sum(rows.filter((row) => row.sourceCategory !== "房贷月供"));
+  const payment = sum(rows.filter((row) => row.sourceCategory === "房贷月供"));
   return {
     excludedCents: excluded,
     reserveCents: reserve,
@@ -208,15 +218,14 @@ function mortgageFor(
   };
 }
 
-export async function getDashboardPayload(): Promise<DashboardPayload> {
-  const pool = getPool();
-  const monthResult = await pool.query<MonthRow>(
+export async function buildDashboardPayload(db: QueryClient = getPool()): Promise<DashboardPayload> {
+  const monthResult = await db.query<MonthRow>(
     "SELECT month, report_status, report_meta, coverage, income_available, income_complete FROM family_ledger.months ORDER BY month",
   );
   if (!monthResult.rowCount) {
     return { schemaVersion: 1, months: [], defaultMonths: [] };
   }
-  const transactionResult = await pool.query<TransactionRow>(
+  const transactionResult = await db.query<TransactionRow>(
     `SELECT t.stable_id, t.month, t.original_id, t.scope,
             to_char(t.transaction_date, 'YYYY-MM-DD') AS transaction_date,
             t.cents::text AS cents, t.currency, t.account, t.account_key, t.account_label, t.raw,
@@ -414,6 +423,44 @@ export async function getDashboardPayload(): Promise<DashboardPayload> {
     }
   }
 
+  const classificationResult = await db.query<{
+    transaction_id: string;
+    scheme: ClassificationScheme;
+    category_id: string;
+    main_label: string;
+    sub_label: string;
+    status: TransactionClassification["status"];
+    source: TransactionClassification["source"];
+  }>(
+    `SELECT t.stable_id AS transaction_id, s.code AS scheme,
+            c.id AS category_id, c.main_label, c.sub_label,
+            COALESCE(a.status, r.status) AS status,
+            CASE WHEN a.status = 'override' THEN 'override'
+                 WHEN a.transaction_id IS NOT NULL THEN 'assignment'
+                 ELSE 'rule' END AS source
+     FROM family_ledger.transactions t
+     CROSS JOIN family_ledger.classification_schemes s
+     LEFT JOIN family_ledger.transaction_classifications a
+       ON a.transaction_id = t.stable_id AND a.scheme = s.code
+     LEFT JOIN family_ledger.category_rules r
+       ON r.scheme = s.code AND r.ledger_scope = t.scope
+      AND r.source_label = COALESCE(t.raw->>'category', '未分类')
+     JOIN family_ledger.categories c ON c.id = COALESCE(a.category_id, r.category_id)
+     WHERE COALESCE(a.category_id, r.category_id) IS NOT NULL`,
+  );
+  const recordById = new Map(allTransactions({ months }).map((record) => [record.id, record]));
+  for (const row of classificationResult.rows) {
+    const record = recordById.get(row.transaction_id);
+    if (!record) continue;
+    record.classifications[row.scheme] = {
+      categoryId: row.category_id,
+      mainLabel: safeText(row.main_label),
+      subLabel: safeText(row.sub_label),
+      status: row.status,
+      source: row.source,
+    };
+  }
+
   return {
     schemaVersion: 1,
     months,
@@ -444,10 +491,8 @@ function linkLike(row: RefundLinkRow): RefundLinkLike {
   };
 }
 
-export async function getRefundOverview() {
-  const payload = await getDashboardPayload();
-  const pool = getPool();
-  const links = await pool.query<RefundLinkRow>(
+export async function buildRefundOverview(payload: DashboardPayload, db: QueryClient = getPool()): Promise<RefundOverview> {
+  const links = await db.query<RefundLinkRow>(
     `SELECT expense_transaction_id, refund_transaction_id, allocation_cents::text,
             currency, status, evidence, created_by, created_at
      FROM family_ledger.refund_links`,
@@ -470,8 +515,8 @@ export async function getRefundOverview() {
   };
 }
 
-export async function getPurposeHistory(): Promise<PurposeHistory[]> {
-  const result = await getPool().query<{
+export async function buildPurposeHistory(db: QueryClient = getPool()): Promise<PurposeHistory[]> {
+  const result = await db.query<{
     transaction_id: string;
     purpose: string;
     evidence: Json;
@@ -489,6 +534,101 @@ export async function getPurposeHistory(): Promise<PurposeHistory[]> {
     confirmedAt: row.confirmed_at.toISOString(),
     active: row.active,
   }));
+}
+
+async function buildTaxonomy(db: QueryClient): Promise<TaxonomySnapshot> {
+  const result = await db.query<{
+    id: string;
+    scheme: ClassificationScheme;
+    main_label: string;
+    sub_label: string;
+    state: CategoryDefinition["state"];
+    merged_into_id: string | null;
+    revision: string;
+  }>(`SELECT id, scheme, main_label, sub_label, state, merged_into_id, revision::text
+      FROM family_ledger.categories ORDER BY scheme, main_label, sub_label, id`);
+  const categories = result.rows.map((row) => ({
+    id: row.id,
+    scheme: row.scheme,
+    mainLabel: safeText(row.main_label),
+    subLabel: safeText(row.sub_label),
+    state: row.state,
+    ...(row.merged_into_id ? { mergedIntoId: row.merged_into_id } : {}),
+    revision: Number(row.revision),
+  }));
+  const schemes = await db.query<{ code: ClassificationScheme; label: string; revision: string }>(
+    `SELECT code, label, revision::text FROM family_ledger.classification_schemes ORDER BY code`,
+  );
+  const rules = await db.query<{
+    id: string; scheme: ClassificationScheme; ledger_scope: LedgerScope; source_label: string;
+    category_id: string; status: SourceCategoryRule["status"]; revision: string;
+  }>(`SELECT id::text, scheme, ledger_scope, source_label, category_id, status, revision::text
+      FROM family_ledger.category_rules ORDER BY scheme, ledger_scope, source_label`);
+  const audit = await db.query<{
+    id: string; scheme: ClassificationScheme; operation: string; category_id: string | null; actor: string;
+    before_state: Json | null; after_state: Json | null; affected_counts: Json; created_at: Date;
+  }>(`SELECT id::text, scheme, operation, category_id, actor, before_state, after_state, affected_counts, created_at
+      FROM family_ledger.category_audit ORDER BY created_at DESC, id DESC LIMIT 200`);
+  return {
+    schemes: schemes.rows.map((row) => ({ code: row.code, label: safeText(row.label), revision: Number(row.revision) })),
+    categories,
+    rules: rules.rows.map((row) => ({ id: row.id, scheme: row.scheme, scope: row.ledger_scope, sourceLabel: safeText(row.source_label), categoryId: row.category_id, status: row.status, revision: Number(row.revision) })),
+    audit: audit.rows.map((row) => ({ id: row.id, scheme: row.scheme, operation: safeText(row.operation), categoryId: row.category_id,
+      actor: safeText(row.actor), before: sanitizeOptionalLedgerJson(row.before_state), after: sanitizeOptionalLedgerJson(row.after_state),
+      affected: sanitizeLedgerJson(row.affected_counts), createdAt: row.created_at.toISOString() })),
+  };
+}
+
+export class DashboardSnapshotNotReadyError extends Error {
+  constructor() { super("dashboard snapshot is not ready"); }
+}
+
+export async function buildDashboardSnapshot(db: QueryClient, publishedAt = new Date()): Promise<PublishedDashboardSnapshot> {
+  const payload = await buildDashboardPayload(db);
+  const [refunds, purposeHistory, taxonomy] = await Promise.all([
+    buildRefundOverview(payload, db),
+    buildPurposeHistory(db),
+    buildTaxonomy(db),
+  ]);
+  return constructDashboardSnapshot({ publishedAt: publishedAt.toISOString(), payload, refunds, purposeHistory, taxonomy });
+}
+
+export async function publishDashboardSnapshot(client: pg.PoolClient, actor: string): Promise<PublishedDashboardSnapshot> {
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [DASHBOARD_WRITE_LOCK]);
+  const publishedAt = new Date();
+  const snapshot = await buildDashboardSnapshot(client, publishedAt);
+  await client.query(
+    `INSERT INTO family_ledger.dashboard_snapshots (name, snapshot_version, document, published_at, published_by)
+     VALUES ('published', 1, $1::jsonb, $2, $3)
+     ON CONFLICT (name) DO UPDATE SET snapshot_version = EXCLUDED.snapshot_version,
+       document = EXCLUDED.document, published_at = EXCLUDED.published_at, published_by = EXCLUDED.published_by`,
+    [JSON.stringify(snapshot), publishedAt, actor],
+  );
+  return snapshot;
+}
+
+export async function refreshPublishedSnapshot(actor: string): Promise<PublishedDashboardSnapshot> {
+  return withTransaction((client) => publishDashboardSnapshot(client, actor));
+}
+
+export async function readPublishedSnapshot(db: QueryClient = getPool()): Promise<PublishedDashboardSnapshot> {
+  const result = await db.query<{ document: PublishedDashboardSnapshot }>(
+    `SELECT document FROM family_ledger.dashboard_snapshots WHERE name = 'published'`,
+  );
+  if (!result.rows[0]) throw new DashboardSnapshotNotReadyError();
+  return result.rows[0].document;
+}
+
+export async function getDashboardPayload(): Promise<DashboardPayload> {
+  return (await readPublishedSnapshot()).payload;
+}
+
+export async function getRefundOverview(payload?: DashboardPayload): Promise<RefundOverview> {
+  return payload ? buildRefundOverview(payload) : (await readPublishedSnapshot()).refunds;
+}
+
+export async function getPurposeHistory(): Promise<PurposeHistory[]> {
+  return (await readPublishedSnapshot()).purposeHistory;
 }
 
 export interface RefundLinkInput {
@@ -528,9 +668,7 @@ export async function createRefundLink(
   actor: string,
 ): Promise<{ created: boolean }> {
   return withTransaction(async (client) => {
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
-      "family_ledger:import",
-    ]);
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [DASHBOARD_WRITE_LOCK]);
     const rows = await client.query<{
       stable_id: string;
       original_id: string;
@@ -588,6 +726,7 @@ export async function createRefundLink(
         input.status === "confirmed" ? actor : null,
       ],
     );
+    await publishDashboardSnapshot(client, actor);
     return { created: true };
   });
 }
@@ -601,9 +740,7 @@ export async function confirmPurpose(
   actor: string,
 ): Promise<void> {
   await withTransaction(async (client) => {
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
-      "family_ledger:import",
-    ]);
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [DASHBOARD_WRITE_LOCK]);
     const transaction = await client.query(
       "SELECT stable_id FROM family_ledger.transactions WHERE stable_id = $1 FOR UPDATE",
       [input.transactionId],
@@ -623,5 +760,6 @@ export async function confirmPurpose(
         actor,
       ],
     );
+    await publishDashboardSnapshot(client, actor);
   });
 }

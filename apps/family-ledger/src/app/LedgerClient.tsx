@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   allTransactions,
@@ -33,14 +33,17 @@ import {
   type LedgerFilters,
   type RefundAssociationStatus,
 } from "@/lib/domain/ui";
+import { classificationDisplay } from "@/lib/domain/classification";
 import type {
   DashboardPayload,
+  ClassificationScheme,
   Json,
   LedgerRecord,
   LedgerScope,
   PurposeHistory,
   SafeRefundLink,
 } from "@/lib/domain/types";
+import { useLedgerSnapshot } from "./LedgerContext";
 import {
   confirmPurposeAction,
   createRefundLinkAction,
@@ -128,11 +131,14 @@ export default function LedgerClient({
   username: string;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const locationQuery = searchParams.toString();
-  const writtenQuery = useRef<string | null>(null);
-  const records = useMemo(() => allTransactions(payload), [payload]);
+  const searchParamsKey = searchParams.toString();
+  const { snapshot, refresh, refreshing, refreshError } = useLedgerSnapshot();
+  const [scheme, setScheme] = useState<ClassificationScheme>("GB");
+  const [queryReady, setQueryReady] = useState(false);
+  const activePayload = snapshot.payload ?? payload;
+  const projectedPayload = useMemo(() => projectPayload(activePayload, scheme), [activePayload, scheme]);
+  const records = useMemo(() => allTransactions(projectedPayload), [projectedPayload]);
   const values = useMemo(
     () => ({
       owners: unique(records.map((row) => row.owner)),
@@ -143,7 +149,6 @@ export default function LedgerClient({
     [records],
   );
   const [filters, setFilters] = useState<LedgerFilters>(EMPTY_FILTERS);
-  const [filtersReady, setFiltersReady] = useState(false);
   const [detailIds, setDetailIds] = useState<string[] | null>(null);
   const filtered = useMemo(
     () => filterLedgerRows(records, filters),
@@ -152,22 +157,42 @@ export default function LedgerClient({
   const detail =
     detailIds?.flatMap((id) => records.find((row) => row.id === id) ?? []) ??
     null;
-  const query = serializeFilters(filters);
-  useEffect(() => {
-    if (writtenQuery.current === locationQuery) {
-      writtenQuery.current = null;
-      return;
+  const query = serializeFilters(filters, new URLSearchParams({ scheme }));
+  const selectScheme = (nextScheme: ClassificationScheme) => {
+    const nextFilters = { ...filters, categories: [] };
+    setScheme(nextScheme);
+    setFilters(nextFilters);
+    if (view === "compare" && queryReady) {
+      const params = new URLSearchParams(window.location.search);
+      params.set("scheme", nextScheme);
+      window.history.replaceState(window.history.state, "", `${pathname}?${params.toString()}`);
     }
-    setFilters(parseFilters(new URLSearchParams(locationQuery)));
-    setFiltersReady(true);
-  }, [locationQuery]);
+  };
   useEffect(() => {
-    if (!filtersReady || view === "compare" || query === locationQuery) return;
-    writtenQuery.current = query;
-    router.replace(`${pathname}${query ? `?${query}` : ""}`, {
-      scroll: false,
-    });
-  }, [filtersReady, locationQuery, pathname, query, router, view]);
+    const sync = () => {
+      const params = new URLSearchParams(window.location.search);
+      const nextScheme = params.get("scheme");
+      setScheme(nextScheme === "QS" || nextScheme === "ZFB" ? nextScheme : "GB");
+      setFilters(parseFilters(params));
+      setQueryReady(true);
+    };
+    sync();
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+  useEffect(() => {
+    if (searchParamsKey !== window.location.search.slice(1)) return;
+    const params = new URLSearchParams(searchParamsKey);
+    const nextScheme = params.get("scheme");
+    setScheme(nextScheme === "QS" || nextScheme === "ZFB" ? nextScheme : "GB");
+    setFilters(parseFilters(params));
+    setQueryReady(true);
+  }, [searchParamsKey]);
+  useEffect(() => {
+    if (!queryReady || view === "compare") return;
+    const next = `${pathname}${query ? `?${query}` : ""}`;
+    if (`${window.location.pathname}${window.location.search}` !== next) window.history.replaceState(window.history.state, "", next);
+  }, [pathname, query, queryReady, view]);
   const open = (rows: LedgerRecord[]) =>
     setDetailIds(rows.map((row) => row.id));
   return (
@@ -187,6 +212,7 @@ export default function LedgerClient({
               {label}
             </Link>
           ))}
+          <Link href={`/categories?scheme=${scheme}`}>分类管理</Link>
         </nav>
         <div className="account-panel">
           <strong>{username}</strong>
@@ -209,10 +235,16 @@ export default function LedgerClient({
             <h1>{TITLES[view][0]}</h1>
             <p>{TITLES[view][1]}</p>
           </div>
-          <span className="period-pill">
-            {payload.months.at(0)?.month} — {payload.months.at(-1)?.month}
-          </span>
+          <div className="snapshot-tools">
+            <div className="scheme-tabs" aria-label="分类体系">
+              {(["GB", "QS", "ZFB"] as const).map((item) => <button key={item} className={scheme === item ? "active" : ""} onClick={() => selectScheme(item)}>{item}</button>)}
+            </div>
+            <small>发布于 {new Date(snapshot.publishedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}</small>
+            <button onClick={() => void refresh()} disabled={refreshing}>{refreshing ? "刷新中…" : "刷新快照"}</button>
+            <span className="period-pill">{activePayload.months.at(0)?.month} — {activePayload.months.at(-1)?.month}</span>
+          </div>
         </header>
+        {refreshError ? <p role="alert" className="notice">{refreshError}</p> : null}
         {view !== "compare" && view !== "reconcile" ? (
           <FilterBar
             filters={filters}
@@ -224,8 +256,8 @@ export default function LedgerClient({
           <Overview
             rows={filtered}
             filters={filters}
-            payload={payload}
-            refunds={refunds}
+            payload={projectedPayload}
+            refunds={snapshot.refunds ?? refunds}
             open={open}
           />
         ) : null}
@@ -233,7 +265,7 @@ export default function LedgerClient({
           <Income
             rows={filtered}
             filters={filters}
-            payload={payload}
+            payload={projectedPayload}
             open={open}
           />
         ) : null}
@@ -241,13 +273,13 @@ export default function LedgerClient({
           <Transactions rows={filtered} open={open} />
         ) : null}
         {view === "compare" ? (
-          <ComparisonView payload={payload} open={open} />
+          <ComparisonView payload={projectedPayload} open={open} />
         ) : null}
         {view === "company" ? (
           <CompanyByCurrency
             rows={filtered}
             filters={filters}
-            payload={payload}
+            payload={projectedPayload}
             open={open}
           />
         ) : null}
@@ -255,18 +287,18 @@ export default function LedgerClient({
           <Refunds
             allRows={records}
             filteredRows={filtered}
-            data={refunds}
+            data={snapshot.refunds ?? refunds}
             role={role}
             open={open}
           />
         ) : null}
-        {view === "reconcile" ? <Reconcile payload={payload} /> : null}
+        {view === "reconcile" ? <Reconcile payload={projectedPayload} /> : null}
       </main>
       {detail ? (
         <DetailDialog
           key={detail.map((row) => row.id).join("|")}
           rows={detail}
-          history={purposeHistory}
+          history={snapshot.purposeHistory ?? purposeHistory}
           role={role}
           onClose={() => setDetailIds(null)}
         />
@@ -791,10 +823,10 @@ function ComparisonView({
   payload: DashboardPayload;
   open: (rows: LedgerRecord[]) => void;
 }) {
-  const records = allTransactions(payload);
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const locationQuery = searchParams.toString();
+  const searchParamsKey = searchParams.toString();
+  const records = allTransactions(payload);
+  const [locationQuery, setLocationQuery] = useState("");
   const allMonths = payload.months.map((month) => month.month);
   const ownerValues = unique(records.map((row) => row.owner));
   const accountValues = unique(records.map((row) => row.accountLabel));
@@ -804,15 +836,19 @@ function ComparisonView({
     [currencies, setCurrencies] = useState<string[]>([]),
     [selected, setSelected] = useState(allMonths.slice(-3)),
     [scope, setScope] = useState<"household" | "company">("household"),
-    [ready, setReady] = useState(false);
-  const writtenQuery = useRef<string | null>(null);
-  const restoringQuery = useRef(false);
+    [ready, setReady] = useState(false),
+    [restoredQuery, setRestoredQuery] = useState<string | null>(null);
   useEffect(() => {
-    if (writtenQuery.current === locationQuery) {
-      writtenQuery.current = null;
-      return;
-    }
-    restoringQuery.current = true;
+    const pop = () => setLocationQuery(window.location.search.slice(1));
+    pop();
+    window.addEventListener("popstate", pop);
+    return () => window.removeEventListener("popstate", pop);
+  }, []);
+  useEffect(() => {
+    if (searchParamsKey !== window.location.search.slice(1)) return;
+    setLocationQuery(searchParamsKey);
+  }, [searchParamsKey]);
+  useEffect(() => {
     const query = new URLSearchParams(locationQuery);
     const restoredMonths = query
       .getAll("compareMonth")
@@ -834,14 +870,11 @@ function ComparisonView({
         .getAll("compareCurrency")
         .filter((value) => currencyValues.includes(value)),
     );
+    setRestoredQuery(locationQuery);
     setReady(true);
   }, [locationQuery]);
   useEffect(() => {
-    if (!ready) return;
-    if (restoringQuery.current) {
-      restoringQuery.current = false;
-      return;
-    }
+    if (!ready || restoredQuery !== locationQuery) return;
     const query = new URLSearchParams(locationQuery);
     for (const key of [
       "compareMonth",
@@ -858,17 +891,15 @@ function ComparisonView({
     currencies.forEach((currency) => query.append("compareCurrency", currency));
     const nextQuery = query.toString();
     if (nextQuery === locationQuery) return;
-    writtenQuery.current = nextQuery;
-    router.replace(`/compare${nextQuery ? `?${nextQuery}` : ""}`, {
-      scroll: false,
-    });
+    window.history.replaceState(window.history.state, "", `/compare${nextQuery ? `?${nextQuery}` : ""}`);
+    setLocationQuery(nextQuery);
   }, [
     accounts,
     currencies,
     locationQuery,
     owners,
     ready,
-    router,
+    restoredQuery,
     scope,
     selected,
   ]);
@@ -1482,7 +1513,7 @@ function RefundForm({
   rows: LedgerRecord[];
   links: SafeRefundLink[];
 }) {
-  const router = useRouter(),
+  const { refresh } = useLedgerSnapshot(),
     [pending, start] = useTransition(),
     [message, setMessage] = useState(""),
     [expenseId, setExpenseId] = useState(""),
@@ -1530,7 +1561,7 @@ function RefundForm({
             evidence: { note: form.get("note"), source: form.get("source") },
           });
           setMessage(result.ok ? "已由服务器保存并验证。" : result.error);
-          if (result.ok) router.refresh();
+          if (result.ok) await refresh();
         });
       }}
     >
@@ -1769,7 +1800,7 @@ function DetailDialog({
 }) {
   const dialog = useRef<HTMLDialogElement>(null),
     previous = useRef<HTMLElement | null>(null),
-    router = useRouter(),
+    { refresh } = useLedgerSnapshot(),
     [index, setIndex] = useState(0),
     [pending, start] = useTransition(),
     [message, setMessage] = useState(""),
@@ -1843,7 +1874,11 @@ function DetailDialog({
         </div>
         <div>
           <dt>识别状态</dt>
-          <dd>{statusName(recordStatus(row))}</dd>
+          <dd>{row.category === "待分类" ? "待分类 / 未映射" : statusName(recordStatus(row))}</dd>
+        </div>
+        <div>
+          <dt>原始分类</dt>
+          <dd>{row.sourceCategory}</dd>
         </div>
         <div>
           <dt>归属</dt>
@@ -1886,7 +1921,7 @@ function DetailDialog({
             {rowHistory.map((item) => (
               <li key={item.confirmedAt}>
                 {item.purpose} · {item.confirmedBy} ·{" "}
-                {new Date(item.confirmedAt).toLocaleString("zh-CN")}
+                {new Date(item.confirmedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}
                 {item.active ? "（当前）" : ""}
               </li>
             ))}
@@ -1912,7 +1947,7 @@ function DetailDialog({
                 },
               });
               setMessage(result.ok ? "用途备注已保存。" : result.error);
-              if (result.ok) router.refresh();
+              if (result.ok) await refresh();
             });
           }}
         >
@@ -2179,4 +2214,12 @@ function labelKey(key: string): string {
       } as Record<string, string>
     )[key] ?? key.replaceAll("_", " ")
   );
+}
+
+function projectPayload(payload: DashboardPayload, scheme: ClassificationScheme): DashboardPayload {
+  const result = structuredClone(payload);
+  for (const row of allTransactions(result)) {
+    row.category = classificationDisplay(row, scheme).category;
+  }
+  return result;
 }

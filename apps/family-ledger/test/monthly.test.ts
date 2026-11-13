@@ -4,6 +4,7 @@ import { createAccountResolver } from "../src/lib/domain/account-aliases";
 import {
   compareForeign,
   compareMonths,
+  isMortgage,
   normalizeDashboardPayload,
   summarizeOverview,
 } from "../src/lib/domain/monthly";
@@ -15,6 +16,11 @@ const source = {
   sha256: "b".repeat(64),
   hashKind: "dashboard-input" as const,
 };
+
+test("mortgage exclusion follows immutable source category after display projection", () => {
+  assert.equal(isMortgage({ category: "生活 / 住房", sourceCategory: "房贷月供" }), true);
+  assert.equal(isMortgage({ category: "房贷月供", sourceCategory: "普通转账" }), false);
+});
 
 function objectValue(value: Json, label: string): Record<string, Json> {
   assert.ok(

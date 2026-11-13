@@ -7,6 +7,7 @@ import {
   type RefundLinkLike,
 } from "../src/lib/domain/refunds";
 import { getPool, withTransaction } from "../src/server/db/pool";
+import { DASHBOARD_WRITE_LOCK, publishDashboardSnapshot } from "../src/server/repository";
 
 const sourceSchema = z.object({
   path: z.string().min(1),
@@ -109,7 +110,7 @@ async function main() {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
   const result = await withTransaction(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
-      "family_ledger:import",
+      DASHBOARD_WRITE_LOCK,
     ]);
     const ids = unique(
       parsed.groups.flatMap((g) => [g.expense_id, ...g.refund_ids]),
@@ -205,6 +206,8 @@ async function main() {
       }
     }
     if (args.dryRun) throw new DryRunResult(created, idempotent);
+    const snapshot = await client.query("SELECT name FROM family_ledger.dashboard_snapshots WHERE name='published'");
+    if (created || !snapshot.rowCount) await publishDashboardSnapshot(client, parsed.actor);
     return { created, idempotent };
   }).catch((error: unknown) => {
     if (error instanceof DryRunResult)

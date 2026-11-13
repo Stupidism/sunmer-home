@@ -9,6 +9,7 @@ import {
   knownAggregate,
   monthsOverlappingDateRange,
   parseFilters,
+  previewFingerprint,
   refundAccountingForDisplay,
   refundGroupsForFilters,
   refundRemainders,
@@ -31,6 +32,13 @@ const rows = normalizeDashboardPayload(syntheticDashboard(), {
   ...month.income.records,
   ...month.income.foreignRecords,
 ]);
+
+test("preview fingerprints bind a response to the exact draft and snapshot", () => {
+  const draft = ["published-1", "GB", "rename", "source-1", "", "新主类", "新子类"];
+  assert.equal(previewFingerprint(draft), previewFingerprint([...draft]));
+  assert.notEqual(previewFingerprint(draft), previewFingerprint([...draft.slice(0, -1), "另一子类"]));
+  assert.notEqual(previewFingerprint(draft), previewFingerprint(["published-2", ...draft.slice(1)]));
+});
 
 test("currency totals and selected-month averages never mix currencies", () => {
   const income = rows.filter((row) => row.scope === "income");

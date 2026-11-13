@@ -13,6 +13,7 @@ import {
   type SafeSource,
   type TransactionFilters,
 } from "./types";
+import { emptyClassifications } from "./classification";
 
 export const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -116,8 +117,8 @@ export function monthEnd(month: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function isMortgage(record: Pick<LedgerRecord, "category">): boolean {
-  return (MORTGAGE_CATEGORIES as readonly string[]).includes(record.category);
+export function isMortgage(record: Pick<LedgerRecord, "category"> & Partial<Pick<LedgerRecord, "sourceCategory">>): boolean {
+  return (MORTGAGE_CATEGORIES as readonly string[]).includes(record.sourceCategory ?? record.category);
 }
 
 function normalizeRecord(
@@ -159,6 +160,7 @@ function normalizeRecord(
         ? "refund"
         : "expense";
 
+  const sourceCategory = optionalString(value.category) ?? "未分类";
   return {
     id: stableRecordId(month, scope, originalId),
     originalId,
@@ -166,7 +168,9 @@ function normalizeRecord(
     date,
     cents,
     currency,
-    category: optionalString(value.category) ?? "未分类",
+    category: sourceCategory,
+    sourceCategory,
+    classifications: emptyClassifications(),
     merchant: optionalString(value.merchant) ?? "",
     description: optionalString(value.description) ?? "",
     account,

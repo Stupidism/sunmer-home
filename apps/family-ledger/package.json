@@ -12,6 +12,8 @@
     "db:migrate": "node --import tsx scripts/migrate.ts",
     "import-ledger": "node --import tsx scripts/import-ledger.ts",
     "import-refund-links": "node --import tsx scripts/import-refund-links.ts",
+    "import-category-catalog": "node --import tsx scripts/import-category-catalog.ts",
+    "publish-dashboard": "node --import tsx scripts/publish-dashboard.ts",
     "admin:user": "node --import tsx scripts/admin-user.ts"
   },
   "dependencies": {

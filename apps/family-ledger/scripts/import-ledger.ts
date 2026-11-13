@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { canonicalJson, diffLedgerImport, prepareLedgerImport, safeSourceLabel, sha256Json, type ExistingMonthRow, type ExistingTransactionRow } from '../src/lib/importer/core'
 import type { Json, LedgerRecord, LedgerScope } from '../src/lib/domain/types'
 import { getPool, withTransaction } from '../src/server/db/pool'
+import { DASHBOARD_WRITE_LOCK, publishDashboardSnapshot } from '../src/server/repository'
 
 interface Arguments {
   file: string
@@ -73,13 +74,15 @@ async function main(): Promise<void> {
   try {
 
     const result = await withTransaction(async (client) => {
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['family_ledger:import'])
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [DASHBOARD_WRITE_LOCK])
     const existingImport = await client.query<{ id: string }>(
       `SELECT id FROM family_ledger.imports
        WHERE source_label = $1 AND source_sha256 = $2 AND account_aliases_sha256 = $3`,
       [source.label, source.sha256, aliasesSha256],
     )
     if (existingImport.rowCount) {
+      const snapshot = await client.query("SELECT name FROM family_ledger.dashboard_snapshots WHERE name='published'")
+      if (!snapshot.rowCount) await publishDashboardSnapshot(client, 'import-ledger')
       return {
         idempotent: true,
         insertedTransactions: 0,
@@ -114,7 +117,9 @@ async function main(): Promise<void> {
        UNION
        SELECT expense_transaction_id AS transaction_id FROM family_ledger.refund_links
        UNION
-       SELECT refund_transaction_id AS transaction_id FROM family_ledger.refund_links`,
+       SELECT refund_transaction_id AS transaction_id FROM family_ledger.refund_links
+       UNION
+       SELECT transaction_id FROM family_ledger.transaction_classifications`,
     )
     const existingMonths: ExistingMonthRow[] = existingMonthsResult.rows.map((row) => ({
       month: row.month,
@@ -215,6 +220,7 @@ async function main(): Promise<void> {
       )
     }
 
+    await publishDashboardSnapshot(client, 'import-ledger')
     return {
       idempotent: false,
       insertedTransactions: diff.insertedTransactions,

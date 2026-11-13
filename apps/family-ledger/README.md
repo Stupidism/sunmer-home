@@ -22,6 +22,8 @@ pnpm typecheck
 pnpm test               # pure node:test suites; no external database required
 pnpm db:migrate         # explicit, non-destructive CREATE IF NOT EXISTS migration
 pnpm import-refund-links -- --file /private/path/refund-evidence.json --dry-run
+pnpm import-category-catalog -- --file /private/path/category-catalog.json --dry-run
+pnpm publish-dashboard -- --actor migration-operator
 ```
 
 Create the explicit schema before creating a user:
@@ -85,6 +87,53 @@ Import identity includes byte-level SHA-256 fingerprints for both the dashboard 
 6. Refresh the authenticated dashboard and confirm the refund groups. Monthly cashflow continues to use signed transactions by actual date; links only explain the as-of net and large-expense ranking.
 
 Evidence JSON and source documents stay outside Git. Database evidence may retain private local provenance for audit, while browser DTO sanitization removes paths.
+
+## Classification catalog and published snapshot
+
+Migration `0003-classification-snapshots` is additive. It creates independent `GB`, `QS`, and `ZFB` schemes; stable flat categories (`main_label` + `sub_label`); scheme/scope/source-label rules; per-transaction assignments; append-only audit; catalog-import fingerprints; and the single `published` dashboard snapshot document. It does not update transaction raw data, source category, cents, date, scope, purposes, or refunds. A `(scheme, main_label, sub_label)` is unique, while the same sub-label under a different parent or scheme is valid.
+
+Run the migration, import the externally reviewed catalog, then publish the initial snapshot:
+
+```bash
+DATABASE_URL=... pnpm db:migrate
+pnpm import-category-catalog -- --file category-catalog.json --dry-run
+DATABASE_URL=... pnpm import-category-catalog -- --file category-catalog.json
+DATABASE_URL=... pnpm publish-dashboard -- --actor migration-operator
+```
+
+Catalog JSON version 1 uses fictional examples here; the real file stays outside the repository:
+
+```json
+{
+  "version": 1,
+  "actor": "catalog-reviewer",
+  "categories": [
+    { "id": "gb:fictional-food", "scheme": "GB", "mainLabel": "Fictional living", "subLabel": "Fictional food" },
+    { "id": "qs:fictional-food", "scheme": "QS", "mainLabel": "Fictional daily", "subLabel": "Fictional food" },
+    { "id": "zfb:fictional-food", "scheme": "ZFB", "mainLabel": "Fictional spend", "subLabel": "Fictional food" }
+  ],
+  "mappings": [
+    {
+      "scheme": "GB",
+      "scope": "household",
+      "sourceLabel": "Fictional source label",
+      "categoryId": "gb:fictional-food",
+      "status": "confirmed",
+      "evidence": { "note": "reviewed fictional mapping" }
+    }
+  ]
+}
+```
+
+Repeated byte-identical imports are idempotent. Existing categories with a conflicting stable ID fail; existing rule keys are left untouched so monthly catalog imports cannot overwrite later user management. No transaction is inferred by date/amount.
+
+Backend handoff:
+
+- `readPublishedSnapshot()` returns one persisted JSON document or throws `DashboardSnapshotNotReadyError`; there is no raw-query fallback. `refreshPublishedSnapshot(actor)` and `publishDashboardSnapshot(client, actor)` explicitly build/publish version 1. Its `taxonomy` contains scheme revisions, the category catalog, and sanitized effective source-label rules (never rule evidence).
+- `getRefundOverview(payload?)` uses a supplied payload when raw construction is explicitly needed, avoiding a second payload build. Normal protected reads use snapshot content. The UI follow-up should call `readPublishedSnapshot()` once per request and pass its three sections to the client.
+- Every record exposes immutable `sourceCategory` plus `classifications.GB/QS/ZFB`. An unmapped classification has `status: "pending"` and null labels/category. Scheme selection is display-only.
+- Management server actions live in `src/app/actions/classifications.ts`: create; preview/apply rename, merge, split, bulk source-label mapping, and per-transaction override. Apply calls require the exact preview revision/counts/amounts; admins only. Explicit overrides beat rules, while inferred mappings remain distinct from confirmed mappings.
+- Merge redirects rules and assignments but retains the merged category ID and audit. Split assigns only explicit transaction IDs and never divides cents. All dashboard-affecting writes use the shared transaction advisory lock and publish before commit; publication failure rolls back the write and preserves the prior valid snapshot.
 
 ## Security model
 
