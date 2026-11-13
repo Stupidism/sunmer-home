@@ -1,0 +1,37 @@
+name: Family Ledger CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/family-ledger/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/family-ledger-ci.yml'
+  push:
+    paths:
+      - 'apps/family-ledger/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/family-ledger-ci.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/family-ledger
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm build
+        env:
+          DATABASE_URL: ''
+          AUTH_SECRET: ''
