@@ -2,12 +2,17 @@
 
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function LoginForm() {
   const router = useRouter()
+  const [ready, setReady] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    setReady(true)
+  }, [])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -32,7 +37,7 @@ export default function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form method="post" onSubmit={handleSubmit}>
       <label>
         用户名
         <input name="username" autoComplete="username" required />
@@ -42,8 +47,8 @@ export default function LoginForm() {
         <input name="password" type="password" autoComplete="current-password" required />
       </label>
       {error ? <p role="alert">{error}</p> : null}
-      <button type="submit" disabled={pending}>
-        {pending ? '登录中…' : '登录'}
+      <button type="submit" disabled={!ready || pending}>
+        {!ready ? '准备中…' : pending ? '登录中…' : '登录'}
       </button>
     </form>
   )
